@@ -18,10 +18,10 @@ and `game.js`, which calls `Kit.game(config)`:
   - `input = {x, y, down, taps: [{x, y}] (this frame), released}`
   - `env.ui` is a DOM layer over the canvas (bottom-anchored) for in-run buttons; `env.sfx` has pop/crack/hit/zap/boom/ding/coin/... ; `env.fx` = particles/floaters/rings + `shake`
 - options: `touchOffset` (px the touch point is lifted above the finger), `hoverIsDown` (desktop mouse hover counts as pressing)
-- A node's `desc` may be a function `(level, levels) => string` to state the next level's concrete effect.
+- A node's `desc` may be a function `(level, levels, stats) => string` to state the next level's concrete effect.
 - `saveVersion` + `migrate(S, fromVersion)`: optional; saves key nodes/characters by id, so additions need nothing. Only renames/removals need a migrate.
 - `scoreName` (e.g. "depth"): if `result()` returns `score`, the kit keeps each character's best and shows "New best".
-- `env.pick(heading, [{icon, name, desc, tag?}], done(i))`: kit-drawn pick-one cards; the run is frozen until a card is tapped.
+- `env.pick(heading, [{icon, name, desc, tag?, disabled?}], done(i))`: kit-drawn pick-one cards; the run is frozen until a card is tapped.
 - `env.best`: this character's best score so far. Optional `run.quit()` is called when the player ends a run from the pause menu, before `result()`.
 - The kit draws a pause button at the top-right of the run (keep ~56 px clear there) and auto-pauses when the page is hidden.
 - `?dev` in the URL adds a "+lots" currency button on the tree screen.

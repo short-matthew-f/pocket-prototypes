@@ -33,7 +33,7 @@ if (process.env.PRE) await send('Page.addScriptToEvaluateOnNewDocument', { sourc
 await send('Page.navigate', { url });
 for (let i = 0; i < 60; i++) { await sleep(150); const r = await send('Runtime.evaluate', { expression: 'document.body && document.body.dataset.ready', returnByValue: true }); if (r.result?.result?.value) break; }
 if (js) { const r = await send('Runtime.evaluate', { expression: `(async () => { ${js} })()`, awaitPromise: true, returnByValue: true }); if (r.result?.exceptionDetails) errors.push('step: ' + r.result.exceptionDetails.exception?.description); else if (r.result?.result?.value !== undefined) console.log('step ->', JSON.stringify(r.result.result.value)); }
-await sleep(300);
+await sleep(+(process.env.WAIT || 300)); // WAIT=ms lets a run play out before the shot
 const shot = await send('Page.captureScreenshot', { format: 'png' });
 writeFileSync(out, Buffer.from(shot.result.data, 'base64'));
 console.log(errors.length ? 'ERRORS:\n' + errors.join('\n') : 'no console errors');

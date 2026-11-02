@@ -195,7 +195,7 @@
       const lv = C.levels[n.id] || 0, max = lv >= (n.max || 1), c = costOf(n, lv), cu = CUR.find((x) => x.id === curOf(n));
       const can = !max && (C.wallet[curOf(n)] || 0) >= c && extraOk(n, C);
       const extra = n.extra ? Object.entries(n.extra).map(([k, v]) => ` + ${fmt(v)} ${CUR.find((x) => x.id === k).name}`).join('') : '';
-      $('#k-info').innerHTML = `<div class="it"><div class="ih"><b>${n.name}</b>${(n.max || 1) > 1 ? `<span class="lvl">Lv ${lv}/${n.max}</span>` : ''}</div><p>${typeof n.desc === 'function' ? n.desc(lv, C.levels) : n.desc}</p></div>
+      $('#k-info').innerHTML = `<div class="it"><div class="ih"><b>${n.name}</b>${(n.max || 1) > 1 ? `<span class="lvl">Lv ${lv}/${n.max}</span>` : ''}</div><p>${typeof n.desc === 'function' ? n.desc(lv, C.levels, statsFor(S.cur, C.levels)) : n.desc}</p></div>
         <button type="button" id="k-buy" class="buy" ${can ? '' : 'disabled'}>${max ? 'Maxed' : `<span class="bv">${can ? 'Buy' : 'Need'}</span> ${fmt(c)} ${cu.name}${extra}`}</button>`;
     }
     function buy(id) {
@@ -234,7 +234,7 @@
     function pick(heading, options, done) {
       picking = { done }; input.down = false;
       const m = $('#k-modal'); m.hidden = false;
-      m.innerHTML = `<h2>${heading}</h2><div class="picks">${options.map((o, i) => `<button type="button" class="pk" data-pick="${i}">
+      m.innerHTML = `<h2>${heading}</h2><div class="picks">${options.map((o, i) => `<button type="button" class="pk" data-pick="${i}" ${o.disabled ? 'disabled' : ''}>
         <span class="pi">${o.icon || '★'}</span><span class="pn">${o.name}</span><span class="pd">${o.desc || ''}</span>${o.tag ? `<span class="badge dim">${o.tag}</span>` : ''}</button>`).join('')}</div>`;
       sfx.ding();
     }
