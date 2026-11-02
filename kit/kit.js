@@ -110,7 +110,7 @@
       <section class="screen" id="k-tree" hidden>
         <div class="top wrap"><button type="button" class="ghost" id="k-back" aria-label="Characters">←</button><span id="k-who"></span><span id="k-wallet"></span></div>
         <div id="k-map"></div>
-        <div class="bar wrap"><div id="k-info"></div><button type="button" class="big" id="k-run">${cfg.runVerb || 'Go!'}</button></div>
+        <div class="bar wrap"><div id="k-info"></div><button type="button" class="big" id="k-start">${cfg.runVerb || 'Go!'}</button></div>
       </section>
       <section class="screen" id="k-run" hidden><canvas id="k-field"></canvas><div id="k-ui"></div><div id="k-over" hidden></div></section>`);
     const show = (id) => document.querySelectorAll('.screen').forEach((s) => { s.hidden = s.id !== id; });
@@ -238,7 +238,7 @@
       else if (b.id === 'k-reset') { if (b.dataset.sure) { localStorage.removeItem(KEY); location.reload(); } else { b.dataset.sure = '1'; b.textContent = 'Tap again to erase'; } }
       else if (b.dataset.n) { sel = b.dataset.n; tree(); }
       else if (b.id === 'k-buy') { if (buy(sel)) { sfx.buy(); save(); } else sfx.nope(); tree(); }
-      else if (b.id === 'k-run') startRun();
+      else if (b.id === 'k-start') startRun();
       else if (b.id === 'k-totree') tree();
       else if (b.id === 'k-totitle' || b.id === 'k-back') title();
       else if (b.id === 'k-dev') { const C = charSave(S.cur); for (const c of CUR) C.wallet[c.id] = (C.wallet[c.id] || 0) + 1e6; save(); tree(); }
