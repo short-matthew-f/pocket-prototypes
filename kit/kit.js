@@ -182,7 +182,7 @@
       if (!n) {
         const ready = nodesFor(S.cur).filter((x) => visible(x, C.levels) && (C.levels[x.id] || 0) < (x.max || 1) && (C.wallet[curOf(x)] || 0) >= costOf(x, C.levels[x.id] || 0) && extraOk(x, C)).length;
         $('#k-info').innerHTML = `<div class="it"><div class="ih"><b>${ready ? `${ready} upgrade${ready > 1 ? 's' : ''} ready` : 'Upgrades'}</b></div><p>${ready ? 'Glowing ones are affordable. Tap one to see it.' : `Nothing affordable yet. Run again to earn more ${CUR[0].name}.`}</p></div>
-          <button type="button" class="buy" disabled>Select one</button>`;
+          <button type="button" class="buy" disabled>${ready ? 'Tap one' : 'Earn more'}</button>`;
         return;
       }
       if (!visible(n, C.levels)) { // a fogged node still explains itself: what it is and what opens it
