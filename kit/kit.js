@@ -72,6 +72,10 @@
     let S;
     try { S = JSON.parse(localStorage.getItem(KEY)) || null; } catch { S = null; }
     if (!S) S = { cur: cfg.characters[0].id, wins: 0, chars: {}, muted: false };
+    // saves outlive builds: nodes and characters are looked up by id, so new ones simply start at 0. A game that renames
+    // or removes ids can fix old saves here (S.v is the game's saveVersion the save was last written with).
+    if (cfg.migrate && (S.v || 0) < (cfg.saveVersion || 0)) try { cfg.migrate(S, S.v || 0); } catch { /* keep the save as is */ }
+    S.v = cfg.saveVersion || 0;
     muted = S.muted;
     const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch { /* private window: still playable */ } };
     const charSave = (who) => (S.chars[who] ||= { levels: {}, wallet: {}, runs: 0, won: false, best: null, time: 0 });
@@ -112,7 +116,8 @@
         <div id="k-map"></div>
         <div class="bar wrap"><div id="k-info"></div><button type="button" class="big" id="k-start">${cfg.runVerb || 'Go!'}</button></div>
       </section>
-      <section class="screen" id="k-run" hidden><canvas id="k-field"></canvas><div id="k-ui"></div><div id="k-over" hidden></div></section>`);
+      <section class="screen" id="k-run" hidden><canvas id="k-field"></canvas><div id="k-ui"></div>
+        <button type="button" id="k-pause" aria-label="Pause">❚❚</button><div id="k-modal" hidden></div><div id="k-over" hidden></div></section>`);
     const show = (id) => document.querySelectorAll('.screen').forEach((s) => { s.hidden = s.id !== id; });
 
     // ---- characters
@@ -124,7 +129,8 @@
         return `<button type="button" class="char${c.id === S.cur ? ' on' : ''}" data-c="${c.id}" ${open ? '' : 'disabled'}>
           <canvas width="168" height="168" data-face="${c.id}"></canvas><span class="cn">${open ? c.name : '???'}</span>
           <span class="cb">${open ? c.blurb : `Win ${c.unlock} time${c.unlock > 1 ? 's' : ''} to unlock`}</span>
-          ${C?.won ? `<span class="badge">Won${C.best ? ` in ${C.best} runs` : ''}</span>` : C?.runs ? `<span class="badge dim">${C.runs} runs</span>` : ''}</button>`;
+          ${C?.won ? `<span class="badge">Won${C.best ? ` in ${C.best} runs` : ''}</span>` : C?.runs ? `<span class="badge dim">${C.runs} runs</span>` : ''}
+          ${open && C?.top ? `<span class="cb">Best ${cfg.scoreName || 'score'}: ${fmt(C.top)}</span>` : ''}</button>`;
       }).join('');
       document.querySelectorAll('[data-face]').forEach((cv) => {
         const g = cv.getContext('2d'); g.scale(2, 2); const locked = !un.includes(cv.dataset.face);
@@ -181,27 +187,49 @@
     }
 
     // ---- a run
-    let R = null, raf = 0, lastT = 0, DPR = 1, cv, g;
+    let R = null, raf = 0, lastT = 0, DPR = 1, cv, g, paused = false, picking = null;
     const input = { x: 0, y: 0, down: false, taps: [], released: false };
     function startRun() {
       const C = charSave(S.cur), winNode = nodesFor(S.cur).find((n) => n.win);
-      show('k-run'); $('#k-over').hidden = true; $('#k-ui').innerHTML = '';
+      show('k-run'); $('#k-over').hidden = true; $('#k-modal').hidden = true; $('#k-ui').innerHTML = ''; paused = false; picking = null; $('#k-pause').hidden = false;
       cv = $('#k-field'); g = cv.getContext('2d'); DPR = Math.min(2, window.devicePixelRatio || 1);
       const W = cv.clientWidth, H = cv.clientHeight; cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
       input.x = W / 2; input.y = H * 0.6; input.down = false; input.taps = [];
-      R = cfg.createRun({ who: S.cur, stats: statsFor(S.cur, C.levels), levels: C.levels, W, H, boss: !!(winNode && C.levels[winNode.id]), sfx, fx: makeFx(), fmt, ui: $('#k-ui'), runNo: C.runs + 1 });
+      R = cfg.createRun({ who: S.cur, stats: statsFor(S.cur, C.levels), levels: C.levels, W, H, boss: !!(winNode && C.levels[winNode.id]), sfx, fx: makeFx(), fmt, ui: $('#k-ui'), runNo: C.runs + 1, pick, best: C.top || 0 });
       lastT = performance.now(); cancelAnimationFrame(raf); raf = requestAnimationFrame(loop);
     }
     function loop(now) {
       const dt = Math.max(0, Math.min(0.05, (now - lastT) / 1000)); lastT = now; // the first rAF time can predate lastT
-      R.update(dt, input); input.taps = []; input.released = false;
+      if (!paused && !picking) R.update(dt, input);
+      input.taps = []; input.released = false;
       g.setTransform(DPR, 0, 0, DPR, 0, 0);
       R.draw(g);
       if (R.over) return finish();
       raf = requestAnimationFrame(loop);
     }
+    /** Mid-run "pick one" card choice: pauses the run until a card is tapped, then calls done(index).
+        options: [{icon, name, desc, tag?}] (2-4). Games call env.pick(title, options, done). */
+    function pick(heading, options, done) {
+      picking = { done }; input.down = false;
+      const m = $('#k-modal'); m.hidden = false;
+      m.innerHTML = `<h2>${heading}</h2><div class="picks">${options.map((o, i) => `<button type="button" class="pk" data-pick="${i}">
+        <span class="pi">${o.icon || '★'}</span><span class="pn">${o.name}</span><span class="pd">${o.desc || ''}</span>${o.tag ? `<span class="badge dim">${o.tag}</span>` : ''}</button>`).join('')}</div>`;
+      sfx.ding();
+    }
+    function setPaused(on) {
+      if (!R || R.over || picking) return;
+      paused = on; input.down = false;
+      const m = $('#k-modal'); m.hidden = !on;
+      if (on) m.innerHTML = `<h2>Paused</h2><button type="button" class="big" id="k-resume">Resume</button>
+        <button type="button" class="ghost" id="k-quit">End run (keep what you earned)</button>`;
+      else lastT = performance.now();
+    }
+    function quitRun() { paused = false; $('#k-modal').hidden = true; if (R.quit) R.quit(); R.over = true; cancelAnimationFrame(raf); finish(); }
+    document.addEventListener('visibilitychange', () => { if (document.hidden && !$('#k-run').hidden) setPaused(true); });
     function finish() {
-      const C = charSave(S.cur), res = R.result(); // {earned: {cur: n}, won, lines: [str]}
+      const C = charSave(S.cur), res = R.result(); // {earned: {cur: n}, won, lines: [str], score?}
+      $('#k-pause').hidden = true; let newTop = false;
+      if (res.score != null && res.score > (C.top || 0)) { newTop = C.runs > 0; C.top = Math.floor(res.score); }
       for (const [k, v] of Object.entries(res.earned || {})) C.wallet[k] = (C.wallet[k] || 0) + Math.floor(v);
       C.runs++; C.time += R.t || 0;
       let newChar = null;
@@ -218,7 +246,7 @@
         ? `<h2>${cfg.winTitle || 'Victory!'}</h2><p>${ch().name} won in ${C.runs} runs.</p>${got ? `<p>${got}</p>` : ''}
            ${newChar ? `<p class="unlock">Unlocked: <b>${newChar.name}</b></p><p class="small">${newChar.blurb}</p>` : '<p class="small">Pick another character for a fresh tree, or buy the final upgrade again.</p>'}
            <button type="button" class="big" id="k-totitle">${newChar ? 'Meet ' + newChar.name : 'Characters'}</button>`
-        : `<h2>${res.title || cfg.loseTitle || 'Run over'}</h2>${got ? `<p>${got}</p>` : ''}${(res.lines || []).map((l) => `<p class="small">${l}</p>`).join('')}
+        : `<h2>${res.title || cfg.loseTitle || 'Run over'}</h2>${newTop ? `<p class="unlock">New best ${cfg.scoreName || 'score'}: <b>${fmt(res.score)}</b></p>` : ''}${got ? `<p>${got}</p>` : ''}${(res.lines || []).map((l) => `<p class="small">${l}</p>`).join('')}
            <button type="button" class="big" id="k-totree">Upgrade</button>`;
     }
 
@@ -237,6 +265,10 @@
       else if (b.id === 'k-mute') { S.muted = muted = !S.muted; save(); title(); }
       else if (b.id === 'k-reset') { if (b.dataset.sure) { localStorage.removeItem(KEY); location.reload(); } else { b.dataset.sure = '1'; b.textContent = 'Tap again to erase'; } }
       else if (b.dataset.n) { sel = b.dataset.n; tree(); }
+      else if (b.dataset.pick && picking) { const p = picking; picking = null; $('#k-modal').hidden = true; lastT = performance.now(); sfx.buy(); p.done(+b.dataset.pick); }
+      else if (b.id === 'k-pause') setPaused(!paused);
+      else if (b.id === 'k-resume') setPaused(false);
+      else if (b.id === 'k-quit') quitRun();
       else if (b.id === 'k-buy') { if (buy(sel)) { sfx.buy(); save(); } else sfx.nope(); tree(); }
       else if (b.id === 'k-start') startRun();
       else if (b.id === 'k-totree') tree();
