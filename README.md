@@ -24,6 +24,7 @@ and `game.js`, which calls `Kit.game(config)`:
 - `env.pick(heading, [{icon, name, desc, tag?, disabled?}], done(i))`: kit-drawn pick-one cards; the run is frozen until a card is tapped.
 - `env.best`: this character's best score so far. Optional `run.quit()` is called when the player ends a run from the pause menu, before `result()`.
 - The kit draws a pause button at the top-right of the run (keep ~56 px clear there) and auto-pauses when the page is hidden.
+- New versions: the kit re-fetches its own files (no-store) 4 s after load, every 2 min and on returning to the app; when they change it waits for the characters or tree screen, shows "New version", and reloads back to the same screen. Never mid-run.
 - `?dev` in the URL adds a "+lots" currency button on the tree screen.
 
 Balance target: runs start ~8-15 s and grow to ~45-60 s; a first win in ~25-40 runs (~15-25 min); each character replays the tree.

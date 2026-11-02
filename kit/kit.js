@@ -122,7 +122,7 @@
 
     // ---- characters
     function title() {
-      show('k-title');
+      show('k-title'); if (typeof maybeUpdate === 'function') maybeUpdate();
       const un = unlocked();
       $('#k-chars').innerHTML = cfg.characters.map((c) => {
         const open = un.includes(c.id), C = S.chars[c.id];
@@ -154,7 +154,7 @@
     let sel = null, justBought = null, overAt = 0;
     const CELL = 92;
     function tree() {
-      show('k-tree');
+      show('k-tree'); if (typeof maybeUpdate === 'function') maybeUpdate();
       const who = S.cur, C = charSave(who), nodes = nodesFor(who);
       $('#k-wallet').innerHTML = wallet(C) + (DEV ? ' <button type="button" class="ghost tiny" id="k-dev">+lots</button>' : '');
       $('#k-who').textContent = ch().name;
@@ -301,7 +301,35 @@
       else if (b.id === 'k-totitle' || b.id === 'k-back') title();
       else if (b.id === 'k-dev') { const C = charSave(S.cur); for (const c of CUR) C.wallet[c.id] = (C.wallet[c.id] || 0) + 1e6; save(); tree(); }
     });
-    title();
+    // ---- new-version check: a push to Pages changes these files; the page notices and reloads itself at a calm moment
+    const own = () => [location.href.split('#')[0], ...[...document.scripts].map((x) => x.src), ...[...document.querySelectorAll('link[rel=stylesheet]')].map((x) => x.href)]
+      .filter((u) => u && new URL(u).origin === location.origin);
+    const hash = (t) => { let h = 2166136261; for (let i = 0; i < t.length; i++) h = Math.imul(h ^ t.charCodeAt(i), 16777619); return h >>> 0; };
+    let baseline = null, updateReady = false, checking = false;
+    async function check() {
+      if (checking || updateReady || document.hidden) return; checking = true;
+      try {
+        const texts = await Promise.all(own().map((u) => fetch(u + (u.includes('?') ? '&' : '?') + 'vcheck=' + Date.now(), { cache: 'no-store' }).then((r) => (r.ok ? r.text() : Promise.reject()))));
+        const h = hash(texts.join('\u0000'));
+        if (baseline == null) baseline = h; else if (h !== baseline) { updateReady = true; maybeUpdate(); }
+      } catch { /* offline or a blip: try again later */ }
+      checking = false;
+    }
+    const calm = () => $('#k-run').hidden; // never mid-run or on the results: only on the characters or tree screens
+    async function maybeUpdate() {
+      if (!updateReady || !calm()) return;
+      updateReady = false;
+      document.body.insertAdjacentHTML('beforeend', '<div id="k-updating"><h2>New version</h2><p>Loading it now. Your progress is saved.</p></div>');
+      try { sessionStorage.setItem('pp.resume', $('#k-tree').hidden ? 'title' : 'tree'); } catch { /* fine */ }
+      // refresh the HTTP cache for every file first, so the reload can't come back with the old copies
+      await Promise.all(own().map((u) => fetch(u, { cache: 'reload' }).catch(() => {})));
+      setTimeout(() => location.reload(), 700);
+    }
+    setTimeout(check, 4000); setInterval(check, 120000);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) check(); });
+
+    let resume = null; try { resume = sessionStorage.getItem('pp.resume'); sessionStorage.removeItem('pp.resume'); } catch { /* fine */ }
+    if (resume === 'tree' && charSave(S.cur).runs) tree(); else title();
     return { S, statsFor, buy, charSave };
   }
 
