@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Pocket Prototypes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Nunito:wght@600;800&display=swap" rel="stylesheet">
+<style>
+/* Layout: a single column of game cards, each tinted with its own game's accent; one dark look, chosen. */
+:root{--bg:#121019;--card:#1f1c2c;--ink:#f4efe6;--muted:#a49eb8;--line:#33304a;color-scheme:dark;
+--display:"Lilita One","Arial Rounded MT Bold",system-ui,sans-serif;--body:"Nunito",system-ui,sans-serif}
+body{margin:0;background:var(--bg);color:var(--ink);font:600 15px/1.5 var(--body)}
+main{max-width:640px;margin:0 auto;padding-block:28px 40px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+h1{font:400 40px/1.05 var(--display);margin:0 0 6px;text-wrap:balance}
+p.lead{color:var(--muted);margin:0 0 20px;max-width:56ch}
+.games{display:grid;gap:12px}
+a.g{display:grid;grid-template-columns:56px 1fr;gap:4px 14px;align-items:center;text-decoration:none;color:inherit;background:var(--card);border:2px solid var(--line);border-left:6px solid var(--a);border-radius:16px;padding:14px 16px}
+a.g:focus-visible{outline:3px solid var(--a);outline-offset:2px}
+.ic{grid-row:span 3;width:56px;height:56px;border-radius:16px;display:grid;place-items:center;font-size:30px;background:color-mix(in srgb,var(--a) 22%,var(--card))}
+.nm{font:400 22px/1.1 var(--display);color:var(--a)}
+.pt{font-size:14px}
+.tg{font-size:12px;color:var(--muted);letter-spacing:.04em;text-transform:uppercase}
+.note{color:var(--muted);font-size:13px;margin-top:22px}
+</style>
+</head>
+<body>
+<main>
+  <h1>Pocket Prototypes</h1>
+  <p class="lead">Six quick builds to feel each loop. Every one has short runs, an upgrade tree between runs, and a final boss whose defeat unlocks a new character to play the tree again. Vector art only.</p>
+  <div class="games">
+    <a class="g" href="ore-sweeper/" style="--a:#ffb703"><span class="ic">⛏️</span><span class="nm">Ore Sweeper</span><span class="pt">Drag a drill across the rock face and crack ore before your lamp burns out.</span><span class="tg">Mining · Nodebuster-style sweeping</span></a>
+    <a class="g" href="hoard/" style="--a:#ff6b35"><span class="ic">🐉</span><span class="nm">Hoard</span><span class="pt">A young dragon sends kobolds to raid villages, builds a minion economy, and holds off the knights.</span><span class="tg">Fantasy · Gnorp-style automation</span></a>
+    <a class="g" href="starfall/" style="--a:#4cc9f0"><span class="ic">🚀</span><span class="nm">Starfall Battery</span><span class="pt">Plasma pellets drop through moving multiplier gates and bounce pads, then fire your turrets at alien waves.</span><span class="tg">Space · Ball-drop machine</span></a>
+    <a class="g" href="bonk-knight/" style="--a:#e63946"><span class="ic">🗡️</span><span class="nm">Bonk Knight</span><span class="pt">Tap the giant monster on each floor of the tower and sweep up the loot it drops.</span><span class="tg">Fantasy · Piñata-style tapping</span></a>
+    <a class="g" href="void-drifter/" style="--a:#9d4edd"><span class="ic">🛸</span><span class="nm">Void Drifter</span><span class="pt">Steer through the void while your guns fire themselves. Grab salvage, level up mid-run, survive.</span><span class="tg">Space · Tiny survivor-like</span></a>
+    <a class="g" href="delve-deck/" style="--a:#52b788"><span class="ic">🃏</span><span class="nm">Delve Deck</span><span class="pt">Pick one of three rooms at a time down a mine-dungeon. Retreat to keep your haul, or push deeper.</span><span class="tg">Fantasy dungeon · Light deckbuilding</span></a>
+  </div>
+  <p class="note">Progress saves on this device. Add a game to your Home Screen to play it full screen. Add <code>?dev</code> to a game's address for a currency cheat button.</p>
+</main>
+</body>
+</html>
