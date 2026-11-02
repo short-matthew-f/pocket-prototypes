@@ -193,7 +193,7 @@
       lastT = performance.now(); cancelAnimationFrame(raf); raf = requestAnimationFrame(loop);
     }
     function loop(now) {
-      const dt = Math.min(0.05, (now - lastT) / 1000); lastT = now;
+      const dt = Math.max(0, Math.min(0.05, (now - lastT) / 1000)); lastT = now; // the first rAF time can predate lastT
       R.update(dt, input); input.taps = []; input.released = false;
       g.setTransform(DPR, 0, 0, DPR, 0, 0);
       R.draw(g);
