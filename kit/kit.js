@@ -91,6 +91,10 @@
       .map((c) => `<b style="color:${c.color || 'var(--accent)'}">${fmt(C.wallet[c.id] || 0)}</b> ${c.name}`).join(' · ');
 
     document.title = cfg.title;
+    // iOS home-screen app: status bar coloured by theme-color (no apple-mobile-web-app-status-bar-style meta: on iOS 26.1+
+    // both values draw a blurred band over the page; Apple says to omit it), and the icon's name
+    const meta = (n, c) => { let m = document.querySelector(`meta[name="${n}"]`); if (!m) { m = document.createElement('meta'); m.name = n; document.head.appendChild(m); } m.content = c; };
+    meta('theme-color', cfg.colors?.bg || '#16141f'); meta('apple-mobile-web-app-title', cfg.title);
     document.documentElement.style.setProperty('--accent', cfg.colors?.accent || '#ffd166');
     document.documentElement.style.setProperty('--bg', cfg.colors?.bg || '#16141f');
     document.documentElement.style.setProperty('--card', cfg.colors?.card || '#24213a');
