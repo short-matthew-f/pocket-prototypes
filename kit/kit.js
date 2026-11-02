@@ -181,14 +181,14 @@
       const C = charSave(S.cur), n = nodesFor(S.cur).find((x) => x.id === sel);
       if (!n) {
         const ready = nodesFor(S.cur).filter((x) => visible(x, C.levels) && (C.levels[x.id] || 0) < (x.max || 1) && (C.wallet[curOf(x)] || 0) >= costOf(x, C.levels[x.id] || 0) && extraOk(x, C)).length;
-        $('#k-info').innerHTML = `<div class="it"><b>${ready ? `${ready} upgrade${ready > 1 ? 's' : ''} ready` : 'Upgrades'}</b><p>${ready ? 'Glowing ones are affordable. Tap one to see it.' : `Nothing affordable yet. Run again to earn more ${CUR[0].name}.`}</p></div>
+        $('#k-info').innerHTML = `<div class="it"><div class="ih"><b>${ready ? `${ready} upgrade${ready > 1 ? 's' : ''} ready` : 'Upgrades'}</b></div><p>${ready ? 'Glowing ones are affordable. Tap one to see it.' : `Nothing affordable yet. Run again to earn more ${CUR[0].name}.`}</p></div>
           <button type="button" class="buy" disabled>Select one</button>`;
         return;
       }
       const lv = C.levels[n.id] || 0, max = lv >= (n.max || 1), c = costOf(n, lv), cu = CUR.find((x) => x.id === curOf(n));
       const can = !max && (C.wallet[curOf(n)] || 0) >= c && extraOk(n, C);
       const extra = n.extra ? Object.entries(n.extra).map(([k, v]) => ` + ${fmt(v)} ${CUR.find((x) => x.id === k).name}`).join('') : '';
-      $('#k-info').innerHTML = `<div class="it"><b>${n.name}</b>${(n.max || 1) > 1 ? ` <span class="lvl">${lv}/${n.max}</span>` : ''}<p>${n.desc}</p></div>
+      $('#k-info').innerHTML = `<div class="it"><div class="ih"><b>${n.name}</b>${(n.max || 1) > 1 ? `<span class="lvl">Lv ${lv}/${n.max}</span>` : ''}</div><p>${typeof n.desc === 'function' ? n.desc(lv, C.levels) : n.desc}</p></div>
         <button type="button" id="k-buy" class="buy" ${can ? '' : 'disabled'}>${max ? 'Maxed' : `<span class="bv">${can ? 'Buy' : 'Need'}</span> ${fmt(c)} ${cu.name}${extra}`}</button>`;
     }
     function buy(id) {
