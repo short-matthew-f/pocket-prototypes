@@ -158,7 +158,7 @@
       const who = S.cur, C = charSave(who), nodes = nodesFor(who);
       $('#k-wallet').innerHTML = wallet(C) + (DEV ? ' <button type="button" class="ghost tiny" id="k-dev">+lots</button>' : '');
       $('#k-who').textContent = ch().name;
-      const vis = nodes.filter((n) => visible(n, C.levels) || (n.req || []).some((r) => (C.levels[r] || 0) > 0));
+      const vis = nodes.filter((n) => n.win || visible(n, C.levels) || (n.req || []).some((r) => (C.levels[r] || 0) > 0)); // the goal shows (fogged) from the start
       const xs = nodes.map((n) => n.x), ys = nodes.map((n) => n.y); // all nodes, hidden too: the plane never resizes
       const x0 = Math.min(...xs) - 1, y0 = Math.min(...ys) - 1, w = (Math.max(...xs) - x0 + 2) * CELL, h = (Math.max(...ys) - y0 + 2) * CELL;
       const pos = (n) => [(n.x - x0) * CELL + CELL / 2, (n.y - y0) * CELL + CELL / 2];
@@ -169,7 +169,7 @@
         const lv = C.levels[n.id] || 0, shown = visible(n, C.levels), max = lv >= (n.max || 1);
         const can = shown && !max && (C.wallet[curOf(n)] || 0) >= costOf(n, lv) && extraOk(n, C);
         const [x, y] = pos(n);
-        return `<button type="button" class="node${max ? ' max' : can ? ' can' : ''}${shown ? '' : ' fog'}${n.win ? ' win' : ''}${sel === n.id ? ' sel' : ''}${justBought === n.id ? ' just' : ''}" style="left:${x}px;top:${y}px" data-n="${n.id}" ${shown ? '' : 'disabled'} aria-label="${n.name}">
+        return `<button type="button" class="node${max ? ' max' : can ? ' can' : ''}${shown ? '' : ' fog'}${n.win ? ' win' : ''}${sel === n.id ? ' sel' : ''}${justBought === n.id ? ' just' : ''}" style="left:${x}px;top:${y}px" data-n="${n.id}" aria-label="${n.name}">
           <span class="ni">${n.icon || '•'}</span>${(n.max || 1) > 1 ? `<span class="nl">${lv}/${n.max}</span>` : ''}</button>`;
       };
       $('#k-map').innerHTML = `<div class="plane" style="width:${w}px;height:${h}px"><svg width="${w}" height="${h}">${lines}</svg>${vis.map(btn).join('')}</div>`;
@@ -183,6 +183,13 @@
         const ready = nodesFor(S.cur).filter((x) => visible(x, C.levels) && (C.levels[x.id] || 0) < (x.max || 1) && (C.wallet[curOf(x)] || 0) >= costOf(x, C.levels[x.id] || 0) && extraOk(x, C)).length;
         $('#k-info').innerHTML = `<div class="it"><div class="ih"><b>${ready ? `${ready} upgrade${ready > 1 ? 's' : ''} ready` : 'Upgrades'}</b></div><p>${ready ? 'Glowing ones are affordable. Tap one to see it.' : `Nothing affordable yet. Run again to earn more ${CUR[0].name}.`}</p></div>
           <button type="button" class="buy" disabled>Select one</button>`;
+        return;
+      }
+      if (!visible(n, C.levels)) { // a fogged node still explains itself: what it is and what opens it
+        const need = (n.req || []).filter((r) => !(C.levels[r] || 0)).map((r) => nodesFor(S.cur).find((m) => m.id === r)?.name).filter(Boolean);
+        const k = n.reqAll || 1, have = (n.req || []).length - need.length;
+        $('#k-info').innerHTML = `<div class="it"><div class="ih"><b>${n.name}</b><span class="lvl">Locked</span></div><p>${n.win ? 'The goal. ' : ''}Needs ${k > 1 ? `${k - have} more of: ` : ''}${need.join(k > 1 ? ', ' : ' or ')}</p></div>
+          <button type="button" class="buy" disabled>Locked</button>`;
         return;
       }
       const lv = C.levels[n.id] || 0, max = lv >= (n.max || 1), c = costOf(n, lv), cu = CUR.find((x) => x.id === curOf(n));
