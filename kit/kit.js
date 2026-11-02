@@ -6,7 +6,7 @@
   'use strict';
   const $ = (s) => document.querySelector(s);
   const DEV = /[?&]dev\b/.test(location.search);
-  const fmt = (n) => { n = Math.floor(n); return n >= 1e9 ? (n / 1e9).toFixed(1) + 'B' : n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1e4 ? (n / 1e3).toFixed(1) + 'k' : String(n); };
+  const fmt = (n) => { n = Math.floor(n); return n >= 999950000 ? (n / 1e9).toFixed(1) + 'B' : n >= 999950 ? (n / 1e6).toFixed(1) + 'M' : n >= 1e4 ? (n / 1e3).toFixed(1) + 'k' : String(n); };
 
   // ---------------------------------------------------------------- sound
   let AC = null, muted = false;
@@ -112,7 +112,7 @@
         <p class="how">${cfg.howTo || ''}</p>
       </div></section>
       <section class="screen" id="k-tree" hidden>
-        <div class="top wrap"><button type="button" class="ghost" id="k-back" aria-label="Characters">←</button><span id="k-who"></span><span id="k-wallet"></span></div>
+        <div class="top wrap"><button type="button" class="ghost" id="k-back">← Characters</button><span id="k-who"></span><span id="k-wallet"></span></div>
         <div id="k-map"></div>
         <div class="bar wrap"><div id="k-info"></div><button type="button" class="big" id="k-start">${cfg.runVerb || 'Go!'}</button></div>
       </section>
@@ -128,20 +128,30 @@
         const open = un.includes(c.id), C = S.chars[c.id];
         return `<button type="button" class="char${c.id === S.cur ? ' on' : ''}" data-c="${c.id}" ${open ? '' : 'disabled'}>
           <canvas width="168" height="168" data-face="${c.id}"></canvas><span class="cn">${open ? c.name : '???'}</span>
-          <span class="cb">${open ? c.blurb : `Win ${c.unlock} time${c.unlock > 1 ? 's' : ''} to unlock`}</span>
-          ${C?.won ? `<span class="badge">Won${C.best ? ` in ${C.best} runs` : ''}</span>` : C?.runs ? `<span class="badge dim">${C.runs} runs</span>` : ''}
-          ${open && C?.top ? `<span class="cb">Best ${cfg.scoreName || 'score'}: ${fmt(C.top)}</span>` : ''}</button>`;
+          <span class="cb">${open ? c.blurb : `Beat the boss ${c.unlock === 1 ? 'once' : c.unlock + ' times'} to unlock`}</span>
+          <span class="cs">${C?.won ? `<span class="badge">Won${C.best ? ` in ${C.best} runs` : ''}</span>` : C?.runs ? `<span class="badge dim">${C.runs} run${C.runs > 1 ? 's' : ''}</span>` : open ? '<span class="badge dim">New</span>' : ''}
+          ${open && C?.top ? `<span class="cbest">Best ${cfg.scoreName || 'score'} ${fmt(C.top)}</span>` : ''}</span></button>`;
       }).join('');
       document.querySelectorAll('[data-face]').forEach((cv) => {
         const g = cv.getContext('2d'); g.scale(2, 2); const locked = !un.includes(cv.dataset.face);
         if (locked || !cfg.drawFace) { g.fillStyle = '#ffffff14'; g.beginPath(); g.arc(42, 42, 32, 0, 6.283); g.fill(); g.font = '900 30px system-ui'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#ffffff66'; g.fillText(locked ? '?' : (cfg.characters.find((c) => c.id === cv.dataset.face).icon || '★'), 42, 44); }
         else cfg.drawFace(g, cv.dataset.face, 42, 44, 30);
       });
-      $('#k-mute').textContent = S.muted ? 'Sound off' : 'Sound on';
+      $('#k-mute').textContent = S.muted ? 'Sound: off' : 'Sound: on';
+      playLabel();
+    }
+    function playLabel() {
+      const C = S.chars[S.cur];
+      $('#k-go').textContent = `${C?.runs ? 'Continue' : 'Play'} as ${ch().name}`;
+    }
+    function pickChar(id) { // select in place: no re-render, nothing moves
+      S.cur = id; save();
+      document.querySelectorAll('.char').forEach((b) => { b.classList.toggle('on', b.dataset.c === id); b.setAttribute('aria-pressed', b.dataset.c === id); });
+      playLabel();
     }
 
     // ---- tree
-    let sel = null;
+    let sel = null, justBought = null, overAt = 0;
     const CELL = 92;
     function tree() {
       show('k-tree');
@@ -149,7 +159,7 @@
       $('#k-wallet').innerHTML = wallet(C) + (DEV ? ' <button type="button" class="ghost tiny" id="k-dev">+lots</button>' : '');
       $('#k-who').textContent = ch().name;
       const vis = nodes.filter((n) => visible(n, C.levels) || (n.req || []).some((r) => (C.levels[r] || 0) > 0));
-      const xs = vis.map((n) => n.x), ys = vis.map((n) => n.y);
+      const xs = nodes.map((n) => n.x), ys = nodes.map((n) => n.y); // all nodes, hidden too: the plane never resizes
       const x0 = Math.min(...xs) - 1, y0 = Math.min(...ys) - 1, w = (Math.max(...xs) - x0 + 2) * CELL, h = (Math.max(...ys) - y0 + 2) * CELL;
       const pos = (n) => [(n.x - x0) * CELL + CELL / 2, (n.y - y0) * CELL + CELL / 2];
       const lines = vis.flatMap((n) => (n.req || []).map((r) => nodes.find((m) => m.id === r)).filter((m) => m && vis.includes(m)).map((m) => {
@@ -159,22 +169,27 @@
         const lv = C.levels[n.id] || 0, shown = visible(n, C.levels), max = lv >= (n.max || 1);
         const can = shown && !max && (C.wallet[curOf(n)] || 0) >= costOf(n, lv) && extraOk(n, C);
         const [x, y] = pos(n);
-        return `<button type="button" class="node${max ? ' max' : can ? ' can' : ''}${shown ? '' : ' fog'}${n.win ? ' win' : ''}${sel === n.id ? ' sel' : ''}" style="left:${x}px;top:${y}px" data-n="${n.id}" ${shown ? '' : 'disabled'} aria-label="${n.name}">
+        return `<button type="button" class="node${max ? ' max' : can ? ' can' : ''}${shown ? '' : ' fog'}${n.win ? ' win' : ''}${sel === n.id ? ' sel' : ''}${justBought === n.id ? ' just' : ''}" style="left:${x}px;top:${y}px" data-n="${n.id}" ${shown ? '' : 'disabled'} aria-label="${n.name}">
           <span class="ni">${n.icon || '•'}</span>${(n.max || 1) > 1 ? `<span class="nl">${lv}/${n.max}</span>` : ''}</button>`;
       };
       $('#k-map').innerHTML = `<div class="plane" style="width:${w}px;height:${h}px"><svg width="${w}" height="${h}">${lines}</svg>${vis.map(btn).join('')}</div>`;
-      info();
+      info(); justBought = null;
       const root = nodes.find((n) => !n.req || !n.req.length) || nodes[0], [rx, ry] = pos(root), m = $('#k-map');
       if (!m.dataset.centred) { m.scrollLeft = rx - m.clientWidth / 2; m.scrollTop = ry - m.clientHeight / 2; m.dataset.centred = '1'; }
     }
     function info() {
       const C = charSave(S.cur), n = nodesFor(S.cur).find((x) => x.id === sel);
-      if (!n) { $('#k-info').innerHTML = `<p class="hint">Tap an upgrade to see it.${C.runs ? '' : ' Your first run earns the first ' + CUR[0].name + '.'}</p>`; return; }
+      if (!n) {
+        const ready = nodesFor(S.cur).filter((x) => visible(x, C.levels) && (C.levels[x.id] || 0) < (x.max || 1) && (C.wallet[curOf(x)] || 0) >= costOf(x, C.levels[x.id] || 0) && extraOk(x, C)).length;
+        $('#k-info').innerHTML = `<div class="it"><b>${ready ? `${ready} upgrade${ready > 1 ? 's' : ''} ready` : 'Upgrades'}</b><p>${ready ? 'Glowing ones are affordable. Tap one to see it.' : `Nothing affordable yet. Run again to earn more ${CUR[0].name}.`}</p></div>
+          <button type="button" class="buy" disabled>Select one</button>`;
+        return;
+      }
       const lv = C.levels[n.id] || 0, max = lv >= (n.max || 1), c = costOf(n, lv), cu = CUR.find((x) => x.id === curOf(n));
       const can = !max && (C.wallet[curOf(n)] || 0) >= c && extraOk(n, C);
       const extra = n.extra ? Object.entries(n.extra).map(([k, v]) => ` + ${fmt(v)} ${CUR.find((x) => x.id === k).name}`).join('') : '';
       $('#k-info').innerHTML = `<div class="it"><b>${n.name}</b>${(n.max || 1) > 1 ? ` <span class="lvl">${lv}/${n.max}</span>` : ''}<p>${n.desc}</p></div>
-        <button type="button" id="k-buy" class="buy" ${can ? '' : 'disabled'}>${max ? 'Maxed' : `${fmt(c)} ${cu.name}${extra}`}</button>`;
+        <button type="button" id="k-buy" class="buy" ${can ? '' : 'disabled'}>${max ? 'Maxed' : `<span class="bv">${can ? 'Buy' : 'Need'}</span> ${fmt(c)} ${cu.name}${extra}`}</button>`;
     }
     function buy(id) {
       const C = charSave(S.cur), n = nodesFor(S.cur).find((x) => x.id === id);
@@ -224,8 +239,9 @@
         <button type="button" class="ghost" id="k-quit">End run (keep what you earned)</button>`;
       else lastT = performance.now();
     }
-    function quitRun() { paused = false; $('#k-modal').hidden = true; if (R.quit) R.quit(); R.over = true; cancelAnimationFrame(raf); finish(); }
+    function quitRun() { paused = false; $('#k-modal').hidden = true; if (R.quit) R.quit(); try { R.over = true; } catch { /* over is a getter in some games */ } cancelAnimationFrame(raf); finish(); }
     document.addEventListener('visibilitychange', () => { if (document.hidden && !$('#k-run').hidden) setPaused(true); });
+    const readyCount = (C) => nodesFor(S.cur).filter((x) => !x.win && visible(x, C.levels) && (C.levels[x.id] || 0) < (x.max || 1) && (C.wallet[curOf(x)] || 0) >= costOf(x, C.levels[x.id] || 0) && extraOk(x, C)).length;
     function finish() {
       const C = charSave(S.cur), res = R.result(); // {earned: {cur: n}, won, lines: [str], score?}
       $('#k-pause').hidden = true; let newTop = false;
@@ -240,14 +256,16 @@
         sfx.win();
       } else sfx.end();
       save();
-      const o = $('#k-over'); o.hidden = false;
+      const o = $('#k-over'); o.hidden = false; o.classList.remove('in'); void o.offsetWidth; o.classList.add('in'); overAt = performance.now();
       const got = Object.entries(res.earned || {}).filter(([, v]) => v >= 1).map(([k, v]) => `<b>+${fmt(v)}</b> ${CUR.find((c) => c.id === k).name}`).join(' · ');
       o.innerHTML = res.won
         ? `<h2>${cfg.winTitle || 'Victory!'}</h2><p>${ch().name} won in ${C.runs} runs.</p>${got ? `<p>${got}</p>` : ''}
            ${newChar ? `<p class="unlock">Unlocked: <b>${newChar.name}</b></p><p class="small">${newChar.blurb}</p>` : '<p class="small">Pick another character for a fresh tree, or buy the final upgrade again.</p>'}
-           <button type="button" class="big" id="k-totitle">${newChar ? 'Meet ' + newChar.name : 'Characters'}</button>`
+           <div class="obtns"><button type="button" class="big" id="k-totitle">${newChar ? 'Meet ' + newChar.name : 'Characters'}</button>
+           <button type="button" class="ghost" id="k-totree">Keep playing ${ch().name}</button></div>`
         : `<h2>${res.title || cfg.loseTitle || 'Run over'}</h2>${newTop ? `<p class="unlock">New best ${cfg.scoreName || 'score'}: <b>${fmt(res.score)}</b></p>` : ''}${got ? `<p>${got}</p>` : ''}${(res.lines || []).map((l) => `<p class="small">${l}</p>`).join('')}
-           <button type="button" class="big" id="k-totree">Upgrade</button>`;
+           <div class="obtns"><button type="button" class="big" id="k-totree">${readyCount(C) ? `Upgrade · ${readyCount(C)} ready` : 'Upgrade'}</button>
+           <button type="button" class="ghost" id="k-again">Run again</button></div>`;
     }
 
     // ---- input
@@ -259,18 +277,19 @@
     field().addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse') input.down = false; });
     document.addEventListener('click', (e) => {
       const b = e.target.closest('button'); if (!b) return;
+      if (b.closest('#k-over') && performance.now() - overAt < 600) return; // a tap still landing from the run can't skip the results
       audio();
-      if (b.dataset.c) { S.cur = b.dataset.c; save(); title(); }
+      if (b.dataset.c) { sfx.pop(); pickChar(b.dataset.c); }
       else if (b.id === 'k-go') { sel = null; $('#k-map').dataset.centred = ''; charSave(S.cur).runs ? tree() : startRun(); }
-      else if (b.id === 'k-mute') { S.muted = muted = !S.muted; save(); title(); }
+      else if (b.id === 'k-mute') { S.muted = muted = !S.muted; save(); b.textContent = S.muted ? 'Sound: off' : 'Sound: on'; }
       else if (b.id === 'k-reset') { if (b.dataset.sure) { localStorage.removeItem(KEY); location.reload(); } else { b.dataset.sure = '1'; b.textContent = 'Tap again to erase'; } }
-      else if (b.dataset.n) { sel = b.dataset.n; tree(); }
+      else if (b.dataset.n) { if (sel !== b.dataset.n) { sel = b.dataset.n; sfx.pop(1.4); tree(); } }
       else if (b.dataset.pick && picking) { const p = picking; picking = null; $('#k-modal').hidden = true; lastT = performance.now(); sfx.buy(); p.done(+b.dataset.pick); }
       else if (b.id === 'k-pause') setPaused(!paused);
       else if (b.id === 'k-resume') setPaused(false);
       else if (b.id === 'k-quit') quitRun();
-      else if (b.id === 'k-buy') { if (buy(sel)) { sfx.buy(); save(); } else sfx.nope(); tree(); }
-      else if (b.id === 'k-start') startRun();
+      else if (b.id === 'k-buy') { if (buy(sel)) { sfx.buy(); justBought = sel; save(); } else sfx.nope(); tree(); }
+      else if (b.id === 'k-start' || b.id === 'k-again') startRun();
       else if (b.id === 'k-totree') tree();
       else if (b.id === 'k-totitle' || b.id === 'k-back') title();
       else if (b.id === 'k-dev') { const C = charSave(S.cur); for (const c of CUR) C.wallet[c.id] = (C.wallet[c.id] || 0) + 1e6; save(); tree(); }

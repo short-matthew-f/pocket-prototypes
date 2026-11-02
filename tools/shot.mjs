@@ -29,9 +29,10 @@ const send = (method, params = {}) => new Promise(r => { const i = ++id; pending
 await send('Runtime.enable'); await send('Page.enable');
 if (process.env.LIGHT) await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'light' }] });
 await send('Emulation.setDeviceMetricsOverride', { width: +W, height: +H, deviceScaleFactor: 1, mobile: +W < 500 });
+if (process.env.PRE) await send('Page.addScriptToEvaluateOnNewDocument', { source: process.env.PRE }); // e.g. seed localStorage
 await send('Page.navigate', { url });
 for (let i = 0; i < 60; i++) { await sleep(150); const r = await send('Runtime.evaluate', { expression: 'document.body && document.body.dataset.ready', returnByValue: true }); if (r.result?.result?.value) break; }
-if (js) { const r = await send('Runtime.evaluate', { expression: js, awaitPromise: true, returnByValue: true }); if (r.result?.exceptionDetails) errors.push('step: ' + r.result.exceptionDetails.exception?.description); else if (r.result?.result?.value !== undefined) console.log('step ->', JSON.stringify(r.result.result.value)); }
+if (js) { const r = await send('Runtime.evaluate', { expression: `(async () => { ${js} })()`, awaitPromise: true, returnByValue: true }); if (r.result?.exceptionDetails) errors.push('step: ' + r.result.exceptionDetails.exception?.description); else if (r.result?.result?.value !== undefined) console.log('step ->', JSON.stringify(r.result.result.value)); }
 await sleep(300);
 const shot = await send('Page.captureScreenshot', { format: 'png' });
 writeFileSync(out, Buffer.from(shot.result.data, 'base64'));
