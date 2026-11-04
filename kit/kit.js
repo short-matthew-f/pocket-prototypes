@@ -209,7 +209,7 @@
     }
 
     // ---- a run
-    let R = null, raf = 0, lastT = 0, DPR = 1, cv, g, paused = false, picking = null;
+    let R = null, raf = 0, lastT = 0, DPR = 1, cv, g, paused = false, picking = null, errStreak = 0;
     const input = { x: 0, y: 0, down: false, taps: [], released: false };
     function startRun() {
       const C = charSave(S.cur), winNode = nodesFor(S.cur).find((n) => n.win);
@@ -222,10 +222,19 @@
     }
     function loop(now) {
       const dt = Math.max(0, Math.min(0.05, (now - lastT) / 1000)); lastT = now; // the first rAF time can predate lastT
-      if (!paused && !picking) R.update(dt, input);
-      input.taps = []; input.released = false;
-      g.setTransform(DPR, 0, 0, DPR, 0, 0);
-      R.draw(g);
+      // a bug in one frame must not freeze the game: log it, reset the canvas, keep going; if it keeps failing, end the
+      // run cleanly so the player keeps what they earned
+      try {
+        if (!paused && !picking) R.update(dt, input);
+        input.taps = []; input.released = false;
+        g.setTransform(DPR, 0, 0, DPR, 0, 0);
+        R.draw(g);
+        errStreak = 0;
+      } catch (e) {
+        console.error('[kit] frame error', e); errStreak++;
+        try { g.reset ? g.reset() : null; g.globalAlpha = 1; } catch { /* ignore */ }
+        if (errStreak > 20) { try { R.over = true; } catch { /* getter */ } cancelAnimationFrame(raf); return finish(); }
+      }
       if (R.over) return finish();
       raf = requestAnimationFrame(loop);
     }
@@ -250,7 +259,8 @@
     document.addEventListener('visibilitychange', () => { if (document.hidden && !$('#k-run').hidden) setPaused(true); });
     const readyCount = (C) => nodesFor(S.cur).filter((x) => !x.win && visible(x, C.levels) && (C.levels[x.id] || 0) < (x.max || 1) && (C.wallet[curOf(x)] || 0) >= costOf(x, C.levels[x.id] || 0) && extraOk(x, C)).length;
     function finish() {
-      const C = charSave(S.cur), res = R.result(); // {earned: {cur: n}, won, lines: [str], score?}
+      const C = charSave(S.cur);
+      let res; try { res = R.result(); } catch (e) { console.error('[kit] result error', e); res = { earned: {}, won: false, title: 'Run over', lines: ['Something went wrong this run. Sorry!'] }; } // {earned: {cur: n}, won, lines: [str], score?}
       $('#k-pause').hidden = true; let newTop = false;
       if (res.score != null && res.score > (C.top || 0)) { newTop = C.runs > 0; C.top = Math.floor(res.score); }
       for (const [k, v] of Object.entries(res.earned || {})) C.wallet[k] = (C.wallet[k] || 0) + Math.floor(v);
@@ -327,6 +337,29 @@
     }
     setTimeout(check, 4000); setInterval(check, 120000);
     document.addEventListener('visibilitychange', () => { if (!document.hidden) check(); });
+
+    // dev/test hook (?dev only): max a tree, start runs, and fast-forward a run with a random thumb to shake out crashes
+    if (DEV) window.__kit = {
+      S, cfg, charSave, nodesFor, startRun, tree, title, buy,
+      maxAll(who = S.cur, win = false) { const C = charSave(who); for (const n of nodesFor(who)) if (!n.win || win) C.levels[n.id] = n.max || 1; save(); },
+      run: () => R,
+      fuzz(frames = 1800, seed = 1, uiRate = 0.02) { // update+draw without rAF; returns {frames, over, t, errors}
+        let x = seed, errors = [];
+        const rnd = () => ((x = (x * 1664525 + 1013904223) >>> 0) / 4294967296);
+        cancelAnimationFrame(raf);
+        for (let i = 0; i < frames && !R.over; i++) {
+          if (picking && rnd() < 0.2) { const ps = document.querySelectorAll('#k-modal [data-pick]:not([disabled])'); if (ps.length) ps[Math.floor(rnd() * ps.length)].click(); }
+          const ui = [...document.querySelectorAll('#k-ui button:not([disabled])')].filter((b) => !/retreat|quit|leave/i.test(b.textContent) || rnd() < 0.05);
+          if (ui.length && rnd() < uiRate) ui[Math.floor(rnd() * ui.length)].click();
+          const W = cv.clientWidth, H = cv.clientHeight;
+          if (rnd() < 0.08) { input.x = rnd() * W; input.y = rnd() * H; input.down = true; input.taps.push({ x: input.x, y: input.y }); }
+          else if (input.down) { input.x = Math.max(0, Math.min(W, input.x + (rnd() - 0.5) * 60)); input.y = Math.max(0, Math.min(H, input.y + (rnd() - 0.5) * 60)); if (rnd() < 0.03) { input.down = false; input.released = true; } }
+          try { if (!picking) R.update(1 / 30, input); input.taps = []; input.released = false; g.setTransform(DPR, 0, 0, DPR, 0, 0); R.draw(g); }
+          catch (e) { errors.push(String(e && e.stack || e).split('\n').slice(0, 3).join(' | ')); if (errors.length > 3) break; }
+        }
+        return { frames, over: !!R.over, t: Math.round(R.t || 0), errors };
+      },
+    };
 
     let resume = null; try { resume = sessionStorage.getItem('pp.resume'); sessionStorage.removeItem('pp.resume'); } catch { /* fine */ }
     if (resume === 'tree' && charSave(S.cur).runs) tree(); else title();

@@ -929,7 +929,7 @@
   }
   function drawVein(g, o, x, y, t) {
     const sh = t - o.hitT < 0.1 ? (Math.random() - 0.5) * 6 : 0, broke = o.broke > 0 ? clamp((t - o.broke) / 0.3, 0, 1) : 0;
-    const col = { copper: ['#e09f3e', '#f4a261'], silver: ['#ced4da', '#f8f9fa'], gem: ['#9d4edd', '#e0aaff'] }[o.c.kind];
+    const col = { copper: ['#e09f3e', '#f4a261'], silver: ['#ced4da', '#f8f9fa'], gem: ['#9d4edd', '#e0aaff'], gas: ['#b5e48c', '#e9f5db'], lode: ['#ffd166', '#fff3b0'] }[o.c.kind] || ['#e09f3e', '#f4a261'];
     g.save(); g.translate(x + sh, y);
     g.fillStyle = '#5a4a3f'; g.beginPath(); g.moveTo(-46, 0); g.lineTo(-38, -40); g.lineTo(-12, -62); g.lineTo(18, -56); g.lineTo(42, -30); g.lineTo(48, 0); g.fill();
     g.fillStyle = '#6f5d50'; g.beginPath(); g.moveTo(-30, -36); g.lineTo(-12, -54); g.lineTo(6, -48); g.lineTo(-10, -30); g.fill();
