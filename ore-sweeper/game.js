@@ -10,8 +10,8 @@
   const NODES = [
     { id: 'drill', name: 'Wider Bit', icon: '⛏️', cost: 4, grow: 1.55, max: 8, req: [], x: 0, y: 0, d: (s) => `+5 drill size (now ${s.radius}px)`, fx: (s, l) => { s.radius += 5 * l; } },
     // right arm: damage and value
-    { id: 'steel', name: 'Tempered Steel', icon: '🔩', cost: 6, grow: 1.6, max: 10, req: ['drill'], x: 1, y: 0, d: (s) => `+35% drill damage (now ${s.dps.toFixed(1)}/s)`, fx: (s, l) => { s.dps *= 1.35 ** l; } },
-    { id: 'assay', name: 'Assayer', icon: '⚖️', cost: 15, grow: 1.75, max: 10, req: ['steel'], x: 2, y: 0, d: (s) => `+40% ore per node (now x${s.value.toFixed(1)})`, fx: (s, l) => { s.value *= 1 + 0.4 * l; } },
+    { id: 'steel', name: 'Tempered Steel', icon: '🔩', cost: 6, grow: 1.72, max: 10, req: ['drill'], x: 1, y: 0, d: (s) => `+35% drill damage (now ${s.dps.toFixed(1)}/s)`, fx: (s, l) => { s.dps *= 1.35 ** l; } },
+    { id: 'assay', name: 'Assayer', icon: '⚖️', cost: 15, grow: 1.88, max: 10, req: ['steel'], x: 2, y: 0, d: (s) => `+40% ore per node (now x${s.value.toFixed(1)})`, fx: (s, l) => { s.value *= 1 + 0.4 * l; } },
     { id: 'lucky', name: 'Lucky Strike', icon: '🍀', cost: 45, grow: 1.9, max: 8, req: ['assay'], x: 3, y: 0, d: (s) => `+6% chance of a x3 hit (now ${pct(s.crit)})`, fx: (s, l) => { s.crit += 0.06 * l; } },
     { id: 'blast', name: 'Blasting Caps', icon: '🧨', cost: 70, grow: 2, max: 6, req: ['lucky'], x: 4, y: 0, d: (s) => `Cracked ore hits its neighbours (now ${pct(s.splash)})`, fx: (s, l) => { s.splash += 0.3 * l; } },
     { id: 'chain', name: 'Chain Charges', icon: '💥', cost: 4, grow: 1.9, max: 4, req: ['blast'], x: 5, y: 0, cur: 'gems', d: (s) => `+22px blast reach (now ${s.splashR}px)`, fx: (s, l) => { s.splashR += 22 * l; } },
@@ -19,18 +19,21 @@
     { id: 'geode', name: 'Geode Sense', icon: '💎', cost: 40, grow: 2.2, max: 5, req: ['assay'], x: 2, y: 1, d: (s) => `More geodes, which drop gems (now ${pct(s.gem)})`, fx: (s, l) => { s.gem += 0.035 * l; } },
     { id: 'auger', name: 'Mithril Auger', icon: '🌀', cost: 5, grow: 2, max: 4, req: ['geode'], x: 2, y: 2, cur: 'gems', d: () => '+6 drill size and +25% damage', fx: (s, l) => { s.radius += 6 * l; s.dps *= 1.25 ** l; } },
     { id: 'canary', name: 'Canary', icon: '🐤', cost: 3, grow: 1.8, max: 5, req: ['geode'], x: 1, y: 2, cur: 'gems', d: () => 'Lamp oil burns 10% slower', fx: (s, l) => { s.drain *= 0.9 ** l; } },
-    // build direction A: demolition (an active dynamite button)
-    { id: 'dyna', name: 'Dynamite', icon: '💣', cost: 60, grow: 2, max: 3, req: ['lucky'], x: 3, y: 1, d: (s) => `+1 stick per dig: tap to blast (now ${s.dyna})`, fx: (s, l) => { s.dyna += l; } },
+    // build direction A: demolition (an active dynamite button). Either/or with the Lodestone (group 'tool').
+    { id: 'dyna', name: 'Dynamite', icon: '💣', excl: 'tool', cost: 60, grow: 2, max: 3, req: ['lucky'], x: 3, y: 1, d: (s, lv) => lv ? `+1 stick per dig (now ${s.dyna})` : 'Demolition: a Throw button blasts everything around the drill. Sticks per dig: 1', fx: (s, l) => { s.dyna += l; } },
     { id: 'sticks', name: 'Bigger Bundles', icon: '🎇', cost: 140, grow: 2.1, max: 4, req: ['dyna'], x: 4, y: 1, d: (s) => `+25% dynamite blast size (now ${Math.round(s.dynaR)}px)`, fx: (s, l) => { s.dynaR *= 1.25 ** l; } },
     { id: 'firedamp', name: 'Firedamp', icon: '☁️', cost: 120, grow: 2.2, max: 3, req: ['dyna'], x: 3, y: 2, d: () => 'Gas costs less oil and blasts wider', fx: (s, l) => { s.gasCost *= 0.6 ** l; s.gasR *= 1.2 ** l; } },
     { id: 'nitro', name: 'Nitro', icon: '⚗️', cost: 5, grow: 2, max: 4, req: ['sticks'], x: 4, y: 2, cur: 'gems', d: () => 'Dynamite hits 60% harder', fx: (s, l) => { s.dynaDmg *= 1.6 ** l; } },
     // upper right: the rock face and the deep strata
-    { id: 'seams', name: 'Rich Seams', icon: '🪨', cost: 14, grow: 1.7, max: 8, req: ['steel'], x: 1, y: -1, d: (s) => `Ore appears 14% faster (every ${s.spawn.toFixed(2)}s)`, fx: (s, l) => { s.spawn *= 0.86 ** l; } },
+    { id: 'seams', name: 'Rich Seams', icon: '🪨', cost: 14, grow: 1.8, max: 8, req: ['steel'], x: 1, y: -1, d: (s) => `Ore appears 14% faster (every ${s.spawn.toFixed(2)}s)`, fx: (s, l) => { s.spawn *= 0.86 ** l; } },
     { id: 'face', name: 'Wider Face', icon: '🧱', cost: 30, grow: 1.8, max: 6, req: ['seams'], x: 1, y: -2, d: (s) => `+4 ore nodes at once (now ${s.maxNodes})`, fx: (s, l) => { s.maxNodes += 4 * l; } },
     { id: 'iron', name: 'Iron Veins', icon: '⚙️', cost: 110, grow: 2.1, max: 5, req: ['face'], x: 1, y: -3, d: (s) => `Iron: 5x tougher, 8x ore (now ${pct(s.big)} of ore)`, fx: (s, l) => { s.big += 0.08 * l; } },
     { id: 'cluster', name: 'Crystal Clusters', icon: '🔮', cost: 260, grow: 2.2, max: 5, req: ['iron'], x: 2, y: -3, d: (s) => `Clusters shatter into shards (now ${pct(s.cluster)})`, fx: (s, l) => { s.cluster += 0.06 * l; } },
     { id: 'survey', name: 'Deep Survey', icon: '🗺️', cost: 50, grow: 2, max: 4, req: ['seams'], x: 2, y: -1, d: (s) => `Start each dig 12 m deeper (now ${s.depth0} m)`, fx: (s, l) => { s.depth0 += 12 * l; } },
-    { id: 'smith', name: 'Silversmith', icon: '🥈', cost: 90, grow: 1.9, max: 6, req: ['survey'], x: 3, y: -1, d: () => '+35% value from silver, gold and mithril', fx: (s, l) => { s.smith *= 1 + 0.35 * l; } },
+    { id: 'smith', name: 'Silversmith', icon: '🥈', cost: 90, grow: 2.0, max: 6, req: ['survey'], x: 3, y: -1, d: () => '+35% value from silver, gold and mithril', fx: (s, l) => { s.smith *= 1 + 0.35 * l; } },
+    // either/or (group 'deep'): hunt the glinting ore, or plunge to the rich strata faster
+    { id: 'prospect', name: 'Prospector', icon: '🔍', excl: 'deep', cost: 160, grow: 2.1, max: 3, req: ['smith'], x: 4, y: -1, d: (s) => `Glinting ore is more common and pays more (now ${pct(s.glint)}, x${s.glintPay})`, fx: (s, l) => { s.glint += 0.035 * l; s.glintPay += 2 * l; } },
+    { id: 'plunge', name: 'Plunge Shaft', icon: '🕳️', excl: 'deep', cost: 160, grow: 2.1, max: 3, req: ['smith'], x: 3, y: -2, d: (s) => `Every crack takes you 30% deeper (now x${s.depthMul.toFixed(1)}), richer strata sooner`, fx: (s, l) => { s.depthMul += 0.3 * l; } },
     { id: 'breaker', name: 'Rock Breaker', icon: '🔨', cost: 150, grow: 2.3, max: 2, req: ['survey'], x: 2, y: -2, d: (s) => `Hard rock needs 1 fewer pass (now ${s.passes})`, fx: (s, l) => { s.passes -= l; } },
     { id: 'geologist', name: 'Geologist', icon: '🧭', cost: 4, grow: 2, max: 4, req: ['breaker'], x: 3, y: -3, cur: 'gems', d: () => 'Motherlode geodes appear twice as often', fx: (s, l) => { s.mother *= 2 ** l; } },
     // left arm: oil, carts and the magnet
@@ -38,10 +41,10 @@
     { id: 'wick', name: 'Long Wick', icon: '🕯️', cost: 35, grow: 1.9, max: 5, req: ['oil'], x: -1, y: -1, d: () => 'Each crack refills a little more oil', fx: (s, l) => { s.onPop += 0.12 * l; } },
     { id: 'whistle', name: 'Foreman\'s Whistle', icon: '📯', cost: 60, grow: 1.9, max: 5, req: ['wick'], x: -1, y: -2, d: () => 'Streaks last longer and pay 40% more', fx: (s, l) => { s.streakWin += 0.2 * l; s.streakPay *= 1 + 0.4 * l; } },
     { id: 'carts', name: 'Mine Carts', icon: '🛒', cost: 80, grow: 2.05, max: 6, req: ['wick'], x: -2, y: -1, d: (s) => `+1 cart that drills ore on its own (now ${s.helpers})`, fx: (s, l) => { s.helpers += l; } },
-    { id: 'rails', name: 'Better Rails', icon: '🛤️', cost: 120, grow: 1.95, max: 6, req: ['carts'], x: -3, y: -1, d: () => 'Carts hit 50% harder', fx: (s, l) => { s.helperDps *= 1.5 ** l; } },
+    { id: 'rails', name: 'Better Rails', icon: '🛤️', cost: 120, grow: 2.05, max: 6, req: ['carts'], x: -3, y: -1, d: () => 'Carts hit 50% harder', fx: (s, l) => { s.helperDps *= 1.5 ** l; } },
     { id: 'crew', name: 'Night Shift', icon: '👷', cost: 4, grow: 1.9, max: 4, req: ['rails'], x: -4, y: -1, cur: 'gems', d: (s) => `+2 carts (now ${s.helpers})`, fx: (s, l) => { s.helpers += 2 * l; } },
     // build direction B: the lodestone (hold still, the ore comes to you)
-    { id: 'lode', name: 'Lodestone Bit', icon: '🧲', cost: 55, grow: 2, max: 4, req: ['oil'], x: -2, y: 0, d: (s) => `The drill pulls nearby ore in (now ${Math.round(s.mag)}px/s)`, fx: (s, l) => { s.mag += 45 * l; s.magR += 20 * l; } },
+    { id: 'lode', name: 'Lodestone Bit', icon: '🧲', excl: 'tool', cost: 55, grow: 2, max: 4, req: ['oil'], x: -2, y: 0, d: (s, lv) => lv ? `Stronger pull (now ${Math.round(s.mag)}px/s)` : 'Magnet: hold the drill still and nearby ore drifts into it', fx: (s, l) => { s.mag += 45 * l; s.magR += 20 * l; } },
     { id: 'anchor', name: 'Steady Hands', icon: '⚓', cost: 110, grow: 2.1, max: 4, req: ['lode'], x: -3, y: 0, d: (s) => `Hold still to build up to +${pct(s.steady + 0.5)} damage`, fx: (s, l) => { s.steady += 0.5 * l; } },
     { id: 'polarity', name: 'Polarity', icon: '🌐', cost: 220, grow: 2.2, max: 3, req: ['anchor'], x: -4, y: 0, d: (s) => `+40px magnet reach (now ${Math.round(s.magR)}px)`, fx: (s, l) => { s.magR += 40 * l; s.mag *= 1.25 ** l; } },
     { id: 'flux', name: 'Flux Field', icon: '✨', cost: 4, grow: 2, max: 3, req: ['anchor'], x: -3, y: 1, cur: 'gems', d: () => 'Magnet pulls oil flasks; pulled ore +25%', fx: (s, l) => { s.flux += 0.25 * l; } },
@@ -49,6 +52,9 @@
     { id: 'flask', name: 'Oil Flasks', icon: '🧴', cost: 30, grow: 1.9, max: 5, req: ['oil'], x: -1, y: 1, d: (s) => `Oil flasks turn up more often (every ${s.flaskEvery.toFixed(1)}s)`, fx: (s, l) => { s.flaskEvery *= 0.84 ** l; s.flaskOil += 0.2 * l; } },
     { id: 'hardhat', name: 'Hard Hat', icon: '⛑️', cost: 100, grow: 2, max: 3, req: ['flask'], x: -2, y: 1, d: () => 'Cave-ins cost 35% less oil', fx: (s, l) => { s.caveCost *= 0.65 ** l; } },
     { id: 'brass', name: 'Brass Lantern', icon: '🏮', cost: 4, grow: 2, max: 3, req: ['flask'], x: -1, y: 2, cur: 'gems', d: (s) => `+3s lamp oil (now ${s.oil}s)`, fx: (s, l) => { s.oil += 3 * l; } },
+    // either/or (group 'lamp'): a steady long dig, or a frantic finale when the oil runs dry
+    { id: 'pump', name: 'Oil Pump', icon: '🛢️', excl: 'lamp', cost: 90, grow: 2, max: 3, req: ['flask'], x: -2, y: 2, d: (s) => `Flasks +0.6s and the lamp holds +3s extra (flasks give ${s.flaskOil.toFixed(1)}s)`, fx: (s, l) => { s.flaskOil += 0.6 * l; s.overfill += 3 * l; s.flaskEvery *= 0.9 ** l; } },
+    { id: 'lastlight', name: 'Last Light', icon: '🌟', excl: 'lamp', cost: 90, grow: 2, max: 3, req: ['flask'], x: 0, y: 2, d: (s, lv) => `When the oil runs out: ${3.5 + lv}s of Last Light where ore pays x3`, fx: (s, l) => { s.lastLight = 2.5 + 1 * l; } },
     // character nodes (one above and one below the root)
     { id: 'dwarfsp', who: 'dwarf', name: 'Stubborn', icon: '🧔', cost: 40, grow: 1.9, max: 5, req: ['steel'], x: 0, y: -1, d: () => '+20% damage per extra node under the drill', fx: (s, l) => { s.crowd += 0.2 * l; } },
     { id: 'dwarfale', who: 'dwarf', name: 'Ale Break', icon: '🍺', cost: 60, grow: 2, max: 4, req: ['drill'], x: 0, y: 1, d: (s) => `Once a dig, low oil refills +${(s.ale + 1.5).toFixed(1)}s`, fx: (s, l) => { s.ale += 1.5 * l; } },
@@ -59,7 +65,7 @@
     { id: 'salasp', who: 'sala', name: 'Wildfire', icon: '🔥', cost: 40, grow: 1.9, max: 5, req: ['drill'], x: 0, y: -1, d: () => 'Embers burn 30% hotter and last longer', fx: (s, l) => { s.ember *= 1.3 ** l; s.emberLife += 0.2 * l; } },
     { id: 'salaash', who: 'sala', name: 'Firewalker', icon: '🦎', cost: 60, grow: 2, max: 3, req: ['drill'], x: 0, y: 1, d: () => 'Gas you ignite refills oil instead', fx: (s, l) => { s.gasFeed += 0.8 * l; } },
     // capstone
-    { id: 'heart', name: 'Heart Map', icon: '❤️‍🔥', cost: 6000, grow: 1, max: 1, req: ['cluster', 'geologist'], reqAll: 2, extra: { gems: 20 }, x: 2, y: -4, win: true, d: () => 'Your next dig reaches the Heart. Crack it to win.' },
+    { id: 'heart', name: 'Heart Map', icon: '❤️‍🔥', cost: 30000, grow: 1, max: 1, req: ['cluster', 'geologist'], reqAll: 2, extra: { gems: 40 }, x: 2, y: -4, win: true, d: () => 'Your next dig reaches the Heart. Crack it to win.' },
   ];
   for (const n of NODES) {
     const d = n.d;
@@ -89,26 +95,44 @@
     gas: { hp: 1, val: 0, r: 24, dep: 0, col: ['#2d6a4f', '#95d5b2', '#d8f3dc'] },
     vein: { hp: 1, val: 2, r: 19, dep: 0, col: ['#7f1d1d', '#ff6b6b', '#ffd6d6'], prism: 1 },
     sentinel: { hp: 1, val: 3, r: 21, dep: 0, col: ['#1c1917', '#f97316', '#fde68a'] },
+    vault: { hp: 30, val: 40, r: 36, dep: 3, col: ['#1f2937', '#56cfe1', '#e0fbfc'], gem: 5 },
   };
+  const GLINTABLE = { copper: 1, silver: 1, gold: 1, mithril: 1, crystal: 1 };
+  // the Miner's cache: one pick per new stratum, good for the rest of this dig. ok() filters what makes sense right now.
+  const BOONS = [
+    { icon: '☕', name: 'Strong Coffee', desc: '+4s lamp oil right now', fx: (s, R) => { R.oil += 4; } },
+    { icon: '🤑', name: 'Greedy Seam', desc: 'Ore pays +60%, but the lamp burns 25% faster', fx: (s, R) => { s.value *= 1.6; for (const n of R.nodes) n.val *= 1.6; R.boonDrain = (R.boonDrain || 1) * 1.25; } },
+    { icon: '🗡️', name: 'Sharp Bit', desc: '+40% drill damage', fx: (s) => { s.dps *= 1.4; } },
+    { icon: '⭕', name: 'Wide Bit', desc: '+10 drill size', fx: (s) => { s.radius += 10; } },
+    { icon: '🍀', name: 'Lucky Charm', desc: '+15% chance of a x3 hit', fx: (s) => { s.crit += 0.15; } },
+    { icon: '🕯️', name: 'Trimmed Wick', desc: 'The lamp burns 20% slower', fx: (s, R) => { R.boonDrain = (R.boonDrain || 1) * 0.8; } },
+    { icon: '💎', name: 'Geode Map', desc: 'Many more geodes (gems)', fx: (s) => { s.gem += 0.1; } },
+    { icon: '✨', name: 'Glint Eye', desc: 'Glinting ore 3x as common', fx: (s) => { s.glint *= 3; } },
+    { icon: '😷', name: 'Gas Mask', desc: 'Gas costs no oil and blasts wider', ok: (s, R) => R.stratum >= 2, fx: (s) => { s.gasCost = 0; s.gasR *= 1.3; } },
+    { icon: '🧨', name: 'Spare Sticks', desc: '+2 dynamite', ok: (s) => s.dyna > 0, fx: (s, R) => { R.sticks += 2; } },
+    { icon: '🛒', name: 'Oiled Axles', desc: 'Carts 40% faster', ok: (s) => s.helpers > 0, fx: (s) => { s.cartSpeed *= 1.4; } },
+  ];
   // strata: what the face is made of at each depth, and the hazards that phase in
   const STRATA = [
     { at: 0, name: 'Topsoil Seam', top: '#3a2a1c', bot: '#140e09', band: 'rgba(255,214,160,.06)', ores: { copper: 1 } },
-    { at: 15, name: 'Silver Vein', top: '#2c2c34', bot: '#0f0f14', band: 'rgba(210,220,255,.07)', ores: { copper: 0.5, silver: 0.5 }, granite: 0.1 },
+    { at: 12, name: 'Silver Vein', top: '#2c2c34', bot: '#0f0f14', band: 'rgba(210,220,255,.07)', ores: { copper: 0.5, silver: 0.5 }, granite: 0.1 },
     { at: 45, name: 'Gold Reef', top: '#3a2a10', bot: '#120c03', band: 'rgba(255,205,90,.08)', ores: { copper: 0.2, silver: 0.4, gold: 0.4 }, granite: 0.12, gas: 0.06 },
     { at: 90, name: 'Crystal Caverns', top: '#241638', bot: '#0b0612', band: 'rgba(200,150,255,.08)', ores: { silver: 0.3, gold: 0.5, crystal: 0.2 }, granite: 0.13, gas: 0.07, cave: 1 },
     { at: 150, name: 'The Deep', top: '#0f2a2e', bot: '#030b0c', band: 'rgba(110,230,240,.07)', ores: { gold: 0.45, crystal: 0.2, mithril: 0.35 }, granite: 0.15, gas: 0.08, cave: 1 },
   ];
   const stratumOf = (d) => { let i = 0; while (i + 1 < STRATA.length && d >= STRATA[i + 1].at) i++; return i; };
-  const HEART_HP = 50000;
+  const HEART_HP = 80000;
   const HUD = 104; // the HUD band at the top; ore never spawns under it
 
   function createRun(env) {
     const s = env.stats, W = env.W, H = env.H, fx = env.fx, sfx = env.sfx, rnd = Math.random;
     const top = HUD + (env.boss ? 24 : 8), bottom = H - 92;
+    let CAP = s.oil + 6 + s.overfill; // the lamp can hold a little more than it starts with
     const R = { t: 0, over: false, ending: 0, cause: '', oil: s.oil, nodes: [], ore: 0, gems: 0, cracked: 0, spawnT: 0, quakeT: s.quakeEvery, won: false,
       depth: s.depth0, shown: s.depth0, stratum: stratumOf(s.depth0), streak: 0, bestStreak: 0, lastCrack: -9, stop: 0, ready: 1, banner: null, toast: null, hints: {},
       flasks: [], flaskT: 4, caves: [], caveT: 6, bombs: [], sticks: s.dyna, embers: [], emberT: 0, focus: 0, px: W / 2, py: H / 2, speed: 0, aleUsed: false, dmgDealt: 0,
       gasHits: 0, caveHits: 0, flaskGot: 0, mothers: 0, in: { x: W / 2, y: H * 0.6, down: false },
+      lit: false, last: 0, lastUsed: false, rush: 0, rushT: 10 + rnd() * 25, hurtT: -9, tick: 0, beat: 0, boons: [], glints: 0, vault: null, picking: false, wave: null, waveT: 3,
       carts: Array.from({ length: s.helpers }, (_, i) => ({ x: s.dyna > 0 ? 200 + (W - 230) * ((i * 0.37) % 1) : W * (0.15 + 0.7 * ((i * 0.37) % 1)), y: H - 40, target: null, spin: 0 })),
       specks: Array.from({ length: 70 }, () => ({ x: rnd() * W, y: rnd() * H * 2, r: 0.6 + rnd() * 2.2, a: 0.05 + rnd() * 0.12 })),
       motes: Array.from({ length: 18 }, () => ({ x: rnd() * W, y: rnd() * H, v: 6 + rnd() * 14, p: rnd() * 6 })) };
@@ -122,11 +146,11 @@
     const hintsOn = (env.best || 0) < 120;
     for (let i = 0; i < Math.min(5, s.maxNodes); i++) spawn();
 
-    function clear(x, y) { return !(R.heart && Math.hypot(x - R.heart.x, y - R.heart.y) < R.heart.r * 1.8) && !(s.dyna > 0 && x < 185 && y > H - 165); }
+    function clear(x, y) { return !(R.heart && Math.hypot(x - R.heart.x, y - R.heart.y) < R.heart.r * 1.8) && !(s.dyna > 0 && x < 220 && y > H - 165); }
     function hint(key, text) { if (!hintsOn || R.hints[key]) return; R.hints[key] = 1; R.toast = { text, t: 0, life: 2.6 }; }
     function pickKind() {
       const st = STRATA[R.stratum];
-      if (R.depth >= 15 && rnd() < s.mother * (1 + R.depth / 120)) return 'mother';
+      if (R.depth >= 12 && rnd() < s.mother * (1 + R.depth / 120)) return 'mother';
       if (st.gas && rnd() < st.gas && R.nodes.filter((n) => n.kind === 'gas').length < 2) return 'gas';
       if (st.granite && rnd() < st.granite) return 'granite';
       if (rnd() < s.cluster) return 'cluster';
@@ -141,11 +165,22 @@
       const n = { kind, x: x ?? 34 + rnd() * (W - 68), y: y ?? top + 24 + rnd() * (bottom - top - 24), r: k.r, hp: s.hp * k.hp * depthHp, max: 0, val: s.value * k.val * (k.metal ? s.smith : 1),
         born: R.t, hitT: -1, rot: rnd() * 6, seed: rnd() * 100, shape: Array.from({ length: 8 }, () => 0.78 + rnd() * 0.24) };
       if (kind === 'granite') { n.layers = n.maxLayers = Math.max(1, s.passes); n.inside = false; }
+      if (GLINTABLE[kind] && !R.heart && rnd() < s.glint) { n.glint = true; n.hp *= 1.5; n.val *= s.glintPay; hint('glint', 'Glinting ore! Worth a lot more'); }
       if (kind === 'gas') { n.fuse = -1; n.life = 7; }
       if (kind === 'mother') { hint('mother', 'A motherlode! Drill it for gems'); sfx.tone(1568, 0.3, 'sine', 0.05); }
       if (kind === 'granite') hint('granite', 'Hard rock: swipe across it again and again');
       if (kind === 'gas') hint('gas', 'Green gas: steer clear unless you want a blast');
       n.max = n.hp; R.nodes.push(n); return n;
+    }
+    function cache() {
+      if (!env.pick || R.heart) return;
+      const pool = BOONS.filter((b) => !b.ok || b.ok(s, R)), opts = [];
+      while (opts.length < 3 && pool.length) opts.push(pool.splice(Math.floor(rnd() * pool.length), 1)[0]);
+      R.picking = true;
+      env.pick('Miner\'s cache! Pick one', opts.map((b) => ({ icon: b.icon, name: b.name, desc: b.desc, tag: 'this dig' })), (i) => {
+        const b = opts[i] || opts[0]; R.picking = false; b.fx(s, R); R.boons.push(b.name); syncBtn();
+        fx.text(R.in.x, R.in.y - 60, b.name + '!', '#ffd166', 20); sfx.coin();
+      });
     }
     function growVeins() {
       const h = R.heart; h.veins = [];
@@ -164,7 +199,7 @@
       if (n.hp <= 0) crack(n, src);
     }
     function strip(n, k) {
-      n.layers -= k; n.hitT = R.t; sfx.crack(); fx.burst(n.x, n.y, 5, ['#6c757d', '#adb5bd', '#343a40'], 120);
+      n.layers -= k; n.hitT = R.t; sfx.play('grind', 0.7) || sfx.crack(); fx.burst(n.x, n.y, 5, ['#6c757d', '#adb5bd', '#343a40'], 120);
       if (n.layers <= 0) crack(n, 'pass'); else fx.ring(n.x, n.y, n.r + 10, '#ced4da');
     }
     function crack(n, src) {
@@ -172,18 +207,20 @@
       if (R.t - R.lastCrack < s.streakWin) R.streak++; else R.streak = 1;
       R.lastCrack = R.t; R.bestStreak = Math.max(R.bestStreak, R.streak);
       const mult = (1 + Math.min(R.streak, 40) * 0.015 * s.streakPay) * (src === 'cart' ? 1 + s.hopper : 1) * (n.pulled ? 1 + s.flux : 1);
-      const v = n.val * mult; R.ore += v; R.cracked++; R.depth += k.dep;
-      R.oil = Math.min(R.oil + s.onPop / (1 + R.cracked / 120), s.oil + 6);
-      if (n.kind === 'granite') { R.oil = Math.min(R.oil + 1, s.oil + 6); fx.text(n.x, n.y - 30, '+1s oil', '#ffb703', 15); R.stop = Math.max(R.stop, 0.04); fx.shake = Math.max(fx.shake, 5); }
+      const v = n.val * mult * (R.last > 0 ? 3 : 1) * (n.kind === 'granite' && env.who === 'dwarf' ? 2 : 1); R.ore += v; R.cracked++; R.depth += k.dep * s.depthMul;
+      R.oil = Math.min(R.oil + s.onPop / (1 + R.cracked / 120), CAP);
+      if (n.kind === 'granite') { R.oil = Math.min(R.oil + 1, CAP); fx.text(n.x, n.y - 30, '+1s oil', '#ffb703', 15); R.stop = Math.max(R.stop, 0.04); fx.shake = Math.max(fx.shake, 5); }
       sfx.crack(); if (k.metal) sfx.coin();
       fx.burst(n.x, n.y, n.kind === 'iron' || n.kind === 'mother' ? 14 : 7, k.col, 150);
       const big = v >= s.value * 6;
       fx.text(n.x, n.y - 8, '+' + env.fmt(v), big ? '#ffd166' : '#ffe8b0', big ? 19 : 15);
+      if (n.glint) { R.gems++; R.glints++; R.stop = Math.max(R.stop, 0.06); fx.ring(n.x, n.y, 70, '#fff3b0'); fx.text(n.x, n.y - 52, 'GLINTING! +1 gem', '#fff3b0', 16); sfx.play('glint') || [1318, 1760].forEach((f, i) => sfx.tone(f, 0.12, 'triangle', 0.06, 1, i * 0.06)); }
+      if (n.kind === 'vault') { R.stop = 0.2; fx.shake = 14; fx.ring(n.x, n.y, 150, '#56cfe1'); R.banner = { big: 'DWARVEN VAULT!', sub: 'Mithril spills out', t: 0, life: 1.8, col: '#56cfe1' }; for (let i = 0; i < 6; i++) { const a = i * 1.047; spawn(Math.max(30, Math.min(W - 30, n.x + Math.cos(a) * 50)), Math.max(top + 20, Math.min(bottom, n.y + Math.sin(a) * 50)), 'mithril'); } }
       if (k.gem) { R.gems += k.gem; sfx.ding(); fx.text(n.x, n.y - 32, `+${k.gem} gem${k.gem > 1 ? 's' : ''}`, '#e0aaff', 17); }
-      if (n.kind === 'mother') { R.mothers++; R.stop = 0.12; fx.shake = 12; fx.ring(n.x, n.y, 120, '#e0aaff'); R.banner = { big: 'MOTHERLODE!', sub: `+${k.gem} gems`, t: 0, life: 1.6, col: '#e0aaff' }; [1046, 1318, 1568, 2093].forEach((f, i) => sfx.tone(f, 0.18, 'triangle', 0.07, 1, i * 0.07)); }
+      if (n.kind === 'mother') { R.mothers++; R.stop = 0.12; fx.shake = 12; fx.ring(n.x, n.y, 120, '#e0aaff'); R.banner = { big: 'MOTHERLODE!', sub: `+${k.gem} gems`, t: 0, life: 1.6, col: '#e0aaff' }; sfx.play('motherlode') || [1046, 1318, 1568, 2093].forEach((f, i) => sfx.tone(f, 0.18, 'triangle', 0.07, 1, i * 0.07)); }
       if (n.kind === 'iron' || n.kind === 'cluster') { fx.shake = Math.max(fx.shake, 5); R.stop = Math.max(R.stop, 0.035); }
       if (n.kind === 'cluster') for (let i = 0; i < 4; i++) { const a = i * 1.57 + rnd(); spawn(n.x + Math.cos(a) * 28, n.y + Math.sin(a) * 28, 'shard'); }
-      if (n.kind === 'sentinel') { R.oil = Math.min(R.oil + 1, s.oil + 6); fx.text(n.x, n.y - 30, '+1s oil', '#ffb703', 15); }
+      if (n.kind === 'sentinel') { R.oil = Math.min(R.oil + 1, CAP); fx.text(n.x, n.y - 30, '+1s oil', '#ffb703', 15); }
       if (R.streak >= 10 && R.streak % 10 === 0) { fx.text(W / 2, H * 0.5, `x${R.streak} STREAK!`, '#ffd166', 26); fx.ring(n.x, n.y, 90, '#ffd166'); sfx.tone(500 + R.streak * 12, 0.16, 'triangle', 0.08); sfx.tone(750 + R.streak * 18, 0.16, 'triangle', 0.06, 1, 0.07); }
       if (s.splash && n.kind !== 'vein') for (const o of R.nodes) if (!o.dead && o !== n && o.kind !== 'gas' && Math.hypot(o.x - n.x, o.y - n.y) < s.splashR + o.r) hit(o, n.max * s.splash, 'blast');
     }
@@ -192,8 +229,8 @@
       fx.ring(n.x, n.y, s.gasR, '#95d5b2'); fx.burst(n.x, n.y, 18, ['#95d5b2', '#d8f3dc', '#ffd166'], 260, 4.5);
       if (n.by === 'drill' || n.by === 'ember') {
         const cost = 2.5 * s.gasCost, back = n.by === 'ember' ? s.gasFeed : 0;
-        if (back) { R.oil = Math.min(R.oil + back, s.oil + 6); fx.text(n.x, n.y - 30, `+${back.toFixed(1)}s oil`, '#ffb703', 17); }
-        else if (cost > 0.05) { R.oil -= cost; R.gasHits++; fx.text(n.x, n.y - 30, `-${cost.toFixed(1)}s oil`, '#ff6b6b', 18); }
+        if (back) { R.oil = Math.min(R.oil + back, CAP); fx.text(n.x, n.y - 30, `+${back.toFixed(1)}s oil`, '#ffb703', 17); }
+        else if (cost > 0.05) { R.oil -= cost; R.gasHits++; R.hurtT = R.t; fx.text(n.x, n.y - 30, `-${cost.toFixed(1)}s oil`, '#ff6b6b', 18); }
       }
       for (const o of R.nodes) if (!o.dead && o !== n && Math.hypot(o.x - n.x, o.y - n.y) < s.gasR + o.r) {
         if (o.kind === 'gas') { if (o.fuse < 0) { o.fuse = 0.2; o.by = 'chain'; } } else if (o.kind === 'granite') strip(o, 2); else hit(o, o.max * 2, 'gas');
@@ -210,10 +247,16 @@
         R.stop = 0.25; fx.shake = 16; fx.ring(h.x, h.y, h.r * 3, '#f97316'); sfx.boom();
         [440, 415, 392, 330].forEach((f, i) => sfx.tone(f, 0.22, 'square', 0.05, 1, 0.1 + i * 0.13)); sfx.tone(65, 1, 'sawtooth', 0.07, 0.6, 0.6);
       }
+      if (h.phase === 2 && h.hp <= h.max * 0.2) {
+        h.phase = 3; h.waveT = 1.6; h.sentT = Math.min(h.sentT, 1.5);
+        R.banner = { big: 'THE HEART RAGES', sub: 'Shockwaves! Get your drill out of the ring', t: 0, life: 2.4, col: '#ff3b3b' };
+        R.stop = 0.25; fx.shake = 16; fx.ring(h.x, h.y, h.r * 3.5, '#ff3b3b'); sfx.boom(); sfx.tone(49, 1.2, 'sawtooth', 0.08, 0.6, 0.2);
+      }
       if (h.hp <= 0) {
+        R.gems += 25; R.wave = null;
         h.hp = 0; R.won = true; R.cause = 'win'; R.ending = 1.4; R.stop = 0.3; fx.shake = 20;
         fx.burst(h.x, h.y, 40, ['#ff6b6b', '#ffd166', '#fff', '#ff8fa3'], 340, 5); fx.ring(h.x, h.y, h.r * 4, '#ffd166'); sfx.boom();
-        R.banner = { big: 'THE HEART IS YOURS', sub: '', t: 0, life: 2, col: '#ffd166' };
+        R.banner = { big: 'THE HEART IS YOURS', sub: '+25 gems from its core', t: 0, life: 2, col: '#ffd166' }; sfx.win();
       }
     }
     function blastDynamite(b) {
@@ -230,12 +273,14 @@
     }
     // the dynamite button: fixed slot bottom-left, always the same size; dims when out of sticks
     let btn = null;
-    function syncBtn() { if (!btn) return; btn.querySelector('b').textContent = R.sticks; btn.disabled = R.sticks <= 0; btn.style.opacity = R.sticks > 0 ? '1' : '.45'; }
+    function syncBtn() { if (!btn) return; btn.querySelector('.lbl').innerHTML = R.sticks > 0 ? `Throw · <b>${R.sticks}</b> left` : 'No sticks left'; btn.disabled = R.sticks <= 0; btn.style.opacity = R.sticks > 0 ? '1' : '.5'; }
     if (env.ui && s.dyna > 0) {
       btn = document.createElement('button'); btn.type = 'button'; btn.setAttribute('aria-label', 'Throw dynamite');
-      btn.style.cssText = 'display:flex;align-items:center;gap:8px;min-height:56px;min-width:148px;margin:0 0 14px 4px;padding:6px 14px;border-radius:16px;border:2px solid #ffb70399;background:linear-gradient(#7a2e0e,#3d1607);color:#ffe8b0;font:400 18px "Lilita One",system-ui;box-shadow:0 4px 0 #1d0b03;touch-action:none';
-      btn.innerHTML = '<span style="font-size:24px">🧨</span><span>Throw · <b>0</b> left</span>';
-      btn.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); dynamite(); });
+      btn.style.cssText = 'display:flex;align-items:center;gap:8px;min-height:56px;width:196px;margin:0 0 14px 4px;padding:6px 14px;border-radius:16px;border:2px solid #ffb70399;background:linear-gradient(#7a2e0e,#3d1607);color:#ffe8b0;font:400 18px "Lilita One",system-ui;box-shadow:0 4px 0 #1d0b03;touch-action:none';
+      btn.innerHTML = '<span style="font-size:24px">🧨</span><span class="lbl"></span>';
+      let downAt = 0; // pointerdown for speed; click as a fallback (keyboard, test harness), never both
+      btn.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); downAt = performance.now(); dynamite(); });
+      btn.addEventListener('click', (e) => { e.stopPropagation(); if (performance.now() - downAt > 600) dynamite(); });
       env.ui.appendChild(btn); syncBtn();
     }
 
@@ -250,42 +295,50 @@
         if (R.ending > 0) { R.ending -= dt; if (R.ending <= 0) R.over = true; return; } // the end beat: freeze, then hand over
         if (R.stop > 0) { R.stop -= dt; return; } // hit pause
         if (R.ready > 0) { R.ready -= dt; if (R.ready <= 0) sfx.tone(880, 0.12, 'triangle', 0.07); return; } // a beat to see the face
+        if (!R.lit) { if (!input.down) return; R.lit = true; } // the lamp is lit by the first touch: no oil burns while you read the face
         R.t += dt;
         const sp = Math.hypot(input.x - R.px, input.y - R.py) / dt; R.speed += (sp - R.speed) * Math.min(1, dt * 10); R.px = input.x; R.py = input.y;
         // the deeper (longer) you dig, the faster the lamp burns; a hard ramp past 55 s keeps digs under ~75 s
-        R.oil -= s.drain * (1 + Math.max(0, R.t - 10) / 10 + Math.max(0, R.t - 55) * 0.5) * dt;
+        if (R.last <= 0) R.oil -= s.drain * (R.boonDrain || 1) * (1 + Math.max(0, R.t - 14) / 10 + Math.max(0, R.t - 55) * 0.5) * dt;
+        if (R.oil < 3 && R.oil > 0 && !R.last && Math.ceil(R.oil) !== R.tick) { R.tick = Math.ceil(R.oil); sfx.tone(R.tick === 1 ? 1175 : 988, 0.06, 'square', 0.035); } // low-oil ticks
+        if (R.last > 0) { R.last -= dt; if (R.last <= 0) R.last = -1; }
+        if (R.rush > 0) R.rush -= dt;
+        else if (!R.heart && R.depth >= 15 && R.rushT > 0 && (R.rushT -= dt) <= 0) { // once a dig, maybe: a gold rush floods the face
+          if (rnd() < 0.45) { R.rush = 6; R.banner = { big: 'GOLD RUSH!', sub: 'Ore floods the face for 6 s', t: 0, life: 1.6, col: '#ffd166' }; sfx.play('rush') || [659, 784, 988, 1318].forEach((f, i) => sfx.tone(f, 0.12, 'triangle', 0.07, 1, i * 0.06)); for (let i = 0; i < 6; i++) spawn(undefined, undefined, rnd() < 0.5 ? 'gold' : 'silver'); }
+        }
+        if (!R.heart && !R.vault && R.depth >= 150) { R.vault = spawn(undefined, undefined, 'vault'); hint('vault', 'A sealed dwarven vault! Drill it open'); sfx.tone(392, 0.4, 'triangle', 0.06); sfx.tone(587, 0.5, 'triangle', 0.06, 1, 0.15); }
         if (s.ale && !R.aleUsed && R.oil < s.oil * 0.25) { R.aleUsed = true; R.oil += s.ale; fx.text(input.x, input.y - 50, `Ale break! +${s.ale.toFixed(1)}s`, '#ffd166', 18); sfx.ding(); }
         R.shown += (R.depth - R.shown) * Math.min(1, dt * 3);
         const si = stratumOf(R.depth);
-        if (si > R.stratum) { R.stratum = si; const st = STRATA[si]; R.banner = { big: st.name, sub: `${st.at} m`, t: 0, life: 1.8, col: '#ffe8b0' }; sfx.tone(523, 0.14, 'triangle', 0.07); sfx.tone(784, 0.2, 'triangle', 0.07, 1, 0.1); }
+        if (si > R.stratum) { R.stratum = si; const st = STRATA[si]; if (!R.heart) R.banner = { big: st.name, sub: `${st.at} m`, t: 0, life: 1.8, col: '#ffe8b0' }; sfx.tone(523, 0.14, 'triangle', 0.07); sfx.tone(784, 0.2, 'triangle', 0.07, 1, 0.1); if (R.last <= 0) cache(st); }
         R.spawnT -= dt;
-        while (R.spawnT <= 0) { R.spawnT += s.spawn; if (R.nodes.filter((n) => n.kind !== 'vein' && n.kind !== 'sentinel').length < s.maxNodes) spawn(); }
+        while (R.spawnT <= 0) { R.spawnT += s.spawn / (R.rush > 0 ? 3 : 1); if (R.nodes.filter((n) => n.kind !== 'vein' && n.kind !== 'sentinel').length < s.maxNodes + (R.rush > 0 ? 8 : 0)) spawn(); }
         // oil flasks
         R.flaskT -= dt;
         if (R.flaskT <= 0) { R.flaskT += s.flaskEvery * (0.8 + rnd() * 0.4); let fxp = 0, fyp = 0; for (let i = 0; i < 10; i++) { fxp = 40 + rnd() * (W - 80); fyp = top + 30 + rnd() * (bottom - top - 40); if (clear(fxp, fyp)) break; } R.flasks.push({ x: fxp, y: fyp, t: 0, life: 5 }); hint('flask', 'Grab the oil flask for more lamp time'); }
         for (const f of R.flasks) {
           f.t += dt;
           if (s.flux && input.down) { const d = Math.hypot(input.x - f.x, input.y - f.y); if (d < s.magR && d > 4) { f.x += (input.x - f.x) / d * s.mag * dt; f.y += (input.y - f.y) / d * s.mag * dt; } }
-          if (input.down && Math.hypot(input.x - f.x, input.y - f.y) < s.radius + 16) { f.got = true; R.flaskGot++; R.oil = Math.min(R.oil + s.flaskOil, s.oil + 6); fx.text(f.x, f.y - 20, `+${s.flaskOil.toFixed(1)}s oil`, '#ffb703', 18); fx.ring(f.x, f.y, 40, '#ffb703'); sfx.ding(); }
+          if (input.down && Math.hypot(input.x - f.x, input.y - f.y) < s.radius + 16) { f.got = true; R.flaskGot++; R.oil = Math.min(R.oil + s.flaskOil, CAP); fx.text(f.x, f.y - 20, `+${s.flaskOil.toFixed(1)}s oil`, '#ffb703', 18); fx.ring(f.x, f.y, 40, '#ffb703'); sfx.play('flask') || sfx.ding(); }
         }
         R.flasks = R.flasks.filter((f) => !f.got && f.t < f.life);
         // cave-ins: a shadow warns, then rock falls
         if (STRATA[R.stratum].cave && !R.heart) {
           R.caveT -= dt;
-          if (R.caveT <= 0) { R.caveT = 6 + rnd() * 3; const cx = Math.max(60, Math.min(W - 60, input.x + (rnd() - 0.5) * 120)), cy = Math.max(top + 40, Math.min(bottom - 20, input.y + (rnd() - 0.5) * 120)); R.caves.push({ x: cx, y: cy, r: 72, t: 0, warn: 1.3 }); hint('cave', 'Cave-in! Move out of the shadow'); sfx.tone(90, 0.5, 'sawtooth', 0.04, 0.7); }
+          if (R.caveT <= 0) { R.caveT = 6 + rnd() * 3; const cx = Math.max(60, Math.min(W - 60, input.x + (rnd() - 0.5) * 120)), cy = Math.max(top + 40, Math.min(bottom - 20, input.y + (rnd() - 0.5) * 120)); R.caves.push({ x: cx, y: cy, r: 72, t: 0, warn: 1.3 }); hint('cave', 'Cave-in! Move out of the shadow'); sfx.play('cave', 0.7) || sfx.tone(90, 0.5, 'sawtooth', 0.04, 0.7); }
         }
         for (const c of R.caves) {
           c.t += dt;
           if (!c.fell && c.t >= c.warn) {
             c.fell = true; fx.shake = Math.max(fx.shake, 9); sfx.boom(); fx.burst(c.x, c.y, 16, ['#6b4f3a', '#a98467', '#3d2c1e'], 200, 4.5);
-            if (input.down && Math.hypot(input.x - c.x, input.y - c.y) < c.r) { const cost = 2 * s.caveCost; R.oil -= cost; R.caveHits++; fx.text(c.x, c.y - 40, `-${cost.toFixed(1)}s oil`, '#ff6b6b', 18); }
+            if (input.down && Math.hypot(input.x - c.x, input.y - c.y) < c.r) { const cost = 2 * s.caveCost; R.oil -= cost; R.caveHits++; R.hurtT = R.t; fx.text(c.x, c.y - 40, `-${cost.toFixed(1)}s oil`, '#ff6b6b', 18); }
             for (let i = 0; i < 3; i++) spawn(c.x + (rnd() - 0.5) * 70, c.y + (rnd() - 0.5) * 70, 'rubble');
           }
         }
         R.caves = R.caves.filter((c) => c.t < c.warn + 0.4);
         // the drill
         if (input.down) {
-          R.focus = R.speed < 140 ? Math.min(1, R.focus + dt / 1.2) : Math.max(0, R.focus - dt * 2.5);
+          R.focus = !s.steady ? 0 : R.speed < 140 ? Math.min(1, R.focus + dt / 1.2) : Math.max(0, R.focus - dt * 2.5);
           const under = R.nodes.filter((n) => !n.dead && n.kind !== 'granite' && n.kind !== 'gas' && Math.hypot(n.x - input.x, n.y - input.y) < s.radius + n.r);
           const m = (1 + s.crowd * Math.max(0, under.length - 1)) * (1 + s.steady * R.focus);
           for (const n of under) hit(n, s.dps * m * dt, 'drill');
@@ -324,7 +377,7 @@
             R.quakeT += s.quakeEvery; sfx.boom(); fx.shake = 8; fx.ring(W / 2, H / 2, Math.max(W, H) * 0.7, '#ffd08a');
             for (const n of R.nodes.slice()) if (n.kind === 'gas') { if (n.fuse < 0) { n.fuse = 0.3; n.by = 'quake'; } } else hit(n, s.quake * s.dps / 4.8, 'quake');
             if (R.heart) hurtHeart(s.quake * s.dps / 4.8);
-            if (s.shockOil) { R.oil = Math.min(R.oil + s.shockOil, s.oil + 6); fx.text(W / 2, top + 20, `+${s.shockOil.toFixed(1)}s oil`, '#ffb703', 15); }
+            if (s.shockOil) { R.oil = Math.min(R.oil + s.shockOil, CAP); fx.text(W / 2, top + 20, `+${s.shockOil.toFixed(1)}s oil`, '#ffb703', 15); }
           }
         }
         // gas fuses and fizzles
@@ -347,28 +400,53 @@
           if (h.phase === 1) {
             if (h.veins.every((v) => v.dead)) { if (!h.regrow) { h.regrow = 7; hint('veins', 'Veins broken: drill the Heart now!'); } h.regrow -= dt; if (h.regrow <= 0) { h.regrow = 0; growVeins(); sfx.tone(196, 0.4, 'sawtooth', 0.05, 1.5); } }
           } else {
-            h.x = h.bx + Math.sin(R.t * 0.55) * W * 0.24; h.y = h.by + Math.sin(R.t * 0.41) * H * 0.07;
+            h.drift = (h.drift || 0) + dt * (h.phase === 3 ? 0.8 : 0.55);
+            h.x = h.bx + Math.sin(h.drift) * W * 0.24; h.y = h.by + Math.sin(h.drift * 0.75) * H * 0.07;
             h.sentT -= dt;
+            if (h.phase === 3 && !R.wave && (h.waveT -= dt) <= 0) { // the shockwave: a ring is marked, then it hits
+              h.waveT = 4.2; R.wave = { x: h.x, y: h.y, r: h.r * 2.4, t: 0, warn: 1.4 }; hint('wave', 'Lift off or move out of the red ring!');
+              sfx.tone(130, 1.3, 'sawtooth', 0.05, 2.2);
+            }
             if (h.sentT <= 0) {
-              h.sentT = 3.2; const a = rnd() * 6.28, n = spawn(Math.max(40, Math.min(W - 40, h.x + Math.cos(a) * h.r * 2)), Math.max(top + 30, Math.min(bottom, h.y + Math.sin(a) * h.r * 2)), 'sentinel');
+              h.sentT = h.phase === 3 ? 2.6 : 3.2; const a = rnd() * 6.28, n = spawn(Math.max(40, Math.min(W - 40, h.x + Math.cos(a) * h.r * 2)), Math.max(top + 30, Math.min(bottom, h.y + Math.sin(a) * h.r * 2)), 'sentinel');
               n.hp = n.max = HEART_HP * 0.012; n.life = 5.5; n.lifeMax = 5.5; sfx.tone(150, 0.25, 'square', 0.04, 0.7);
             }
             for (const n of R.nodes) if (n.kind === 'sentinel' && !n.dead && (n.life -= dt) <= 0) {
-              n.dead = true; R.oil -= 1.5; fx.ring(n.x, n.y, 90, '#f97316'); fx.burst(n.x, n.y, 16, ['#f97316', '#fde68a', '#1c1917'], 220, 4); fx.text(n.x, n.y - 30, '-1.5s oil', '#ff6b6b', 18); fx.shake = 9; sfx.boom();
+              n.dead = true; R.oil -= 1.5; R.hurtT = R.t; fx.ring(n.x, n.y, 90, '#f97316'); fx.burst(n.x, n.y, 16, ['#f97316', '#fde68a', '#1c1917'], 220, 4); fx.text(n.x, n.y - 30, '-1.5s oil', '#ff6b6b', 18); fx.shake = 9; sfx.boom();
             }
           }
+          if (R.wave) {
+            const w = R.wave; w.t += dt;
+            if (!w.hit && w.t >= w.warn) {
+              w.hit = true; fx.ring(w.x, w.y, w.r, '#ff3b3b'); fx.ring(w.x, w.y, w.r * 0.7, '#fff'); fx.shake = 12; sfx.boom();
+              if (input.down && Math.hypot(input.x - w.x, input.y - w.y) < w.r) { R.oil -= 2; R.hurtT = R.t; fx.text(input.x, input.y - 60, '-2s oil', '#ff6b6b', 20); }
+              else fx.text(w.x, w.y - w.r - 10, 'Dodged!', '#95d5b2', 18);
+            }
+            if (w.t > w.warn + 0.3) R.wave = null;
+          }
+          if ((R.beat -= dt) <= 0) { R.beat = [0, 1.75, 1.14, 0.9][h.phase]; sfx.play('heart-beat', 0.7) || sfx.tone(52, 0.22, 'sine', 0.12, 0.7); }
           for (const v of h.veins) if (!v.dead) { v.x = h.x + Math.cos(v.ang) * h.r * 1.32; v.y = h.y + Math.sin(v.ang) * h.r * 1.32; }
         }
         R.nodes = R.nodes.filter((n) => !n.dead);
         if (R.won) return;
-        if (R.oil <= 0) { R.oil = 0; R.cause = 'oil'; R.ending = 1; R.stop = 0; sfx.tone(220, 0.6, 'sine', 0.08, 0.4); }
+        if (R.oil <= 0 && s.lastLight && !R.lastUsed) { // Last Light: one frantic finale where ore pays x3
+          R.oil = 0; R.lastUsed = true; R.last = s.lastLight; R.stop = 0.15; fx.shake = 6;
+          R.banner = { big: 'LAST LIGHT!', sub: `Ore pays x3 for ${s.lastLight.toFixed(1)}s`, t: 0, life: 1.4, col: '#fff3b0' };
+          sfx.play('lastlight') || [784, 988, 1175, 1568].forEach((f, i) => sfx.tone(f, 0.16, 'triangle', 0.07, 1, i * 0.05));
+        }
+        if (R.oil <= 0 && R.last <= 0) { R.oil = 0; R.cause = 'oil'; R.ending = 1; R.stop = 0; sfx.tone(220, 0.6, 'sine', 0.08, 0.4); }
       },
       quit() { R.cause = 'quit'; },
       draw(g) { drawRun(g, R, env, s, W, H, top, bottom); },
       result() {
         const st = STRATA[stratumOf(R.depth)], dm = Math.floor(R.depth);
         const lines = [`${dm} m deep (${st.name}) in ${Math.round(R.t)}s`, `${R.cracked} cracked · best streak x${R.bestStreak}${R.flaskGot ? ` · ${R.flaskGot} flask${R.flaskGot > 1 ? 's' : ''}` : ''}${R.mothers ? ` · ${R.mothers} motherlode` : ''}`];
-        if (R.heart && !R.won) lines.unshift(`The Heart had ${Math.ceil(R.heart.hp / R.heart.max * 100)}% left${R.heart.phase === 2 ? ' (awake)' : ''}`);
+        if (R.heart && !R.won) lines.unshift(`The Heart had ${Math.ceil(R.heart.hp / R.heart.max * 100)}% left${R.heart.phase >= 2 ? ' (awake)' : ''}`);
+        if (R.won) lines.push('+25 gems from the Heart\'s core');
+        const extras = [R.glints && `${R.glints} glinting`, R.vault?.dead && 'opened a vault', R.boons.length && `cache: ${R.boons.join(', ')}`].filter(Boolean);
+        if (extras.length) lines.push(extras.join(' · '));
+        if (!R.won && R.cause === 'oil' && R.gasHits + R.caveHits >= 2) lines.push(`Gas and cave-ins cost you oil ${R.gasHits + R.caveHits} times`);
+        if (!R.won) { const tip = nextBuy(env, { ore: R.ore, gems: R.gems }); if (tip) lines.push(tip); }
         return R.won ? { won: true, earned: { ore: R.ore, gems: R.gems }, score: dm, lines }
           : { won: false, title: R.heart ? 'The Heart held' : R.cause === 'quit' ? 'You climbed out' : 'Lamp burned out', earned: { ore: R.ore, gems: R.gems }, score: dm, lines };
       },
@@ -377,11 +455,39 @@
     return api;
   }
 
+  // results hint: the cheapest upgrade the player can buy after this dig, else the nearest one to save for (browser only)
+  function nextBuy(env, earned) {
+    if (!K) return '';
+    try {
+      const C = K.charSave(K.S.cur), lv = C.levels, wal = (c) => (C.wallet[c] || 0) + Math.floor(earned[c] || 0);
+      const open = NODES.filter((n) => (!n.who || n.who === env.who) && !n.win && (lv[n.id] || 0) < n.max && (!n.req.length || n.req.filter((r) => lv[r]).length >= (n.reqAll || 1))
+        && !(n.excl && NODES.some((m) => m !== n && m.excl === n.excl && lv[m.id])))
+        .map((n) => ({ n, c: Math.ceil(n.cost * n.grow ** (lv[n.id] || 0)), cur: n.cur || 'ore' })).map((o) => ({ ...o, gap: o.c - wal(o.cur) }));
+      const can = open.filter((o) => o.gap <= 0).sort((a, b) => a.c - b.c)[0];
+      if (can) return `Next: ${can.n.name} (${env.fmt(can.c)} ${can.cur})`;
+      const near = open.filter((o) => o.cur === 'ore').sort((a, b) => a.gap - b.gap)[0];
+      return near ? `Save up: ${near.n.name} needs ${env.fmt(near.gap)} more ore` : '';
+    } catch { return ''; }
+  }
+
   // ---------------------------------------------------------------- drawing
+  // art hooks: env.sprite draws a raster image when the Media Helper's art exists, else returns false (vector fallback)
+  let SPR = () => false, ART = () => null;
+  function artNode(g, n, k, r, hit, t) {
+    const nm = n.kind === 'shard' ? 'obj-cluster' : 'obj-' + n.kind;
+    if (!ART(nm)) return false;
+    let w = r * 2.3, a = 1;
+    const rot = k.prism || n.kind === 'gas' || n.kind === 'vault' ? 0 : n.rot * 0.15;
+    if (n.kind === 'gas') { const f = n.fuse >= 0; w *= (1 + 0.06 * Math.sin(t * 5 + n.seed)) * (f ? 1 + (0.45 - n.fuse) * 0.8 : 1); a = Math.min(1, n.life / 1.2 + (f ? 1 : 0)); }
+    SPR(g, nm, 0, 0, w, undefined, { rot, alpha: a });
+    if (hit > 0) { g.globalCompositeOperation = 'lighter'; SPR(g, nm, 0, 0, w, undefined, { rot, alpha: hit * 0.55 }); g.globalCompositeOperation = 'source-over'; }
+    return true;
+  }
   function rr(g, x, y, w, h, r) { g.beginPath(); g.roundRect ? g.roundRect(x, y, w, h, r) : g.rect(x, y, w, h); }
   const lerpC = (a, b, t) => { const p = (c) => [1, 3, 5].map((i) => parseInt(c.slice(i, i + 2), 16)); const A = p(a), B = p(b); return `rgb(${A.map((v, i) => Math.round(v + (B[i] - v) * t)).join(',')})`; };
   function drawRun(g, R, env, s, W, H, top, bottom) {
     const rnd = Math.random, fx = env.fx, t = R.t + (1 - Math.max(0, R.ready));
+    SPR = env.sprite || SPR; ART = env.art || ART;
     const sx = (rnd() - 0.5) * fx.shake, sy = (rnd() - 0.5) * fx.shake;
     g.save(); g.translate(sx, sy);
     // rock face: the stratum's colours blend toward the next one as you near it; bands and specks scroll up as you dig
@@ -389,7 +495,9 @@
     const blend = nx ? Math.max(0, Math.min(1, (R.shown - (nx.at - 8)) / 8)) : 0;
     const bg = g.createLinearGradient(0, 0, 0, H);
     bg.addColorStop(0, nx ? lerpC(st.top, nx.top, blend) : st.top); bg.addColorStop(1, nx ? lerpC(st.bot, nx.bot, blend) : st.bot);
-    g.fillStyle = bg; g.fillRect(-20, -20, W + 40, H + 40);
+    if (SPR(g, 'bg-rock', W / 2, H / 2, W + 40, H + 40)) g.globalAlpha = 0.62; // art backdrop, tinted by the stratum colours
+    g.fillStyle = bg; g.fillRect(-20, -20, W + 40, H + 40); g.globalAlpha = 1;
+    if (R.rush > 0) { g.fillStyle = `rgba(255,195,0,${0.08 + 0.04 * Math.sin(t * 8)})`; g.fillRect(-20, -20, W + 40, H + 40); }
     const scroll = R.shown * 16;
     g.strokeStyle = st.band; g.lineWidth = 10;
     for (let i = 0; i < 8; i++) {
@@ -409,6 +517,11 @@
       }
     }
     if (R.heart) drawHeart(g, R.heart, t);
+    if (R.wave && !R.wave.hit) { // telegraph: the danger zone is marked at once, the fill grows until it hits
+      const w = R.wave, q = Math.min(1, w.t / w.warn);
+      g.fillStyle = `rgba(255,59,59,${0.08 + 0.17 * q})`; g.beginPath(); g.arc(w.x, w.y, w.r * q, 0, 6.283); g.fill();
+      g.setLineDash([10, 8]); g.strokeStyle = `rgba(255,90,90,${0.6 + 0.4 * Math.sin(t * 18)})`; g.lineWidth = 4; g.beginPath(); g.arc(w.x, w.y, w.r, 0, 6.283); g.stroke(); g.setLineDash([]);
+    }
     // embers under the ore
     if (R.embers.length) {
       g.globalCompositeOperation = 'lighter';
@@ -425,6 +538,9 @@
     const lamp = g.createRadialGradient(lx, ly, 20, lx, ly, Math.max(W, H) * (0.55 + 0.35 * of) * fl);
     lamp.addColorStop(0, 'rgba(255,200,120,.12)'); lamp.addColorStop(0.35, 'rgba(0,0,0,0)'); lamp.addColorStop(1, `rgba(0,0,0,${0.5 + 0.3 * (1 - of)})`);
     g.fillStyle = lamp; g.fillRect(-20, -20, W + 40, H + 40);
+    if (R.last > 0) { g.fillStyle = `rgba(255,243,176,${0.1 + 0.06 * Math.sin(t * 16)})`; g.fillRect(-20, -20, W + 40, H + 40); }
+    const hurt = Math.max(0, 1 - (R.t - R.hurtT) * 2.5);
+    if (hurt > 0) { const v = g.createRadialGradient(W / 2, H / 2, H * 0.3, W / 2, H / 2, H * 0.75); v.addColorStop(0, 'rgba(255,40,40,0)'); v.addColorStop(1, `rgba(255,40,40,${0.45 * hurt})`); g.fillStyle = v; g.fillRect(-20, -20, W + 40, H + 40); }
     for (const m of R.motes) { const y = (m.y - t * m.v + H * 10) % H; g.fillStyle = `rgba(255,230,190,${0.12 + 0.08 * Math.sin(t * 2 + m.p)})`; g.beginPath(); g.arc(m.x + Math.sin(t + m.p) * 8, y, 1.4, 0, 6.283); g.fill(); }
     fx.draw(g);
     g.restore();
@@ -458,14 +574,14 @@
     if (R.sticks != null && s.dyna && !env.ui) { g.font = '800 13px Nunito'; g.fillText(`🧨 ${R.sticks}`, 120, 74); }
     if (R.heart) {
       const h = R.heart, y = 106, hw = W - 32;
-      g.font = '400 13px "Lilita One", system-ui'; g.textAlign = 'left'; g.fillStyle = h.phase === 2 ? '#f97316' : '#ff6b6b';
-      g.fillText(h.phase === 2 ? 'THE HEART · AWAKE' : 'HEART OF THE MOUNTAIN', 16, y - 4);
+      g.font = '400 13px "Lilita One", system-ui'; g.textAlign = 'left'; g.fillStyle = h.phase === 3 ? '#ff3b3b' : h.phase === 2 ? '#f97316' : '#ff6b6b';
+      g.fillText(h.phase === 3 ? 'THE HEART · RAGING' : h.phase === 2 ? 'THE HEART · AWAKE' : 'HEART OF THE MOUNTAIN', 16, y - 4);
       const shielded = h.phase === 1 && h.veins.some((v) => !v.dead);
       g.textAlign = 'right'; g.fillStyle = '#fff'; g.font = '800 12px Nunito, system-ui'; g.fillText(shielded ? 'shielded by veins' : h.phase === 1 ? 'exposed!' : '', W - 16, y - 4);
       g.fillStyle = 'rgba(0,0,0,.6)'; rr(g, 16, y, hw, 12, 6); g.fill();
-      const hg = g.createLinearGradient(16, 0, 16 + hw, 0); hg.addColorStop(0, '#9d0208'); hg.addColorStop(1, h.phase === 2 ? '#f97316' : '#ff6b6b');
+      const hg = g.createLinearGradient(16, 0, 16 + hw, 0); hg.addColorStop(0, '#9d0208'); hg.addColorStop(1, h.phase >= 2 ? '#f97316' : '#ff6b6b');
       g.fillStyle = hg; if (h.hp > 0) { rr(g, 16, y, Math.max(12, hw * h.hp / h.max), 12, 6); g.fill(); }
-      g.fillStyle = '#fff'; g.fillRect(16 + hw / 2 - 1, y - 2, 2, 16);
+      g.fillStyle = '#fff'; g.fillRect(16 + hw / 2 - 1, y - 2, 2, 16); g.fillRect(16 + hw * 0.2 - 1, y - 2, 2, 16); // phase marks
     }
     // banner: a reserved band at 30% height; it never moves the HUD
     if (R.banner) {
@@ -494,20 +610,28 @@
     const k = KINDS[n.kind], c = k.col;
     const pop = Math.min(1, (t - n.born) * 6), hit = Math.max(0, 1 - (t - n.hitT) * 8), r = n.r * (0.4 + 0.6 * pop);
     g.save(); g.translate(n.x + (Math.random() - 0.5) * hit * 3, n.y);
+    if (n.glint) { // glinting ore: a warm halo and a turning star, readable without colour (the star moves)
+      const halo = g.createRadialGradient(0, 0, r * 0.6, 0, 0, r * 1.9); halo.addColorStop(0, `rgba(255,243,176,${0.3 + 0.15 * Math.sin(t * 5 + n.seed)})`); halo.addColorStop(1, 'rgba(255,243,176,0)');
+      g.fillStyle = halo; g.beginPath(); g.arc(0, 0, r * 1.9, 0, 6.283); g.fill();
+    }
     g.fillStyle = 'rgba(0,0,0,.35)'; g.beginPath(); g.ellipse(2, r * 0.85, r * 0.95, r * 0.28, 0, 0, 6.283); g.fill();
     if (n.kind === 'gas') {
-      const f = n.fuse >= 0, wob = (i) => r * (1 + 0.09 * Math.sin(t * 5 + i * 1.3 + n.seed)) * (f ? 1 + (0.45 - n.fuse) * 0.8 : 1);
-      const gr = g.createRadialGradient(-r * 0.3, -r * 0.3, 2, 0, 0, r * 1.3); gr.addColorStop(0, f && Math.sin(t * 40) > 0 ? '#fff' : 'rgba(216,243,220,.9)'); gr.addColorStop(0.6, 'rgba(82,183,136,.65)'); gr.addColorStop(1, 'rgba(45,106,79,.15)');
-      g.globalAlpha = Math.min(1, n.life / 1.2 + (f ? 1 : 0)); g.fillStyle = gr; g.beginPath(); for (let i = 0; i < 16; i++) { const a = i / 16 * 6.283; g.lineTo(Math.cos(a) * wob(i), Math.sin(a) * wob(i)); } g.closePath(); g.fill();
-      g.fillStyle = 'rgba(216,243,220,.6)'; for (let i = 0; i < 4; i++) { const by = r * 0.6 - ((t * 22 + i * 13 + n.seed) % (r * 1.6)); g.beginPath(); g.arc(Math.sin(i * 2 + t) * r * 0.4, by, 2 + i % 2, 0, 6.283); g.fill(); }
-      g.strokeStyle = '#1b4332'; g.lineWidth = 3; g.font = '400 16px "Lilita One", system-ui'; g.textAlign = 'center'; g.fillStyle = '#1b4332'; g.fillText('!', 0, 6);
+      if (!artNode(g, n, k, r, 0, t)) {
+        const f = n.fuse >= 0, wob = (i) => r * (1 + 0.09 * Math.sin(t * 5 + i * 1.3 + n.seed)) * (f ? 1 + (0.45 - n.fuse) * 0.8 : 1);
+        const gr = g.createRadialGradient(-r * 0.3, -r * 0.3, 2, 0, 0, r * 1.3); gr.addColorStop(0, f && Math.sin(t * 40) > 0 ? '#fff' : 'rgba(216,243,220,.9)'); gr.addColorStop(0.6, 'rgba(82,183,136,.65)'); gr.addColorStop(1, 'rgba(45,106,79,.15)');
+        g.globalAlpha = Math.min(1, n.life / 1.2 + (f ? 1 : 0)); g.fillStyle = gr; g.beginPath(); for (let i = 0; i < 16; i++) { const a = i / 16 * 6.283; g.lineTo(Math.cos(a) * wob(i), Math.sin(a) * wob(i)); } g.closePath(); g.fill();
+        g.fillStyle = 'rgba(216,243,220,.6)'; for (let i = 0; i < 4; i++) { const by = r * 0.6 - ((t * 22 + i * 13 + n.seed) % (r * 1.6)); g.beginPath(); g.arc(Math.sin(i * 2 + t) * r * 0.4, by, 2 + i % 2, 0, 6.283); g.fill(); }
+      } else if (n.fuse >= 0 && Math.sin(t * 40) > 0) { g.fillStyle = 'rgba(255,255,255,.5)'; g.beginPath(); g.arc(0, 0, r, 0, 6.283); g.fill(); }
+      g.globalAlpha = 1; g.font = '400 16px "Lilita One", system-ui'; g.textAlign = 'center'; g.fillStyle = '#1b4332'; g.fillText('!', 0, 6);
       g.restore(); return;
     }
     if (n.kind === 'granite') {
       g.rotate(n.rot * 0.2);
-      const gr = g.createLinearGradient(-r, -r, r, r); gr.addColorStop(0, c[1]); gr.addColorStop(1, c[0]);
-      g.fillStyle = hit ? '#fff' : gr; polyPath(g, n.shape, r * 1.05, 6); g.fill();
-      g.strokeStyle = 'rgba(255,255,255,.18)'; g.lineWidth = 2; polyPath(g, n.shape, r * 0.7, 6); g.stroke();
+      if (!artNode(g, n, k, r, hit, t)) {
+        const gr = g.createLinearGradient(-r, -r, r, r); gr.addColorStop(0, c[1]); gr.addColorStop(1, c[0]);
+        g.fillStyle = hit ? '#fff' : gr; polyPath(g, n.shape, r * 1.05, 6); g.fill();
+        g.strokeStyle = 'rgba(255,255,255,.18)'; g.lineWidth = 2; polyPath(g, n.shape, r * 0.7, 6); g.stroke();
+      }
       g.strokeStyle = '#111'; g.lineWidth = 2; const broke = n.maxLayers - n.layers;
       for (let i = 0; i < broke * 2; i++) { const a = i * 2.1 + n.seed; g.beginPath(); g.moveTo(0, 0); g.lineTo(Math.cos(a) * r * 0.5, Math.sin(a) * r * 0.5); g.lineTo(Math.cos(a + 0.4) * r * 0.95, Math.sin(a + 0.4) * r * 0.95); g.stroke(); }
       g.rotate(-n.rot * 0.2);
@@ -515,25 +639,39 @@
       g.restore(); return;
     }
     if (n.kind === 'sentinel') {
-      g.rotate(n.rot);
-      g.fillStyle = hit ? '#fff' : '#292524'; polyPath(g, n.shape, r * 1.05, 7); g.fill();
       const glow = 0.5 + 0.5 * Math.sin(t * (6 + (1 - n.life / n.lifeMax) * 14));
-      g.strokeStyle = `rgba(249,115,22,${0.5 + glow * 0.5})`; g.lineWidth = 3; for (let i = 0; i < 4; i++) { const a = i * 1.57 + n.seed; g.beginPath(); g.moveTo(0, 0); g.lineTo(Math.cos(a) * r * 0.5, Math.sin(a) * r * 0.5); g.lineTo(Math.cos(a + 0.5) * r * 0.9, Math.sin(a + 0.5) * r * 0.9); g.stroke(); }
+      if (!artNode(g, n, k, r, hit, t)) {
+        g.rotate(n.rot);
+        g.fillStyle = hit ? '#fff' : '#292524'; polyPath(g, n.shape, r * 1.05, 7); g.fill();
+        g.strokeStyle = `rgba(249,115,22,${0.5 + glow * 0.5})`; g.lineWidth = 3; for (let i = 0; i < 4; i++) { const a = i * 1.57 + n.seed; g.beginPath(); g.moveTo(0, 0); g.lineTo(Math.cos(a) * r * 0.5, Math.sin(a) * r * 0.5); g.lineTo(Math.cos(a + 0.5) * r * 0.9, Math.sin(a + 0.5) * r * 0.9); g.stroke(); }
+        g.rotate(-n.rot);
+      }
       g.fillStyle = `rgba(253,230,138,${glow})`; g.beginPath(); g.arc(0, 0, r * 0.22, 0, 6.283); g.fill();
-      g.rotate(-n.rot); g.strokeStyle = '#f97316'; g.lineWidth = 3; g.beginPath(); g.arc(0, 0, r + 9, -1.57, -1.57 + 6.283 * n.life / n.lifeMax); g.stroke();
+      g.strokeStyle = '#f97316'; g.lineWidth = 3; g.beginPath(); g.arc(0, 0, r + 9, -1.57, -1.57 + 6.283 * n.life / n.lifeMax); g.stroke();
       g.restore(); return;
     }
-    if (n.kind === 'mother') {
-      const gl = 0.5 + 0.5 * Math.sin(t * 3 + n.seed);
-      const halo = g.createRadialGradient(0, 0, r * 0.5, 0, 0, r * 2); halo.addColorStop(0, `rgba(224,170,255,${0.35 + 0.2 * gl})`); halo.addColorStop(1, 'rgba(224,170,255,0)'); g.fillStyle = halo; g.beginPath(); g.arc(0, 0, r * 2, 0, 6.283); g.fill();
-      g.rotate(n.rot); g.fillStyle = hit ? '#fff' : '#3d2c1e'; polyPath(g, n.shape, r * 1.08); g.fill();
-      const inner = g.createRadialGradient(0, 0, 2, 0, 0, r * 0.8); inner.addColorStop(0, '#240046'); inner.addColorStop(1, '#7b2cbf'); g.fillStyle = inner; g.beginPath(); g.arc(0, 0, r * 0.78, 0, 6.283); g.fill();
-      for (let i = 0; i < 9; i++) { g.save(); g.rotate(i * 0.698); g.translate(r * 0.78, 0); g.rotate(3.14); const pg = g.createLinearGradient(0, -5, 0, 5); pg.addColorStop(0, c[2]); pg.addColorStop(1, c[1]); g.fillStyle = pg; prism(g, r * (0.45 + 0.15 * Math.sin(i * 3)), 4.5); g.fill(); g.restore(); }
-      g.rotate(-n.rot); g.fillStyle = '#fff'; for (let i = 0; i < 3; i++) { const a = t * 1.5 + i * 2.1, q = (Math.sin(t * 4 + i * 2) + 1) / 2; star(g, Math.cos(a) * r * 0.5, Math.sin(a) * r * 0.5, 2 + 4 * q); }
+    if (n.kind === 'mother' || n.kind === 'vault') {
+      const gl = 0.5 + 0.5 * Math.sin(t * 3 + n.seed), hc = n.kind === 'vault' ? '86,207,225' : '224,170,255';
+      const halo = g.createRadialGradient(0, 0, r * 0.5, 0, 0, r * 2); halo.addColorStop(0, `rgba(${hc},${0.35 + 0.2 * gl})`); halo.addColorStop(1, `rgba(${hc},0)`); g.fillStyle = halo; g.beginPath(); g.arc(0, 0, r * 2, 0, 6.283); g.fill();
+      if (!artNode(g, n, k, r, hit, t)) {
+        if (n.kind === 'vault') { // a round stone door with a teal rune ring and a bolt cross
+          g.fillStyle = hit ? '#fff' : '#374151'; g.beginPath(); g.arc(0, 0, r, 0, 6.283); g.fill();
+          g.strokeStyle = '#111827'; g.lineWidth = 4; g.beginPath(); g.arc(0, 0, r * 0.8, 0, 6.283); g.stroke();
+          g.strokeStyle = `rgba(86,207,225,${0.6 + 0.4 * gl})`; g.lineWidth = 2; for (let i = 0; i < 8; i++) { const a = i * 0.785 + t * 0.3; g.beginPath(); g.moveTo(Math.cos(a) * r * 0.62, Math.sin(a) * r * 0.62); g.lineTo(Math.cos(a + 0.2) * r * 0.72, Math.sin(a + 0.2) * r * 0.72); g.stroke(); }
+          g.fillStyle = '#9ca3af'; g.fillRect(-r * 0.45, -4, r * 0.9, 8); g.fillRect(-4, -r * 0.45, 8, r * 0.9); g.fillStyle = '#56cfe1'; g.beginPath(); g.arc(0, 0, 6, 0, 6.283); g.fill();
+        } else {
+          g.rotate(n.rot); g.fillStyle = hit ? '#fff' : '#3d2c1e'; polyPath(g, n.shape, r * 1.08); g.fill();
+          const inner = g.createRadialGradient(0, 0, 2, 0, 0, r * 0.8); inner.addColorStop(0, '#240046'); inner.addColorStop(1, '#7b2cbf'); g.fillStyle = inner; g.beginPath(); g.arc(0, 0, r * 0.78, 0, 6.283); g.fill();
+          for (let i = 0; i < 9; i++) { g.save(); g.rotate(i * 0.698); g.translate(r * 0.78, 0); g.rotate(3.14); const pg = g.createLinearGradient(0, -5, 0, 5); pg.addColorStop(0, c[2]); pg.addColorStop(1, c[1]); g.fillStyle = pg; prism(g, r * (0.45 + 0.15 * Math.sin(i * 3)), 4.5); g.fill(); g.restore(); }
+          g.rotate(-n.rot);
+        }
+      }
+      g.fillStyle = '#fff'; for (let i = 0; i < 3; i++) { const a = t * 1.5 + i * 2.1, q = (Math.sin(t * 4 + i * 2) + 1) / 2; star(g, Math.cos(a) * r * 0.5, Math.sin(a) * r * 0.5, 2 + 4 * q); }
       g.restore(); hpArc(g, n, r); return;
     }
-    g.rotate(n.rot);
-    if (k.prism) {
+    if (artNode(g, n, k, r, hit, t)) { /* raster ore */ }
+    else if (k.prism) {
+      g.rotate(n.rot);
       // crystals: a bed of rock with prisms bursting out of it
       g.fillStyle = hit ? '#fff' : '#3b2f26'; polyPath(g, n.shape, r * 0.62); g.fill();
       const m = n.kind === 'shard' ? 3 : 5;
@@ -545,7 +683,9 @@
         g.restore();
       }
       const tw = (Math.sin(t * 3 + n.seed) + 1) / 2; if (tw > 0.85) { g.fillStyle = '#fff'; star(g, -r * 0.2, -r * 0.6, 4 * (tw - 0.85) * 7); }
+      g.rotate(-n.rot);
     } else {
+      g.rotate(n.rot);
       // ore: a host rock with metal chunks embedded, metals catch a moving glint
       const hg = g.createRadialGradient(-r * 0.3, -r * 0.3, 2, 0, 0, r * 1.1); hg.addColorStop(0, '#6b5847'); hg.addColorStop(1, '#2e241b');
       g.fillStyle = hit ? '#fff' : hg; polyPath(g, n.shape, r); g.fill();
@@ -557,7 +697,9 @@
         g.restore();
       }
       if (k.metal || n.kind === 'iron') { const q = ((t * 0.6 + n.seed) % 2.2) - 0.6; if (q > 0 && q < 1) { g.globalAlpha = Math.sin(q * 3.14) * 0.8; g.fillStyle = '#fff'; g.beginPath(); g.ellipse(-r * 0.6 + q * r * 1.2, -r * 0.1, 2.5, r * 0.5, 0.5, 0, 6.283); g.fill(); g.globalAlpha = 1; } }
+      g.rotate(-n.rot);
     }
+    if (n.glint) { g.fillStyle = '#fff8dc'; const a = t * 2 + n.seed; star(g, Math.cos(a) * r * 0.7, Math.sin(a) * r * 0.7, 5 + 2 * Math.sin(t * 9)); star(g, Math.cos(a + 3) * r * 0.5, Math.sin(a + 3) * r * 0.5, 3); }
     g.restore();
     hpArc(g, n, r);
   }
@@ -569,6 +711,7 @@
     g.save(); g.translate(f.x, y);
     const pulse = (t * 1.5) % 1; g.strokeStyle = `rgba(255,183,3,${0.6 * (1 - pulse)})`; g.lineWidth = 2; g.beginPath(); g.arc(0, 0, 14 + pulse * 18, 0, 6.283); g.stroke();
     const gl = g.createRadialGradient(0, 2, 2, 0, 2, 26); gl.addColorStop(0, 'rgba(255,183,3,.35)'); gl.addColorStop(1, 'rgba(255,183,3,0)'); g.fillStyle = gl; g.beginPath(); g.arc(0, 2, 26, 0, 6.283); g.fill();
+    if (SPR(g, 'obj-flask', 0, 0, 30)) { g.restore(); return; }
     const bg = g.createLinearGradient(-11, 0, 11, 0); bg.addColorStop(0, '#9c4a00'); bg.addColorStop(0.4, '#ffb703'); bg.addColorStop(1, '#7a3800');
     g.fillStyle = bg; rr(g, -11, -6, 22, 20, 7); g.fill(); g.fillStyle = '#c99a6b'; g.fillRect(-4, -13, 8, 8); g.fillStyle = '#6f4518'; g.fillRect(-5, -16, 10, 4);
     g.fillStyle = 'rgba(255,255,255,.55)'; g.fillRect(-7, -3, 3, 12);
@@ -576,12 +719,14 @@
   }
   function drawBomb(g, b, t) {
     g.save(); g.translate(b.x, b.y); g.rotate(-0.4);
+    if (SPR(g, 'obj-dynamite', 0, 0, 34)) { g.restore(); return; }
     g.fillStyle = '#c1121f'; rr(g, -6, -16, 12, 30, 3); g.fill(); g.fillStyle = '#780000'; g.fillRect(-6, -6, 12, 3); g.fillRect(-6, 4, 12, 3);
     g.strokeStyle = '#444'; g.lineWidth = 2; g.beginPath(); g.moveTo(0, -16); g.quadraticCurveTo(6, -22, 4, -26); g.stroke();
     g.fillStyle = Math.sin(t * 50) > 0 ? '#fff3b0' : '#ffb703'; g.beginPath(); g.arc(4, -27, 4 + Math.random() * 2, 0, 6.283); g.fill();
     g.restore();
   }
   function drawCart(g, c, t) {
+    if (SPR(g, 'obj-cart', c.x, c.y - 3 + Math.abs(Math.sin(c.spin || 0)) * -2, 36, undefined, { flip: c.dir === -1 })) return;
     g.save(); g.translate(c.x, c.y); g.scale(c.dir || 1, 1);
     const wg = g.createLinearGradient(0, -10, 0, 6); wg.addColorStop(0, '#8b5e3c'); wg.addColorStop(1, '#4a3222');
     g.fillStyle = '#e09f3e'; g.beginPath(); g.arc(-5, -9, 5, 0, 6.283); g.arc(3, -10, 6, 0, 6.283); g.arc(9, -8, 4, 0, 6.283); g.fill();
@@ -592,11 +737,16 @@
     g.restore();
   }
   function drawHeart(g, B, t) {
-    const hit = Math.max(0, 1 - (t - B.hitT) * 10), beat = Math.pow(Math.max(0, Math.sin(t * (B.phase === 2 ? 5.5 : 3.6))), 6), pulse = 1 + beat * 0.06;
+    const hit = Math.max(0, 1 - (t - B.hitT) * 10), beat = Math.pow(Math.max(0, Math.sin(t * [0, 3.6, 5.5, 7][B.phase])), 6), pulse = 1 + beat * 0.06;
     g.save(); g.translate(B.x + (Math.random() - 0.5) * hit * 6, B.y);
-    const awake = B.phase === 2, gr = g.createRadialGradient(0, 0, 4, 0, 0, B.r * 2.2);
+    const awake = B.phase >= 2, gr = g.createRadialGradient(0, 0, 4, 0, 0, B.r * 2.2);
     gr.addColorStop(0, awake ? `rgba(249,115,22,${0.45 + beat * 0.3})` : `rgba(255,90,90,${0.35 + beat * 0.3})`); gr.addColorStop(1, 'rgba(255,90,90,0)');
     g.fillStyle = gr; g.beginPath(); g.arc(0, 0, B.r * 2.2, 0, 6.283); g.fill();
+    if (ART('boss-heart')) { // raster heart: pulse by scale, flash on hit, orange cracks when awake
+      g.scale(pulse, pulse); SPR(g, 'boss-heart', 0, 0, B.r * 2.5);
+      if (hit > 0 || awake) { g.globalCompositeOperation = 'lighter'; SPR(g, 'boss-heart', 0, 0, B.r * 2.5, undefined, { alpha: Math.max(hit * 0.6, awake ? 0.18 + beat * 0.25 : 0) }); g.globalCompositeOperation = 'source-over'; }
+      g.restore(); return;
+    }
     // roots of stone holding it in the face
     g.strokeStyle = '#2b1d14'; g.lineWidth = 10; g.lineCap = 'round';
     for (let i = 0; i < 6; i++) { const a = i * 1.047 + 0.5; g.beginPath(); g.moveTo(Math.cos(a) * B.r * 0.8, Math.sin(a) * B.r * 0.8); g.quadraticCurveTo(Math.cos(a + 0.3) * B.r * 1.5, Math.sin(a + 0.3) * B.r * 1.5, Math.cos(a) * B.r * 2.1, Math.sin(a) * B.r * 2.1); g.stroke(); }
@@ -661,11 +811,12 @@
   }
 
   function baseStats(who) {
-    const s = { radius: 36, dps: 6, oil: 8, drain: 1, spawn: 0.62, maxNodes: 12, hp: 4, value: 1, crit: 0, splash: 0, splashR: 70, helpers: 0, helperDps: 3,
+    const s = { radius: 36, dps: 6, oil: 12, drain: 1, spawn: 0.62, maxNodes: 12, hp: 4, value: 1, crit: 0, splash: 0, splashR: 70, helpers: 0, helperDps: 3,
       cartSpeed: 1, big: 0, gem: 0, cluster: 0, onPop: 0, crowd: 0, quake: 0, quakeEvery: 3.2,
       depth0: 0, smith: 1, passes: 3, mother: 0.004, flaskEvery: 9, flaskOil: 1.5, caveCost: 1, gasCost: 1, gasR: 95, gasFeed: 0, streakWin: 0.9, streakPay: 1,
-      mag: 0, magR: 110, steady: 0, flux: 0, dyna: 0, dynaR: 95, dynaDmg: 12, ember: 0, emberLife: 0.9, ale: 0, hopper: 0, shockOil: 0 };
-    if (who === 'dwarf') s.radius += 6;
+      mag: 0, magR: 110, steady: 0, flux: 0, dyna: 0, dynaR: 95, dynaDmg: 12, ember: 0, emberLife: 0.9, ale: 0, hopper: 0, shockOil: 0,
+      overfill: 0, lastLight: 0, glint: 0.025, glintPay: 5, depthMul: 1, gasPay: 0 };
+    if (who === 'dwarf') { s.radius += 6; s.passes = 2; } // dwarves read stone: hard rock needs one pass fewer
     if (who === 'gnome') { s.dps *= 0.7; s.helpers = 2; }
     if (who === 'mole') { s.quake = 6; s.dps *= 0.8; }
     if (who === 'sala') { s.dps *= 0.75; s.radius -= 4; s.ember = 0.9; }
@@ -674,12 +825,12 @@
 
   const CONFIG = {
     id: 'ore-sweeper', title: 'Ore Sweeper', tagline: 'Drag your drill across the rock face, crack ore before the lamp burns out, and dig your way to the Heart of the Mountain.',
-    howTo: 'Hold and drag to drill. Ore under the drill cracks, and every crack takes you deeper: silver, gold, crystal and worse lie below. Spend ore on the upgrade map between digs.',
+    howTo: 'Hold and drag to drill. Ore under the drill cracks, and every crack takes you deeper: silver, gold, crystal and worse lie below. Each new layer has a miner\'s cache with a boost to pick. Grab oil flasks to keep the lamp lit, and spend ore on the upgrade map between digs.',
     runVerb: 'Dig!', winTitle: 'The Heart is yours!', loseTitle: 'Lamp burned out', scoreName: 'depth (m)',
     colors: { accent: '#ffb703', bg: '#17120d', card: '#2a2118' },
     currencies: [{ id: 'ore', name: 'ore', color: '#ffb703' }, { id: 'gems', name: 'gems', color: '#e0aaff' }],
     characters: [
-      { id: 'dwarf', name: 'Brakka the Dwarf', blurb: 'A big drill and a stubborn streak.', unlock: 0 },
+      { id: 'dwarf', name: 'Brakka the Dwarf', blurb: 'A big drill. Hard rock breaks faster and pays her well.', unlock: 0 },
       { id: 'gnome', name: 'Fizzwick the Gnome', blurb: 'Weak drill, but brings clockwork mine carts.', unlock: 1 },
       { id: 'mole', name: 'Grub the Mole', blurb: 'Every few seconds a tremor hits every node.', unlock: 2 },
       { id: 'sala', name: 'Cinder the Salamander', blurb: 'Leaves a trail of embers that burns ore. Sweep wide!', unlock: 3 },

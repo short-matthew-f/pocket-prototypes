@@ -13,6 +13,16 @@
 
   // the tree's descriptions show the current value: the kit calls desc(level, levels, stats)
   let KIT = null, CUR = null;
+  // optional raster art (assets/SPEC.md): every draw tries the sprite first and falls back to the vector drawing
+  let SPR = null, ART = null;
+  /** Draw art `name` fitted inside a bw x bh box, bottom-centre at (x, y). false when the image is absent. */
+  function fit(g, name, x, y, bw, bh, o = {}) {
+    const im = ART && ART(name); if (!im || !SPR) return false;
+    const k = Math.min(bw / im.naturalWidth, bh / im.naturalHeight), w = im.naturalWidth * k, h = im.naturalHeight * k;
+    SPR(g, name, x, y, w, h, { anchor: 'bottom', ...o });
+    if (o.flash) { const op = g.globalCompositeOperation; g.globalCompositeOperation = 'lighter'; SPR(g, name, x, y, w, h, { anchor: 'bottom', ...o, alpha: o.flash }); g.globalCompositeOperation = op; }
+    return true;
+  }
   const cur = () => CUR;
   const now = (f) => { const c = cur(); return c ? ` (now ${f(c.s, c.lv)})` : ''; };
 
@@ -46,12 +56,12 @@
     { id: 'sanctum', who: 'cleric', name: 'Sanctuary', icon: '🕯️', cost: 70, grow: 1.8, max: 3, req: ['smite'], x: 0, y: 2, fx: (s, l) => { s.restCalm = true; s.rest += 0.08 * l; }, dx: () => "Campfires heal +8% and don't raise Threat" + now((s) => pct(s.rest)) },
     { id: 'shadow', who: 'rogue', name: 'Shadowstep', icon: '🌒', cost: 70, grow: 1.8, max: 3, req: ['pickpocket'], x: 0, y: 2, fx: (s, l) => { s.shadow = true; s.sneak += 0.04 * l; }, dx: () => 'A clean sneak lowers Threat; +4% sneak' + now((s) => pct(s.sneak)) },
     // the Relic branch (carry items for the run)
-    { id: 'relics', name: 'Relic Hunter', icon: '🏺', cost: 70, max: 1, req: ['stew'], x: -1, y: 1, fx: (s) => { s.relics = true; }, dx: () => 'Reliquary rooms appear; elites drop relics' },
+    { id: 'relics', excl: 'path', name: 'Relic Hunter', icon: '🏺', cost: 70, max: 1, req: ['stew'], x: -1, y: 1, fx: (s) => { s.relics = true; }, dx: () => 'Reliquary rooms appear; elites drop relics' },
     { id: 'satchel', name: 'Relic Satchel', icon: '🎒', cost: 140, max: 1, req: ['relics'], x: -2, y: 1, fx: (s) => { s.satchel = true; }, dx: () => 'Start every run by picking a relic' },
     { id: 'curator', name: 'Curator', icon: '🔍', cost: 84, max: 1, cur: 'ore', req: ['satchel'], x: -3, y: 1, fx: (s) => { s.relicChoices = 4; }, dx: () => 'Relic picks offer 4 choices instead of 3' },
     { id: 'cursed', name: 'Cursed Relics', icon: '🩸', cost: 63, max: 1, cur: 'ore', req: ['satchel'], x: -2, y: 2, fx: (s) => { s.cursed = true; }, dx: () => 'Strong relics with a catch join the pool' },
     // the Surveyors' Guild branch: shape which rooms the deck deals
-    { id: 'guild', name: "Surveyors' Guild", icon: '🏛️', cost: 42, max: 1, cur: 'ore', req: ['plate'], x: 1, y: 1, fx: (s) => { s.guild = true; }, dx: () => 'Shrines appear from depth 3, twice as often' },
+    { id: 'guild', excl: 'path', name: "Surveyors' Guild", icon: '🏛️', cost: 42, max: 1, cur: 'ore', req: ['plate'], x: 1, y: 1, fx: (s) => { s.guild = true; }, dx: () => 'Shrines appear from depth 3, twice as often' },
     { id: 'deepseam', name: 'Deep Seams', icon: '🪨', cost: 63, max: 1, cur: 'ore', req: ['guild'], x: 2, y: 1, fx: (s) => { s.noCopper = true; }, dx: () => 'Removes copper: every vein is silver or better' },
     { id: 'nocamp', name: 'Cold Camp', icon: '🧊', cost: 98, max: 1, cur: 'ore', req: ['deepseam'], x: 3, y: 1, fx: (s) => { s.noRest = true; s.killHealPct += 0.06; }, dx: () => 'Removes Campfires; every kill heals 6% max HP' },
     { id: 'quiet', name: 'Soft Boots', icon: '🥾', cost: 84, grow: 2.2, max: 2, cur: 'ore', req: ['guild'], x: 1, y: 2, fx: (s, l) => { s.threatMax += l; }, dx: () => 'Ambush comes one room later' + now((s) => 'after ' + s.threatMax) },
@@ -64,6 +74,18 @@
     { id: 'lantern', name: 'Safety Lamp', icon: '🏮', cost: 56, grow: 1.8, max: 3, cur: 'ore', req: ['timber'], x: 3, y: -1, fx: (s, l) => { s.trap *= 0.75 ** l; }, dx: () => 'Chest traps 25% rarer' },
     { id: 'cart', name: 'Supply Cart', icon: '🛒', cost: 100, grow: 1.8, max: 3, req: ['purse'], x: 3, y: -2, fx: (s, l) => { s.retreatBonus += 0.1 * l; }, dx: () => 'Retreating banks +10% bonus loot' + now((s) => '+' + pct(s.retreatBonus)) },
     { id: 'steel', name: 'Dwarven Steel', icon: '⚒️', cost: 126, grow: 1.9, max: 3, cur: 'ore', req: ['bounty', 'purse'], x: 2, y: -3, fx: (s, l) => { s.atk += 3 * l; s.armor += l; }, dx: () => '+3 attack and +1 armor' },
+    // either/or oaths beside the throne: chain fights, or dodge them and live with harder ambushes
+    { id: 'oathblade', excl: 'oath', name: 'Oath of the Blade', icon: '🩸', cost: 150, max: 1, req: ['bane'], x: -1, y: -4, fx: (s) => { s.oath = 'blade'; }, dx: () => 'Each fight in a row pays +25% more loot (up to ×2). Campfires heal half' },
+    { id: 'oathlamp', excl: 'oath', name: "Prospector's Oath", icon: '🔦', cost: 150, max: 1, req: ['steel'], x: 1, y: -4, fx: (s) => { s.oath = 'lamp'; }, dx: () => 'Veins, chests and events pay +40%. Ambush comes a room sooner, led by an elite' },
+    // class masteries: one of two per character, changing how that class picks rooms
+    { id: 'wall', who: 'fighter', excl: 'mastery', name: 'Shield Wall', icon: '🧱', cost: 160, max: 1, req: ['rhythm'], x: -1, y: 3, fx: (s) => { s.guardLoot = 1; s.armor += 1; }, dx: () => 'Guard keeps full loot; +1 armor' },
+    { id: 'berserk', who: 'fighter', excl: 'mastery', name: 'Berserker', icon: '😤', cost: 160, max: 1, req: ['rhythm'], x: 1, y: 3, fx: (s) => { s.berserk = 0.5; s.killHeal += 3; }, dx: () => 'Below half HP: +50% attack. Kills heal 3' },
+    { id: 'steady', who: 'miner', excl: 'mastery', name: 'Steady Hands', icon: '🤲', cost: 160, max: 1, req: ['dynamite'], x: -1, y: 3, fx: (s) => { s.steady = true; s.streakOre += 0.1; }, dx: () => 'Streaks no longer shake the rock; streak bonus +10%' },
+    { id: 'demo', who: 'miner', excl: 'mastery', name: 'Blast Mining', icon: '💥', cost: 160, max: 1, req: ['dynamite'], x: 1, y: 3, fx: (s) => { s.veinBlast = true; s.blasts += 1; }, dx: () => '+1 Blast. Blast a vein: no cave-in, +50% ore' },
+    { id: 'exorcist', who: 'cleric', excl: 'mastery', name: 'Exorcist', icon: '📿', cost: 160, max: 1, req: ['sanctum'], x: -1, y: 3, fx: (s) => { s.holy += 0.5; s.undeadGold = 2; }, dx: () => '+50% damage vs undead; undead pay double gold' },
+    { id: 'mercy', who: 'cleric', excl: 'mastery', name: 'Mercy', icon: '💗', cost: 160, max: 1, req: ['sanctum'], x: 1, y: 3, fx: (s) => { s.potions += 1; s.potionHeal += 0.25; s.restCleanse = true; }, dx: () => '+1 potion, potions heal +25%; Campfires lower Threat' },
+    { id: 'assassin', who: 'rogue', excl: 'mastery', name: 'Assassin', icon: '🔪', cost: 160, max: 1, req: ['shadow'], x: -1, y: 3, fx: (s) => { s.assassin = true; }, dx: () => 'A failed sneak becomes a backstab: you strike first for ×2' },
+    { id: 'fence', who: 'rogue', excl: 'mastery', name: 'Fence', icon: '💰', cost: 160, max: 1, req: ['shadow'], x: 1, y: 3, fx: (s) => { s.steal += 0.5; s.chestGold = 1.5; }, dx: () => 'Steal +50%; chests hold +50% gold' },
     { id: 'throne', name: 'Deep Throne', icon: '👑', cost: 1000, grow: 1, max: 1, req: ['carto', 'bounty', 'bane', 'steel', 'purse'], reqAll: 2, extra: { ore: 450 }, x: 0, y: -3, win: true, dx: () => `Next run's depth ${BOSS_DEPTH} is the Mountain King. Beat him!` },
   ];
   for (const n of NODES) { const dx = n.dx; delete n.dx; n.desc = (lv, levels, stats) => { CUR = stats ? { s: stats, lv: levels || {} } : null; try { return dx(); } catch { return ''; } finally { CUR = null; } }; }
@@ -78,7 +100,8 @@
     const s = { hp: 32, atk: 6, armor: 1, crit: 0.05, critMult: 2, potions: 0, potionHeal: 0.45, revive: 0, reviveHp: 0.5, mine: 1, cave: 1, caveDmg: 1, rest: 0.25,
       gold: 1, keep: 0.3, extraCards: 0, rerolls: 0, shop: false, event: false, elite: false, gem: false, holy: 1, killHeal: 0, killHealPct: 0, veinGold: 0,
       streakOre: 0, rhythm: 0, blasts: 0, restCalm: false, sneak: 0, steal: 0, shadow: false, relics: false, satchel: false, relicChoices: 3, cursed: false,
-      guild: false, noCopper: false, noRest: false, threatMax: 3, ambushLoot: 0, vigor: 0, evMult: 1, kingDmg: 1, trap: 1, retreatBonus: 0 };
+      guild: false, noCopper: false, noRest: false, threatMax: 3, ambushLoot: 0, vigor: 0, evMult: 1, kingDmg: 1, trap: 1, retreatBonus: 0,
+      oath: '', guardLoot: 0.5, berserk: 0, steady: false, veinBlast: false, undeadGold: 1, restCleanse: false, assassin: false, chestGold: 1 };
     if (who === 'miner') { s.hp = 30; s.armor = 0; s.atk = 4.5; s.cave = 0.85; s.caveDmg = 0.9; s.streakOre = 0.3; }
     if (who === 'cleric') { s.hp = 28; s.atk = 5; s.armor = 0; s.holy = 1.6; s.rest = 0.45; s.killHeal = 1; }
     if (who === 'rogue') { s.hp = 26; s.atk = 5; s.armor = 0; s.crit = 0.15; s.critMult = 2.2; s.sneak = 0.62; s.steal = 0.6; s.trap = 0; }
@@ -100,7 +123,8 @@
   ];
   const KING = { id: 'king', name: 'Mountain King', icon: '👑', hp: 320, atk: 15, gold: 250, ore: 80, king: true };
   const AFFIX = { armored: ['Armored', '🔩'], brutal: ['Brutal', '💢'], swift: ['Swift', '💨'], frenzied: ['Frenzied', '🔥'] };
-  const COL = { fight: '#e76f51', elite: '#ff4d6d', mine: '#e9a23b', rest: '#2a9d8f', treasure: '#ffd166', shop: '#5fa8d3', event: '#b388eb', shrine: '#4cc9f0', relic: '#f4845f', king: '#ff4d6d', none: '#4a4458' };
+  const TRAIL = { treasure: ['🧰', 'a Treasure Chest'], rest: ['🔥', 'a Campfire'], shrine: ['⛩️', 'an Old Shrine'], shop: ['🛒', 'the Trader'], relic: ['🏺', 'a Reliquary'], event: ['❔', 'something strange'] };
+  const COL = { pack: '#ffd166', fight: '#e76f51', elite: '#ff4d6d', mine: '#e9a23b', rest: '#2a9d8f', treasure: '#ffd166', shop: '#5fa8d3', event: '#b388eb', shrine: '#4cc9f0', relic: '#f4845f', king: '#ff4d6d', none: '#4a4458' };
 
   // ------------------------------------------------------------------ relics (carried for the run) and shrines (trade-offs)
   const RELICS = [
@@ -144,7 +168,10 @@
 .dd-main:disabled{opacity:.42;filter:grayscale(.6)}
 .dd-main.ph{border-style:dashed;border-left-width:2px;background:transparent}
 .dd-main:active,.dd-side:active,.dd-row button:active{transform:translateY(2px)}
-.dd .ic{font-size:25px;line-height:1;text-align:center}
+.dd .ic{font-size:25px;line-height:1;text-align:center;display:grid;justify-items:center}
+.dd .ic i{font:800 11px/1 var(--body);font-style:normal;color:#ffd166;margin-top:4px;white-space:nowrap;letter-spacing:-.02em}
+.dd-card.gilt .dd-main{box-shadow:0 0 0 1px #ffd16699,0 0 14px #ffd16640}
+.dd-side.info.warn{color:#ff9a8d;border-color:#ff6b6b99}.dd-side.info.warn small{color:#ffb3a7}
 .dd .tx{display:grid;min-width:0}
 .dd .tx b{font:400 17px/1.15 var(--display);letter-spacing:.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .dd .tx small{font-size:12.5px;color:var(--muted);font-weight:800;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -167,13 +194,23 @@
   // ------------------------------------------------------------------ a run
   function createRun(env) {
     const s = env.stats, W = env.W, H = env.H, fx = env.fx, sfx = env.sfx, ui = env.ui && env.ui.ownerDocument ? env.ui : null, fmt = env.fmt;
+    SPR = env.sprite || null; ART = env.art || null;
+    const snd = (name, fallback, v) => (sfx.play && sfx.play(name, v)) || fallback(); // game-specific samples, synth when absent
     const slots = 3 + s.extraCards;
     const R = { t: 0, over: false, phase: 'intro', depth: 1, hp: s.hp, max: s.hp, gold: 0, ore: 0, kills: 0, ended: null, killer: '', cards: [], obj: null,
       atk: s.atk, armor: s.armor, crit: s.crit, critMult: s.critMult, holy: s.holy, kingDmg: s.kingDmg, potions: s.potions, potionHeal: s.potionHeal,
       revive: s.revive, reviveHp: s.reviveHp, rerolls: s.rerolls, keep: s.keep, killHeal: s.killHeal, goldMult: s.gold, oreMult: 1, foeAtk: 1, caveMult: 1, restMult: 1,
       threat: 0, threatMax: s.threatMax, ambush: false, fstreak: 0, mstreak: 0, bestStreak: 0, blasts: s.blasts, relics: [], elites: 0, sneaks: 0, K: null,
       banner: { s: 'Depth 1', sub: env.boss ? `The Throne waits at depth ${BOSS_DEPTH}` : zoneOf(1).name, t: 0 }, uh: 0, stop: 0, slow: 0,
-      hero: { atkT: -9, hurtT: -9, healT: -9, walkT: 0, guard: false, out: -1, dead: 0 }, wait: 0, rocksT: -9, quakeT: -9, hint: null, tapped: 0, endT: 0 };
+      hero: { atkT: -9, hurtT: -9, healT: -9, walkT: 0, guard: false, out: -1, dead: 0 }, wait: 0, rocksT: -9, quakeT: -9, hint: null, tapped: 0, endT: 0,
+      trail: null, found: null, pack: null, seenTrail: false };
+    // oaths: the Blade halves campfires; the Prospector pays more off quiet rooms but is hunted sooner
+    const lamp = s.oath === 'lamp' ? 1.4 : 1;
+    if (s.oath === 'blade') R.restMult *= 0.5;
+    if (s.oath === 'lamp') R.threatMax = Math.max(2, R.threatMax - 1);
+    // the Lost Pack: half of what the last death dropped waits at that depth (browser only; one pack per character)
+    const PK = 'dd.pack.' + env.who, store = (() => { try { return typeof localStorage !== 'undefined' && !env.boss ? localStorage : null; } catch { return null; } })();
+    if (store) try { const p = JSON.parse(store.getItem(PK) || 'null'); if (p && p.d > 1 && p.g + p.o > 0) R.pack = p; } catch { /* no pack */ }
     const Q = []; let qThen = null;
     function play(steps, then) { Q.push(...steps); qThen = then || null; R.phase = 'anim'; R.wait = 0; render(); }
     const HX = () => W * 0.27, OX = () => W * 0.7, FY = () => Math.max(250, H - (R.uh || 330) - 6) - 30;
@@ -183,7 +220,7 @@
     function monsterFor(d, elite) {
       const b = pick(MONS.filter((m) => d >= m.min && d <= m.max)), m = { ...b, elite, armor: 0, first: false, affix: null };
       m.hp = Math.round(mhp(d) * b.hp * (elite ? 1.7 : 1)); m.atk = Math.round(matk(d) * b.atk * (elite ? 1.2 : 1));
-      m.gold = (3 + d * 1.6) * R2(0.85, 1.15) * (elite ? 2.5 : 1); m.ore = elite ? Math.round(3 + d * 0.8) : b.ore ? Math.round(2 + d * 0.4) : 0;
+      m.gold = (3 + d * 1.6) * R2(0.85, 1.15) * (elite ? 2.5 : 1) * (b.undead ? s.undeadGold : 1); m.ore = elite ? Math.round(3 + d * 0.8) : b.ore ? Math.round(2 + d * 0.4) : 0;
       // deeper foes come with a twist: elites from depth 10, any foe can be frenzied from depth 12
       const af = elite && d >= 10 ? pick(['armored', 'brutal', 'swift']) : d >= 12 && rnd() < 0.18 ? 'frenzied' : null;
       if (af === 'armored') m.armor = Math.round(2 + d * 0.15);
@@ -209,15 +246,15 @@
         else if (d >= 12 && kind !== 'gem' && rnd() < 0.22) kind = 'gas';
         const K = { copper: [1, 1, 'Copper Vein'], silver: [1.6, 1.25, 'Silver Vein'], gem: [2.2, 1.6, 'Gem Vein'], gas: [2.1, 1.7, 'Gassy Seam'], lode: [5, 1.3, 'Mother Lode!'] }[kind];
         const st = 1 + s.streakOre * R.mstreak;
-        const ore = Math.max(1, Math.round((3 + d * 0.9) * K[0] * s.mine * R.oreMult * st * R2(0.85, 1.15)));
+        const ore = Math.max(1, Math.round((3 + d * 0.9) * K[0] * s.mine * R.oreMult * st * lamp * R2(0.85, 1.15)));
         return { type, kind, name: K[2], ore, st, gold: Math.round(ore * ((R.mstreak ? s.veinGold : 0) + (kind === 'lode' ? 1 : 0))),
-          cave: clamp(((0.22 + 0.028 * d) * K[1] * s.cave + 0.07 * R.mstreak * (s.streakOre ? 1 : 0)) * R.caveMult, 0.1, 0.9),
+          cave: clamp(((0.22 + 0.028 * d) * K[1] * s.cave + (s.steady ? 0 : 0.07 * R.mstreak * (s.streakOre ? 1 : 0))) * R.caveMult, 0.1, 0.9),
           dmg: Math.max(1, Math.round((3 + d * 1.1 + 0.015 * d * d) * s.caveDmg * (kind === 'gas' ? 1.5 : 1))) };
       }
       if (type === 'rest') return { type };
-      if (type === 'treasure') return { type, gold: Math.round((4 + d * 1.6) * R2(0.8, 1.2) * R.goldMult), potion: rnd() < 0.2, trap: d >= 3 ? clamp((0.03 + 0.022 * d) * s.trap, 0, 0.7) : 0, dmg: Math.round(3 + d * 1.1 + 0.015 * d * d) };
+      if (type === 'treasure') return { type, gold: Math.round((4 + d * 1.6) * R2(0.8, 1.2) * R.goldMult * lamp * s.chestGold), potion: rnd() < 0.2, trap: d >= 3 ? clamp((0.03 + 0.022 * d) * s.trap, 0, 0.7) : 0, dmg: Math.round(3 + d * 1.1 + 0.015 * d * d) };
       if (type === 'shop') return { type };
-      if (type === 'event') return { type, ev: pick(EVENTS)() };
+      if (type === 'event') return { type, ev: pick(d >= 12 ? [...EVENTS, ...LATE] : EVENTS)() };
       if (type === 'shrine') return { type, opts: shuffle(SHRINES).slice(0, 2) };
       if (type === 'relic') return { type };
     }
@@ -225,9 +262,31 @@
       const out = [];
       if (R.threat >= R.threatMax) { // Ambush: every path is guarded
         R.ambush = true;
-        for (let i = 0; i < slots; i++) out.push(makeCard(i === 0 && s.elite && R.depth >= 3 ? 'elite' : 'fight'));
+        for (let i = 0; i < slots; i++) out.push(makeCard(i === 0 && (s.elite || s.oath === 'lamp') && R.depth >= 3 ? 'elite' : 'fight'));
         return out;
       }
+      const o = dealRooms();
+      // a trail taken last room guarantees its room now; the Lost Pack shows up at the depth it was dropped
+      const swap = (c) => { const i = o.map((x, j) => [x, j]).filter(([x]) => x.type !== 'fight' && x.type !== 'pack').map(([, j]) => j).pop(); if (i != null) o[i] = c; else o[o.length - 1] = c; };
+      if (R.trail && !o.some((c) => c.type === R.trail)) swap(makeCard(R.trail));
+      R.found = R.trail; R.trail = null;
+      if (R.pack && R.depth >= R.pack.d) { swap({ type: 'pack', gold: Math.round(R.pack.g), ore: Math.round(R.pack.o), d: R.pack.d }); R.pack = null; }
+      if (!o.some((c) => c.type === 'fight')) o[0] = makeCard('fight');
+      // gilded: one rich room now and then, from depth 4 (fights are tougher, quiet rooms draw extra Threat)
+      if (R.depth >= 4 && rnd() < 0.16) { const c = pick(o.filter((x) => x.type === 'fight' || x.type === 'mine' || x.type === 'treasure')); if (c) gild(c); }
+      // trails: up to two cards show where they lead (→); taking one guarantees that room next
+      const tt = ['treasure', 'shrine', ...(s.noRest ? [] : ['rest']), ...(s.shop && R.depth >= 2 ? ['shop'] : []), ...(s.relics && R.depth >= 3 ? ['relic'] : []), ...(s.event ? ['event'] : [])];
+      let n = 0; for (const c of shuffle(o)) if (n < 2 && c.type !== 'pack' && rnd() < 0.42) { const k = pick(tt.filter((x) => x !== c.type)); if (k) { c.trail = k; n++; } }
+      return o.sort((a, b) => order(a) - order(b));
+    }
+    function gild(c) {
+      c.gilt = true;
+      if (c.type === 'fight') { const m = c.m; m.hp = Math.round(m.hp * 1.3); m.gold = Math.round(m.gold * 1.8); m.ore = Math.round(m.ore * 1.8 + 2); if (c.sneak != null) c.sneak = clamp(c.sneak - 0.1, 0.1, 0.9); }
+      else if (c.type === 'mine') { c.ore = Math.round(c.ore * 1.8); c.gold = Math.round((c.gold || 0) * 1.8); c.name = 'Gilded ' + c.name.replace(' Vein', ''); }
+      else { c.gold = Math.round(c.gold * 1.8); }
+    }
+    function dealRooms() {
+      const out = [];
       R.ambush = false;
       const d = R.depth, w = [['fight', 4], ['mine', 2.5], ['rest', s.noRest ? 0 : d < 3 ? 0.3 : 0.7], ['treasure', s.noRest ? 1.3 : 0.8]];
       if (s.shop && d >= 3) w.push(['shop', 0.9]);
@@ -245,13 +304,14 @@
       while (out.length < slots) out.push(makeCard(out.some((c) => c.type === 'mine') ? 'fight' : 'mine'));
       if (!out.some((c) => c.type === 'fight')) out[out.length - 1] = makeCard('fight');
       if (out.every((c) => c.type === 'fight')) out[out.length - 1] = makeCard('mine');
-      return out.sort((a, b) => order(a) - order(b));
+      return out;
     }
-    const order = (c) => ['fight', 'mine', 'treasure', 'relic', 'shrine', 'event', 'shop', 'rest'].indexOf(c.type) + (c.m && c.m.elite ? 0.5 : 0);
-    const threatOf = (c) => (c.type === 'fight' ? -1 : c.type === 'rest' && s.restCalm ? 0 : 1);
+    const order = (c) => ['pack', 'fight', 'mine', 'treasure', 'relic', 'shrine', 'event', 'shop', 'rest'].indexOf(c.type) + (c.m && c.m.elite ? 0.5 : 0);
+    // Threat a room adds: fights clear it (-1); gilded quiet rooms draw two; Mercy campfires lower it
+    const threatOf = (c) => (c.type === 'fight' ? -1 : c.type === 'rest' && s.restCleanse ? -0.5 : c.type === 'rest' && s.restCalm ? 0 : c.gilt ? 2 : 1);
 
     // ---- events: each returns {name, icon, text, choices:[{k, l, sub, fn, dis?}]} for the current depth
-    const ev = (v) => Math.round(v * s.evMult);
+    const ev = (v) => Math.round(v * s.evMult * lamp);
     const EVENTS = [
       () => { const hp = Math.max(1, Math.round(R.max * 0.2)), g = ev((8 + R.depth * 2.5) * R.goldMult);
         return { name: 'Blood Altar', icon: '🩸', text: 'A stone bowl full of coins. It wants blood.', choices: [{ k: 'altar', icon: '🩸', l: `Bleed ${hp} HP`, sub: `+${g} gold`, fn: () => { hurtNow(hp, 'the Blood Altar'); addGold(g); } }] }; },
@@ -271,6 +331,12 @@
         return { name: 'Wishing Well', icon: '⛲', text: 'Coins glint far below. Make a wish?', choices: [{ k: 'well', icon: '🪙', l: `Toss ${c} gold`, sub: '60%: a potion · 40%: +1 reroll', dis: R.gold < c, fn: () => { R.gold -= c; if (rnd() < 0.6) { R.potions++; say('+1 potion', '#ff8fa3'); } else { R.rerolls++; say('+1 reroll', '#8ecae6'); } sfx.ding(); } }] }; },
       () => { const p = Math.round(4 + R.depth * 0.9), o = ev((4 + R.depth) * R.oreMult);
         return { name: 'Runaway Cart', icon: '🛤️', text: 'An ore cart on the rails, pointing down.', choices: [{ k: 'ride', icon: '🛒', l: 'Ride it down', sub: `Skip a depth +${o} ore · 35%: crash −${p}`, fn: () => { R.depth++; addOre(o); say('Wheee!', '#ffd166'); if (rnd() < 0.35) hurtNow(p, 'a cart crash'); } }] }; },
+    ];
+    const LATE = [ // only from depth 12: the deep has stranger things
+      () => { const a = 3, h = R.max;
+        return { name: 'Crystal Heart', icon: '💠', text: 'A huge crystal beats like a heart. Touch it?', choices: [{ k: 'heart', icon: '✋', l: 'Lay a hand on it', sub: `60%: full heal +${a} attack · 40%: Ambush now`, fn: () => { if (rnd() < 0.6) { heal(h); R.atk += a; say(`+${a} attack`, '#7df9ff'); sfx.ding(); } else { R.threat = R.threatMax; say('It screams!', '#ff6b6b', 'obj', 22); sfx.nope(); } } }] }; },
+      () => { const g = ev((20 + R.depth * 3) * R.goldMult), p = Math.round(R.max * 0.3);
+        return { name: 'Fallen Delver', icon: '💀', text: 'A skeleton in good boots, clutching a fat purse.', choices: [{ k: 'loot', icon: '👝', l: 'Take the purse', sub: `+${g} gold · 35%: he gets up (−${p} HP)`, fn: () => { addGold(g); if (rnd() < 0.35) hurtNow(p, 'a fallen delver'); } }] }; },
     ];
     const SHOP = [
       { k: 'potion', l: 'Healing Potion', icon: '🧪', sub: () => `Heal ${pct(R.potionHeal)} any time`, price: () => 6 + Math.round(R.depth * 0.7), go: () => { R.potions++; } },
@@ -292,7 +358,7 @@
     const F = { hurt: hurtNow, heal };
     function revive() { R.revive--; R.hp = Math.round(R.max * R.reviveHp); sfx.ding(); fx.ring(HX(), FY() - 40, 70, '#ffe066'); fx.text(HX(), FY() - 140, 'Revived!', '#ffe066', 24); R.stop = 0.25; }
     function drink() { R.potions--; heal(Math.round(R.max * R.potionHeal)); sfx.ding(); render(); }
-    const effAtk = (m) => (R.atk + Math.min(R.fstreak, 3) * s.rhythm) * (m.undead ? R.holy : 1) * (m.king ? R.kingDmg : 1);
+    const effAtk = (m) => (R.atk + Math.min(R.fstreak, 3) * s.rhythm) * (m.undead ? R.holy : 1) * (m.king ? R.kingDmg : 1) * (s.berserk && R.hp < R.max / 2 ? 1 + s.berserk : 1);
     const blowOf = (m, a) => Math.max(1, a - (m.armor || 0));
     /** HP a fight will cost (the card chip; the bot reads the same number). o: {guard, free (enemy hits first), pre (opening damage)} */
     function estimate(m, guard, o = {}) {
@@ -313,25 +379,32 @@
       if (env.boss && R.depth >= BOSS_DEPTH) return throne();
       if (R.depth >= BOSS_DEPTH) { R.sealed = true; R.banner = { s: 'The Sealed Gate', sub: 'Only the throne key opens the way', t: R.t, big: true }; sfx.tone(196, 0.5, 'triangle', 0.07, 0.8); return retreat(); }
       R.cards = deal();
-      R.banner = R.ambush ? { s: 'Ambush!', sub: 'The deep has your scent', t: R.t, red: true } : { s: `Depth ${R.depth}`, sub: z.id !== zPrev.id ? z.name : '', t: R.t };
-      if (R.ambush) { sfx.tone(196, 0.35, 'sawtooth', 0.06, 0.7); sfx.tone(147, 0.45, 'sawtooth', 0.05, 0.7, 0.15); fx.shake = 6; }
+      R.banner = R.ambush ? { s: 'Ambush!', sub: R.trail ? 'Your trail waits beyond them' : 'The deep has your scent', t: R.t, red: true }
+        : { s: `Depth ${R.depth}`, sub: z.id !== zPrev.id ? z.name : R.found && TRAIL[R.found] ? `The trail leads to ${TRAIL[R.found][1]}` : R.cards.some((c) => c.type === 'pack') ? 'Your lost pack is here!' : '', t: R.t };
+      if (R.ambush) { snd('ambush', () => { sfx.tone(196, 0.35, 'sawtooth', 0.06, 0.7); sfx.tone(147, 0.45, 'sawtooth', 0.05, 0.7, 0.15); }); fx.shake = 6; }
       R.hero.walkT = R.t; R.phase = 'pick'; render();
     }
     function afterRoom(c) {
       const t = threatOf(c);
-      if (t < 0) R.threat = 0; else R.threat = Math.min(R.threatMax, R.threat + t);
+      if (t === -1) R.threat = 0; else if (t < 0) R.threat = Math.max(0, R.threat - 1); else R.threat = Math.min(R.threatMax, R.threat + t);
+      if (c.trail) R.trail = c.trail;
       if (c.type !== 'fight') R.fstreak = 0;
       if (c.type !== 'mine') R.mstreak = 0;
     }
     function enter(c, side) {
-      R.tapped++; sfx.pop(0.8);
+      R.tapped++; R.seenTrail = R.seenTrail || R.cards.some((x) => x.trail); snd('step', () => sfx.pop(0.8), 0.6);
       if (c.type !== 'fight' && c.type !== 'mine') afterRoom(c);
       if (c.type === 'fight') {
         if (side === 'k') return sneak(c);
+        if (side === 'b' && R.blasts <= 0) return render();
         if (side === 'b') { R.blasts--; return fight(c.m, false, { pre: Math.round(c.m.hp * 0.4) }, c); }
         return fight(c.m, side === 'g', {}, c);
       }
-      if (c.type === 'mine') return mine(c);
+      if (c.type === 'mine') { if (side === 'b' && R.blasts > 0 && s.veinBlast) { R.blasts--; return mine(c, true); } return mine(c); }
+      if (c.type === 'pack') {
+        R.obj = { kind: 'chest', inT: R.t, open: false }; if (store) try { store.removeItem(PK); } catch { /* fine */ }
+        return play([[0.35, null], [0.6, () => { R.obj.open = true; sfx.ding(); fx.text(OX(), FY() - 150, 'Your Lost Pack!', '#ffd166', 22); addGold(c.gold); Q.unshift([0.2, () => addOre(c.ore)]); }]], next);
+      }
       if (c.type === 'rest') {
         R.obj = { kind: 'rest', inT: R.t };
         return play([[0.35, () => sfx.pop(0.5)], [0.55, () => heal(Math.round(R.max * s.rest * R.restMult))]], next);
@@ -339,7 +412,7 @@
       if (c.type === 'treasure') {
         R.obj = { kind: 'chest', inT: R.t, open: false };
         const trap = rnd() < c.trap;
-        return play([[0.35, null], [0.6, () => { R.obj.open = true; sfx.ding(); fx.burst(OX(), FY() - 30, 14, ['#ffd166', '#fff3b0'], 170); addGold(c.gold); if (c.potion) { R.potions++; fx.text(OX(), FY() - 140, '+1 potion', '#ff8fa3', 18); } }],
+        return play([[0.35, null], [0.6, () => { R.obj.open = true; snd('chest', () => sfx.ding()); fx.burst(OX(), FY() - 30, 14, ['#ffd166', '#fff3b0'], 170); addGold(c.gold); if (c.potion) { R.potions++; fx.text(OX(), FY() - 140, '+1 potion', '#ff8fa3', 18); } }],
           ...(trap ? [[0.5, () => { fx.text(OX(), FY() - 160, 'Dart trap!', '#ff6b6b', 21); hurtNow(c.dmg, 'a dart trap'); }]] : [])], next);
       }
       if (c.type === 'shop') { R.obj = { kind: 'shop', inT: R.t }; return shop([SHOP[0], ...shuffle(SHOP.slice(1)).slice(0, 2)].map((it) => ({ ...it, p: it.price() }))); }
@@ -419,7 +492,9 @@
         R.kills++; if (m.elite) R.elites++; R.obj.dead = R.t; R.stop = 0.09; sfx.crack(); fx.burst(OX(), FY() - 40, 14, ['#e76f51', '#ffd6a5', '#6d597a'], 190);
         afterRoom(c); R.fstreak++; R.bestStreak = Math.max(R.bestStreak, R.fstreak);
         if (R.fstreak >= 2) { fx.text(W / 2, FY() - 160, `Bloodlust ×${R.fstreak}`, '#ff8fa3', 20 + Math.min(8, R.fstreak * 2)); sfx.tone(440 * 1.12 ** R.fstreak, 0.12, 'triangle', 0.06); }
-        addGold(guard ? m.gold / 2 : m.gold); if (m.ore) Q.unshift([0.15, () => addOre(guard ? m.ore / 2 : m.ore)]);
+        const lm = (guard ? s.guardLoot : 1) * (s.oath === 'blade' ? 1 + 0.25 * Math.min(4, R.fstreak - 1) : 1);
+        if (s.oath === 'blade' && R.fstreak >= 2) fx.text(W / 2, FY() - 182, `Oath loot ×${r1(1 + 0.25 * Math.min(4, R.fstreak - 1))}`, '#ffd166', 17);
+        addGold(m.gold * lm); if (m.ore) Q.unshift([0.15, () => addOre(m.ore * lm)]);
         if (R.killHeal) heal(R.killHeal); if (s.killHealPct) heal(R.max * s.killHealPct);
         play([[0.5, null]], m.relic ? () => relicPick(`${m.name} dropped a relic!`, next) : next);
       });
@@ -432,11 +507,14 @@
           R.fstreak = 0; R.mstreak = 0; R.threat = s.shadow ? Math.max(0, R.threat - 1) : Math.min(R.threatMax, R.threat + 1); play([[0.35, null]], next);
         });
       }
+      if (s.assassin) { say('Backstab!', '#ffd166'); return fight(m, false, { pre: backstab(m) }, c); }
       return fight(m, false, { free: 2 }, c);
     }
-    function mine(c) {
+    const backstab = (m) => Math.round(blowOf(m, effAtk(m)) * 2);
+    function mine(c, blast) {
       R.obj = { kind: 'vein', c, inT: R.t, hitT: -9, broke: -1 };
-      const cave = rnd() < c.cave, swing = () => { R.hero.atkT = R.t; R.obj.hitT = R.t; sfx.crack(); fx.burst(OX() - 20, FY() - 30, 4, ['#9c6644', '#b08968'], 120, 2.5); };
+      if (blast) { c = { ...c, ore: Math.round(c.ore * 1.5) }; R.obj.c = c; Q.push([0.2, () => { sfx.boom(); fx.shake = 8; fx.burst(OX(), FY() - 40, 18, ['#ffb703', '#e85d04', '#6b5e55'], 220); fx.text(OX(), FY() - 120, 'BLAST', '#ffb703', 24); }]); }
+      const cave = !blast && rnd() < c.cave, swing = () => { R.hero.atkT = R.t; R.obj.hitT = R.t; snd('pick', () => sfx.crack()); fx.burst(OX() - 20, FY() - 30, 4, ['#9c6644', '#b08968'], 120, 2.5); };
       play([[0.22, swing], [0.22, swing], [0.22, swing]], () => {
         R.obj.broke = R.t; sfx.ding(); fx.burst(OX(), FY() - 30, c.kind === 'lode' ? 34 : 12, c.kind === 'gem' ? ['#c77dff', '#e0aaff'] : c.kind === 'silver' ? ['#dee2e6', '#adb5bd'] : c.kind === 'gas' ? ['#b5e48c', '#e9a23b'] : ['#e09f3e', '#f4a261', '#ffd166'], c.kind === 'lode' ? 260 : 160);
         if (c.kind === 'lode') { fx.shake = 8; R.stop = 0.15; fx.text(W / 2, FY() - 170, 'MOTHER LODE!', '#ffd166', 28); [523, 659, 784, 1046].forEach((f, i) => sfx.tone(f, 0.14, 'triangle', 0.07, 1, i * 0.06)); }
@@ -460,7 +538,7 @@
       R.K = { ...k, hp: k.hp, max: k.hp, phase: 1, round: 0, crystals: 0, intent: 'swing', armor: 0, hitT: -9, atkT: -9 };
       R.obj = { kind: 'king', inT: R.t };
       R.banner = { s: 'The Deep Throne', sub: 'The Mountain King rises', t: R.t, red: true, big: true };
-      sfx.tone(82, 1.2, 'sawtooth', 0.07, 0.8); sfx.tone(123, 1.0, 'triangle', 0.06, 1, 0.35); sfx.tone(98, 1.1, 'triangle', 0.06, 1, 0.8); sfx.noise(0.6, 0.06, 200);
+      snd('roar', () => { sfx.tone(82, 1.2, 'sawtooth', 0.07, 0.8); sfx.tone(123, 1.0, 'triangle', 0.06, 1, 0.35); sfx.tone(98, 1.1, 'triangle', 0.06, 1, 0.8); sfx.noise(0.6, 0.06, 200); });
       fx.shake = 8; R.cards = []; R.phase = 'boss'; if (ui) draw(true);
       play([[1.8, () => { fx.shake = 6; sfx.boom(); }], [0.4, null]], () => { R.phase = 'boss'; render(); });
     }
@@ -512,7 +590,7 @@
     function wake() {
       const K = R.K; K.phase = 2; K.round = -1; K.crystals = 2; K.intent = 'quake'; K.armor = 0;
       R.banner = { s: 'The Mountain wakes!', sub: 'Crystals heal him · Quakes shake the hall', t: R.t, red: true, big: true };
-      fx.shake = 16; R.stop = 0.35; sfx.boom(); sfx.tone(65, 1.2, 'sawtooth', 0.08, 0.7); sfx.tone(98, 0.9, 'square', 0.04, 0.6, 0.3); sfx.tone(196, 0.5, 'triangle', 0.06, 1, 0.9);
+      fx.shake = 16; R.stop = 0.35; sfx.boom(); snd('roar', () => 0, 1); sfx.tone(65, 1.2, 'sawtooth', 0.08, 0.7); sfx.tone(98, 0.9, 'square', 0.04, 0.6, 0.3); sfx.tone(196, 0.5, 'triangle', 0.06, 1, 0.9);
       for (let i = 0; i < 3; i++) fx.ring(OX(), FY() - 70, 70 + i * 35, '#7df9ff');
       Q.length = 0; Q.push([1.4, null]);
     }
@@ -523,6 +601,7 @@
       R.endT = R.t; play([[0.9, null]], () => { R.over = true; render(); });
     }
     function die() {
+      if (store && !env.boss && R.gold + R.ore > 0) try { const lost = 0.5 * (1 - Math.min(1, R.keep)); if (lost > 0) store.setItem(PK, JSON.stringify({ d: Math.max(2, R.depth), g: Math.round(R.gold * lost), o: Math.round(R.ore * lost) })); } catch { /* fine */ }
       R.ended = 'dead'; R.hp = 0; R.hero.dead = R.t; R.endT = R.t; R.slow = 1; sfx.boom(); fx.shake = 12; sfx.tone(220, 0.8, 'triangle', 0.07, 0.4, 0.15);
       play([[1.4, null]], () => { R.over = true; render(); });
     }
@@ -542,7 +621,9 @@
       if (R.phase === 'boss') { const m = /^b(\d)$/.exec(a); if (m) bossAct(['strike', 'brace', 'shatter'][+m[1]]); return; }
       if (R.phase === 'pick') {
         if (a === 'retreat') return retreat();
-        if (a === 'reroll') { if (R.rerolls > 0 && !R.ambush) { R.rerolls--; R.cards = deal(); sfx.zap(); fx.text(W / 2, FY() - 150, 'New paths', '#8ecae6', 18); render(); } else sfx.nope(); return; }
+        if (a === 'reroll') { if (R.rerolls > 0 && !R.ambush) { // a reroll keeps the trail's room and the Lost Pack
+          const pk = R.cards.find((c) => c.type === 'pack'); if (pk) R.pack = { d: R.depth, g: pk.gold, o: pk.ore }; R.trail = R.found;
+          R.rerolls--; R.cards = deal(); sfx.zap(); fx.text(W / 2, FY() - 150, 'New paths', '#8ecae6', 18); render(); } else sfx.nope(); return; }
         const m = /^([cgkb])(\d)$/.exec(a), c = m && R.cards[+m[2]]; if (c) enter(c, m[1]);
       }
     }
@@ -558,7 +639,10 @@
     function draw(busy) {
       const card = (col, a, ic, title, l1, l2, chip, chipCls, side, dis) => `<div class="dd-card" style="--c:${col}"><button type="button" class="dd-main${a ? '' : ' ph'}" ${a ? `data-a="${a}"` : ''}${dis || !a ? ' disabled' : ''}><span class="ic">${ic}</span><span class="tx"><b>${title}</b><small>${l1 || '&nbsp;'}</small>${l2 != null ? `<small class="rw">${l2 || '&nbsp;'}</small>` : ''}</span>${chip ? `<span class="chip ${chipCls || ''}">${chip}</span>` : ''}</button>${side}</div>`;
       const info = (t, sub) => `<div class="dd-side info">${t}<small>${sub}</small></div>`;
-      const thr = (c) => { const t = threatOf(c); return t > 0 ? info('👁 +1', 'Threat') : t === 0 ? info('👁 0', 'calm') : ''; };
+      const thr = (c) => { const t = threatOf(c);
+        if (t > 0 && R.threat + t >= R.threatMax) return `<div class="dd-side info warn">⚠ +${t}<small>then Ambush</small></div>`;
+        return t > 0 ? info(`👁 +${t}`, t > 1 ? 'Threat (gilded)' : 'Threat') : t === 0 ? info('👁 0', 'calm') : t > -1 ? info('👁 −1', 'calms') : ''; };
+      const ict = (c, ic) => ic + (c.trail && TRAIL[c.trail] ? `<i>→${TRAIL[c.trail][0]}</i>` : '');
       const hp = (e) => (e >= R.hp ? ['☠ deadly', 'bad'] : e ? [`−${e} HP`, 'hurt'] : ['no harm', 'good']);
       let head = '', cards = '';
       if (R.K) {
@@ -578,26 +662,30 @@
         else if (tip) head = `<div class="dd-hd tip"><b>${tip}</b><span>Depth ${R.depth}</span></div>`;
         else if (R.ambush) head = `<div class="dd-hd amb"><b>⚠ Ambush! Every path is guarded</b><span>+loot</span></div>`;
         else head = `<div class="dd-hd"><b>▼ Push deeper · pick a room</b><span>to depth ${R.depth + 1}</span></div>`;
-        cards = R.cards.map((c, i) => {
+        cards = R.cards.map((c, i) => { const h = cardFor(c, i); return c.gilt ? h.replace('class="dd-card"', 'class="dd-card gilt"') : h; }).join('');
+        for (let i = R.cards.length; i < slots; i++) cards += card(COL.none, '', '·', '…', '', null, '', '', '');
+      }
+      function cardFor(c, i) {
+          if (c.type === 'pack') return card(COL.pack, 'c' + i, '🪦', 'Your Lost Pack', "You dropped it here last run", `+${c.ore} ore too`, `+${c.gold} gold`, 'gold', thr(c));
           if (c.type === 'fight') {
             const m = c.m, e = estimate(m, false), [ch, cl] = hp(e), af = m.affix ? ` · ${AFFIX[m.affix][1]} ${AFFIX[m.affix][0].toLowerCase()}` : '';
             const loot = `+${m.gold} gold${m.ore ? ` +${m.ore} ore` : ''}${m.relic ? ' + relic' : ''}`;
             let side;
-            if (env.who === 'rogue') { const ef = estimate(m, false, { free: 2 }); side = `<button type="button" class="dd-side" data-a="k${i}">🥷 Sneak<small style="color:#b8f2e6">${pct(c.sneak)} · ${Math.round(m.gold * s.steal)}g</small><small style="color:${ef >= R.hp ? '#ff6b6b' : '#ff9a8d'}">fail −${ef}</small></button>`; }
+            if (env.who === 'rogue') { const ef = estimate(m, false, s.assassin ? { pre: backstab(m) } : { free: 2 }); side = `<button type="button" class="dd-side" data-a="k${i}">🥷 Sneak<small style="color:#b8f2e6">${pct(c.sneak)} · ${Math.round(m.gold * s.steal)}g</small><small style="color:${ef >= R.hp ? '#ff6b6b' : '#ff9a8d'}">${s.assassin ? 'stab' : 'fail'} −${ef}</small></button>`; }
             else if (R.blasts > 0) { const eb = estimate(m, false, { pre: m.hp * 0.4 }); side = `<button type="button" class="dd-side" data-a="b${i}">🧨 Blast<small style="color:${eb >= R.hp ? '#ff6b6b' : eb ? '#ff9a8d' : '#8be29a'}">${eb >= R.hp ? '☠' : eb ? `−${eb}` : 'no harm'} · ${R.blasts}</small><small>full loot</small></button>`; }
-            else { const eg = estimate(m, true); side = `<button type="button" class="dd-side" data-a="g${i}">🛡 Guard<small style="color:${eg >= R.hp ? '#ff6b6b' : eg ? '#ff9a8d' : '#8be29a'}">${eg >= R.hp ? '☠ deadly' : eg ? `−${eg} HP` : 'no harm'}</small><small>½ loot</small></button>`; }
-            return card(m.elite ? COL.elite : COL.fight, 'c' + i, m.icon, m.name, `❤ ${m.hp} · hits ${Math.round(m.atk * R.foeAtk)}${m.undead ? ' · undead' : ''}${m.armor ? ` · 🔩${m.armor}` : ''}${m.first ? ' · strikes first' : ''}${af && !m.armor && !m.first ? af : ''}`, loot, ch, cl, side);
+            else { const eg = estimate(m, true); side = `<button type="button" class="dd-side" data-a="g${i}">🛡 Guard<small style="color:${eg >= R.hp ? '#ff6b6b' : eg ? '#ff9a8d' : '#8be29a'}">${eg >= R.hp ? '☠ deadly' : eg ? `−${eg} HP` : 'no harm'}</small><small>${s.guardLoot >= 1 ? 'full loot' : '½ loot'}</small></button>`; }
+            const busy = m.undead || m.armor || m.first || af;
+            return card(c.gilt ? COL.treasure : m.elite ? COL.elite : COL.fight, 'c' + i, ict(c, m.icon), (c.gilt ? '✨ ' : '') + (m.affix ? `${AFFIX[m.affix][1]} ${(MONS.find((x) => x.id === m.id) || m).name}` : m.name), `❤ ${m.hp} · ${busy ? '⚔' : 'hits'} ${Math.round(m.atk * R.foeAtk)}${m.undead ? ' · undead' : ''}${m.armor ? ` · 🔩${m.armor}` : ''}${m.first ? ' · strikes first' : ''}${m.affix && !m.armor && !m.first ? ' · ' + AFFIX[m.affix][0].toLowerCase() : ''}`, loot, ch, cl, side);
           }
-          if (c.type === 'mine') return card(COL.mine, 'c' + i, c.kind === 'gem' ? '💎' : c.kind === 'lode' ? '🌟' : c.kind === 'gas' ? '☁️' : '⛏️', c.name, `${Math.round(c.cave * 100)}% cave-in: −${c.dmg} HP`, `${c.st > 1 ? `Streak ×${r1(c.st)} · ` : ''}${c.gold ? `+${c.gold} gold` : ''}`, `+${c.ore} ore`, 'gold', thr(c));
-          if (c.type === 'rest') { const hh = Math.min(R.max - R.hp, Math.round(R.max * s.rest * R.restMult)); return card(COL.rest, 'c' + i, '🔥', 'Campfire', 'Rest and patch up', '', `+${hh} HP`, 'good', thr(c)); }
-          if (c.type === 'treasure') return card(COL.treasure, 'c' + i, '🧰', 'Treasure Chest', c.trap ? `${Math.round(c.trap * 100)}% trap: −${c.dmg} HP` : 'No trap', c.potion ? 'A potion inside!' : '', `+${c.gold} gold`, 'gold', thr(c));
-          if (c.type === 'shop') return card(COL.shop, 'c' + i, '🛒', 'Wandering Trader', 'Buy one item with run gold', `You have ${R.gold} gold`, 'shop', 'cy', thr(c));
-          if (c.type === 'event') return card(COL.event, 'c' + i, c.ev.icon, c.ev.name, 'Event · a risky choice', '', '?', '', thr(c));
-          if (c.type === 'shrine') return card(COL.shrine, 'c' + i, '⛩️', 'Old Shrine', 'A blessing with a cost', c.opts.map((x) => x.icon).join(' '), 'bless', 'cy', thr(c));
-          if (c.type === 'relic') return card(COL.relic, 'c' + i, '🏺', 'Reliquary', `Pick 1 of ${s.relicChoices} relics for this run`, `${R.relics.length} carried`, 'relic', 'gold', thr(c));
+          if (c.type === 'mine') { const bl = s.veinBlast && R.blasts > 0 ? `<button type="button" class="dd-side" data-a="b${i}">🧨 Blast<small style="color:#8be29a">safe · +${Math.round(c.ore * 0.5)}</small><small>${R.blasts} left</small></button>` : thr(c);
+            return card(c.gilt ? COL.treasure : COL.mine, 'c' + i, ict(c, c.kind === 'gem' ? '💎' : c.kind === 'lode' ? '🌟' : c.kind === 'gas' ? '☁️' : '⛏️'), (c.gilt ? '✨ ' : '') + c.name, `${Math.round(c.cave * 100)}% cave-in: −${c.dmg} HP`, `${c.st > 1 ? `Streak ×${r1(c.st)} · ` : ''}${c.gold ? `+${c.gold} gold` : ''}`, `+${c.ore} ore`, 'gold', bl); }
+          if (c.type === 'rest') { const hh = Math.min(R.max - R.hp, Math.round(R.max * s.rest * R.restMult)); return card(COL.rest, 'c' + i, ict(c, '🔥'), 'Campfire', hh ? 'Rest and patch up' : 'You are already at full HP', '', hh ? `+${hh} HP` : 'full', hh ? 'good' : '', thr(c)); }
+          if (c.type === 'treasure') return card(COL.treasure, 'c' + i, ict(c, '🧰'), (c.gilt ? '✨ Gilded Chest' : 'Treasure Chest'), c.trap ? `${Math.round(c.trap * 100)}% trap: −${c.dmg} HP` : 'No trap', c.potion ? 'A potion inside!' : '', `+${c.gold} gold`, 'gold', thr(c));
+          if (c.type === 'shop') return card(COL.shop, 'c' + i, ict(c, '🛒'), 'Wandering Trader', 'Buy one item with run gold', `You have ${R.gold} gold`, 'shop', 'cy', thr(c));
+          if (c.type === 'event') return card(COL.event, 'c' + i, ict(c, c.ev.icon), c.ev.name, 'Event · a risky choice', '', '?', '', thr(c));
+          if (c.type === 'shrine') return card(COL.shrine, 'c' + i, ict(c, '⛩️'), 'Old Shrine', 'A blessing with a cost', c.opts.map((x) => x.icon).join(' '), 'bless', 'cy', thr(c));
+          if (c.type === 'relic') return card(COL.relic, 'c' + i, ict(c, '🏺'), 'Reliquary', `Take 1 of ${s.relicChoices} relics`, `${R.relics.length} carried`, 'relic', 'gold', thr(c));
           return '';
-        }).join('');
-        for (let i = R.cards.length; i < slots; i++) cards += card(COL.none, '', '·', '…', '', null, '', '', '');
       }
       const boss = !!R.K, bank = `${fmt(R.gold)}g · ${fmt(R.ore)}o`;
       const row = `<div class="dd-row">
@@ -611,7 +699,7 @@
     // point-of-need hints for the first runs: shown once, in the header line (no layout change)
     function hints() {
       if (R.phase !== 'pick' || env.runNo > 4) { return; }
-      const want = R.hp < R.max * 0.45 && R.gold + R.ore > 0 && env.runNo <= 3 ? '⛺ Low HP? Retreat keeps all your loot' : R.threat === R.threatMax - 1 && env.runNo <= 4 ? '👁 One more quiet room and they ambush you' : null;
+      const want = R.cards.some((c) => c.trail) && !R.seenTrail && env.runNo <= 6 && env.runNo > 1 ? '→ A trail: pick it and that room comes next' : R.hp < R.max * 0.45 && R.gold + R.ore > 0 && env.runNo <= 3 ? '⛺ Low HP? Retreat keeps all your loot' : R.threat === R.threatMax - 1 && env.runNo <= 4 ? '👁 One more quiet room and they ambush you' : null;
       if (want !== R.hint) { R.hint = want; render(); }
     }
 
@@ -622,13 +710,20 @@
       bg.addColorStop(0, boss ? '#2a1030' : z.top); bg.addColorStop(1, boss ? '#0c0612' : z.bot);
       g.fillStyle = bg; g.fillRect(-20, -20, W + 40, sb + 20);
       // far rock silhouettes (seeded by depth so each room looks a little different)
-      const sd = R.depth * 7.13;
+      const sd = R.depth * 7.13, bgi = ART && ART('bg-mine');
+      if (bgi) { // painted gallery, cover-fit to the scene, then a zone-coloured scrim so the HUD and pieces read
+        const k = Math.max(W / bgi.naturalWidth, sb / bgi.naturalHeight), bw = bgi.naturalWidth * k, bh = bgi.naturalHeight * k;
+        g.drawImage(bgi, (W - bw) / 2, sb - bh, bw, bh);
+        g.globalAlpha = 0.55; g.fillStyle = bg; g.fillRect(-20, -20, W + 40, sb + 20); g.globalAlpha = 1;
+        const top = g.createLinearGradient(0, 0, 0, 150); top.addColorStop(0, 'rgba(8,6,12,.85)'); top.addColorStop(1, 'rgba(8,6,12,0)'); g.fillStyle = top; g.fillRect(0, 0, W, 150);
+      } else {
       g.fillStyle = 'rgba(0,0,0,.28)'; g.beginPath(); g.moveTo(-10, sb);
       for (let x = -10; x <= W + 20; x += 24) g.lineTo(x, fy - 120 - Math.abs(Math.sin(x * 0.021 + sd)) * 90 - Math.sin(x * 0.07 + sd * 2) * 14);
       g.lineTo(W + 20, sb); g.fill();
       // strata
       g.strokeStyle = 'rgba(255,220,170,.05)'; g.lineWidth = 2;
       for (let i = 0; i < 6; i++) { g.beginPath(); const y = 130 + i * ((fy - 130) / 6); g.moveTo(0, y); for (let x = 0; x <= W; x += 30) g.lineTo(x, y + Math.sin(x * 0.03 + i * 2 + R.depth) * 7); g.stroke(); }
+      }
       // crystal clusters glowing in the walls
       for (let i = 0; i < z.crystals; i++) {
         const cx = ((i * 131 + R.depth * 53) % (W - 40)) + 20, cy = 140 + ((i * 89 + R.depth * 31) % Math.max(40, fy - 200)), p = 0.55 + Math.sin(t * 2 + i * 1.7) * 0.25;
@@ -638,8 +733,8 @@
         g.globalAlpha = 1;
       }
       // timber shoring in the upper mine
-      if (z.id === 'upper' && !boss) for (const bx of [W * 0.06, W * 0.94]) { g.fillStyle = '#4a3222'; g.fillRect(bx - 6, 92, 12, fy - 92); g.fillStyle = '#3a2618'; g.fillRect(bx - 6, 92, 3, fy - 92); }
-      if (z.id === 'upper' && !boss) { g.fillStyle = '#4a3222'; g.fillRect(0, 92, W, 10); g.fillStyle = '#5c3d2e'; g.fillRect(0, 92, W, 3); }
+      if (z.id === 'upper' && !boss && !bgi) for (const bx of [W * 0.06, W * 0.94]) { g.fillStyle = '#4a3222'; g.fillRect(bx - 6, 92, 12, fy - 92); g.fillStyle = '#3a2618'; g.fillRect(bx - 6, 92, 3, fy - 92); }
+      if (z.id === 'upper' && !boss && !bgi) { g.fillStyle = '#4a3222'; g.fillRect(0, 92, W, 10); g.fillStyle = '#5c3d2e'; g.fillRect(0, 92, W, 3); }
       // ambush: red vignette
       if (R.ambush && R.phase !== 'boss') { const v = g.createRadialGradient(W / 2, fy - 60, 60, W / 2, fy - 60, W * 0.9); v.addColorStop(0, 'rgba(120,0,20,0)'); v.addColorStop(1, `rgba(150,10,30,${0.35 + Math.sin(t * 4) * 0.08})`); g.fillStyle = v; g.fillRect(0, 0, W, sb); }
       // dark arches (the paths) while choosing
@@ -655,9 +750,11 @@
         }
       }
       // ceiling with stalactites
-      g.fillStyle = boss ? '#120818' : z.ceil; g.beginPath(); g.moveTo(-10, 0); g.lineTo(-10, 92);
-      for (let x = 0; x <= W + 20; x += 22) { const j = Math.sin(x * 0.37 + R.depth * 1.7), yy = 88 + j * 8; g.lineTo(x, yy); if (j > 0.3) { g.lineTo(x + 6, yy + 14 + j * 16); g.lineTo(x + 11, yy); } }
-      g.lineTo(W + 20, 0); g.fill();
+      if (!bgi) {
+        g.fillStyle = boss ? '#120818' : z.ceil; g.beginPath(); g.moveTo(-10, 0); g.lineTo(-10, 92);
+        for (let x = 0; x <= W + 20; x += 22) { const j = Math.sin(x * 0.37 + R.depth * 1.7), yy = 88 + j * 8; g.lineTo(x, yy); if (j > 0.3) { g.lineTo(x + 6, yy + 14 + j * 16); g.lineTo(x + 11, yy); } }
+        g.lineTo(W + 20, 0); g.fill();
+      }
       // torch glow
       const tx = boss ? W * 0.1 : W * 0.5, ty = fy - 120, fl = 1 + Math.sin(t * 13) * 0.05 + Math.sin(t * 7.3) * 0.04;
       const glow = g.createRadialGradient(tx, ty, 4, tx, ty, 200 * fl); glow.addColorStop(0, boss ? 'rgba(255,80,120,.25)' : 'rgba(255,180,90,.3)'); glow.addColorStop(1, 'rgba(255,160,80,0)');
@@ -694,8 +791,8 @@
         else if (o.kind === 'rest') drawFire(g, ox, fy, t);
         else if (o.kind === 'chest') drawChest(g, ox, fy, o.open);
         else if (o.kind === 'shop') drawTrader(g, ox, fy, t);
-        else if (o.kind === 'event') drawRune(g, ox, fy, t, '#b388eb');
-        else if (o.kind === 'shrine') drawRune(g, ox, fy, t, '#4cc9f0');
+        else if (o.kind === 'event') drawRune(g, ox, fy, t, '#b388eb', 'obj-runestone');
+        else if (o.kind === 'shrine') drawRune(g, ox, fy, t, '#4cc9f0', 'obj-shrine');
         else if (o.kind === 'relic') drawReliquary(g, ox, fy, t);
         g.restore();
       }
@@ -780,7 +877,7 @@
     }
 
     const api = {
-      get over() { return R.over; }, get t() { return R.t; }, act, R, estimate, kingEstimate, kingDeal, deal, slots,
+      get over() { return R.over; }, get t() { return R.t; }, act, R, estimate, backstab, kingEstimate, kingDeal, deal, slots,
       devJump(d) { R.depth = Math.max(1, d - 1); R.atk += d * 1.2; R.max = R.hp = R.max + d * 6; R.gold += d * 20; R.ore += d * 9; next(); },
       update(dt) {
         if (R.stop > 0) { R.stop -= dt; fx.update(dt * 0.15); return; } // hit pause
@@ -813,7 +910,8 @@
         if (R.ended === 'dead') {
           const kp = Math.min(1, R.keep);
           return { won: false, score, title: `Slain by ${R.killer || 'the dark'}`, earned: { gold: R.gold * kp, ore: R.ore * kp },
-            lines: [...lines, `Kept ${pct(kp)} of ${fmt(R.gold)} gold and ${fmt(R.ore)} ore. Retreat sooner to keep it all.`] };
+            lines: [...lines, `Kept ${pct(kp)} of ${fmt(R.gold)} gold and ${fmt(R.ore)} ore. Retreat sooner to keep it all.`,
+              ...(store && !env.boss && kp < 1 && R.gold + R.ore > 0 ? [`🪦 Half of the rest lies at depth ${Math.max(2, R.depth)}: reach it next run to grab it.`] : [])] };
         }
         return { won: false, score, title: R.sealed ? `The Sealed Gate at depth ${BOSS_DEPTH}` : `Retreated from depth ${R.depth}`, earned: { gold: R.gold, ore: R.ore }, lines: [...lines, 'Retreated safely: kept everything.'] };
       },
@@ -870,9 +968,17 @@
     const z = (m.elite ? 1.2 : 1) * (m.king ? 1.55 : 1);
     ell(g, 0, 2, 30 * z, 6, 'rgba(0,0,0,.35)');
     g.scale(z, z);
+    if (m.king && m.phase === 2 && ART && ART('boss-king')) { const p = 0.5 + Math.sin(t * 6) * 0.3, cg = g.createRadialGradient(0, -60, 4, 0, -60, 80); cg.addColorStop(0, `rgba(125,249,255,${p * 0.6})`); cg.addColorStop(1, 'rgba(125,249,255,0)'); g.fillStyle = cg; g.fillRect(-90, -150, 180, 160); }
     if (m.affix && !m.elite) { const gr = g.createRadialGradient(0, -40, 5, 0, -40, 60); gr.addColorStop(0, 'rgba(255,140,40,.3)'); gr.addColorStop(1, 'rgba(255,140,40,0)'); g.fillStyle = gr; g.fillRect(-70, -110, 140, 120); }
     if (m.elite || m.king) { const gr = g.createRadialGradient(0, -40, 5, 0, -40, 70); gr.addColorStop(0, 'rgba(255,77,109,.35)'); gr.addColorStop(1, 'rgba(255,77,109,0)'); g.fillStyle = gr; g.fillRect(-80, -120, 160, 130); }
     const F = (c) => (o.hit ? '#ffffff' : c), b = Math.sin(t * 3) * 1.5;
+    // sprite: fitted to the vector monster's footprint (so the HP bar and hit area stay put), breathing squash, white hit flash
+    const box = { rat: [74, 50], bat: [76, 58], slime: [66, 54], goblin: [72, 74], skel: [68, 84], orc: [92, 96], wraith: [80, 96], troll: [104, 96], golem: [96, 100], lich: [82, 100], king: [116, 124] }[m.id] || [80, 90];
+    const sy = m.id === 'bat' ? -50 + Math.sin(t * 5) * 7 : m.id === 'wraith' ? -6 + Math.sin(t * 2.5) * 5 : 0;
+    g.save(); g.translate(0, sy); g.scale(1 - b * 0.006, 1 + b * 0.012);
+    const drew = fit(g, (m.king ? 'boss-' : 'mon-') + m.id, 0, 0, box[0], box[1], { flash: o.hit ? 0.75 : 0 });
+    g.restore();
+    if (drew) m = { ...m, id: '_art' };
     switch (m.id) {
       case 'rat':
         g.strokeStyle = '#e5989b'; g.lineWidth = 3; g.beginPath(); g.moveTo(18, -8); g.quadraticCurveTo(38, -6, 36, -26); g.stroke();
@@ -931,33 +1037,39 @@
     const sh = t - o.hitT < 0.1 ? (Math.random() - 0.5) * 6 : 0, broke = o.broke > 0 ? clamp((t - o.broke) / 0.3, 0, 1) : 0;
     const col = { copper: ['#e09f3e', '#f4a261'], silver: ['#ced4da', '#f8f9fa'], gem: ['#9d4edd', '#e0aaff'], gas: ['#b5e48c', '#e9f5db'], lode: ['#ffd166', '#fff3b0'] }[o.c.kind] || ['#e09f3e', '#f4a261'];
     g.save(); g.translate(x + sh, y);
-    g.fillStyle = '#5a4a3f'; g.beginPath(); g.moveTo(-46, 0); g.lineTo(-38, -40); g.lineTo(-12, -62); g.lineTo(18, -56); g.lineTo(42, -30); g.lineTo(48, 0); g.fill();
-    g.fillStyle = '#6f5d50'; g.beginPath(); g.moveTo(-30, -36); g.lineTo(-12, -54); g.lineTo(6, -48); g.lineTo(-10, -30); g.fill();
+    if (!fit(g, 'obj-vein', 0, 2, 104, 70)) {
+      g.fillStyle = '#5a4a3f'; g.beginPath(); g.moveTo(-46, 0); g.lineTo(-38, -40); g.lineTo(-12, -62); g.lineTo(18, -56); g.lineTo(42, -30); g.lineTo(48, 0); g.fill();
+      g.fillStyle = '#6f5d50'; g.beginPath(); g.moveTo(-30, -36); g.lineTo(-12, -54); g.lineTo(6, -48); g.lineTo(-10, -30); g.fill();
+    }
     g.globalAlpha *= 1 - broke;
     for (const [px, py, r] of [[-20, -26, 9], [8, -36, 11], [24, -16, 8], [-4, -12, 7]]) { g.fillStyle = col[0]; g.beginPath(); g.moveTo(px, py - r); g.lineTo(px + r * 0.8, py); g.lineTo(px, py + r); g.lineTo(px - r * 0.8, py); g.fill(); circ(g, px - 2, py - 3, r * 0.25, col[1]); }
     g.restore();
   }
   function drawFire(g, x, y, t) {
     const gr = g.createRadialGradient(x, y - 20, 4, x, y - 20, 90); gr.addColorStop(0, 'rgba(255,170,60,.45)'); gr.addColorStop(1, 'rgba(255,170,60,0)'); g.fillStyle = gr; g.fillRect(x - 100, y - 120, 200, 130);
+    if (fit(g, 'obj-campfire', x, y + 2, 92, 74, { flash: 0.12 + Math.sin(t * 11) * 0.08 })) return;
     g.fillStyle = '#5c3d2e'; g.save(); g.translate(x, y - 4); g.rotate(0.3); g.fillRect(-26, -4, 52, 8); g.rotate(-0.6); g.fillRect(-26, -4, 52, 8); g.restore();
     for (let i = 0; i < 3; i++) { const h = 30 + Math.sin(t * 11 + i * 2) * 6 - i * 6, w = 14 - i * 3; g.fillStyle = ['#e85d04', '#ffb703', '#fff3b0'][i]; g.beginPath(); g.moveTo(x - w, y - 6); g.quadraticCurveTo(x - w, y - h * 0.6, x + Math.sin(t * 9) * 3, y - h); g.quadraticCurveTo(x + w, y - h * 0.6, x + w, y - 6); g.fill(); }
     g.fillStyle = '#7a4a1e'; rr(g, x - 70, y - 8, 34, 10, 5); g.fill();
   }
   function drawChest(g, x, y, open) {
+    if (fit(g, 'obj-chest', x, y + 2, 78, 62, { flash: open ? 0.3 : 0 })) { if (open) { const gr = g.createRadialGradient(x, y - 50, 2, x, y - 50, 60); gr.addColorStop(0, 'rgba(255,209,102,.75)'); gr.addColorStop(1, 'rgba(255,209,102,0)'); g.fillStyle = gr; g.fillRect(x - 70, y - 120, 140, 120); } return; }
     g.fillStyle = '#7a4a1e'; rr(g, x - 30, y - 34, 60, 34, 5); g.fill(); g.fillStyle = '#d4a017'; g.fillRect(x - 30, y - 22, 60, 4); g.fillRect(x - 4, y - 28, 8, 10);
     g.save(); g.translate(x - 30, y - 34); if (open) g.rotate(-0.9); g.fillStyle = '#8d5a2b'; rr(g, 0, -16, 60, 16, 7); g.fill(); g.fillStyle = '#d4a017'; g.fillRect(0, -4, 60, 3); g.restore();
     if (open) { const gr = g.createRadialGradient(x, y - 40, 2, x, y - 40, 50); gr.addColorStop(0, 'rgba(255,209,102,.7)'); gr.addColorStop(1, 'rgba(255,209,102,0)'); g.fillStyle = gr; g.fillRect(x - 60, y - 100, 120, 100); }
   }
   function drawTrader(g, x, y, t) {
+    if (fit(g, 'obj-trader', x, y + 2, 96, 96)) return;
     g.fillStyle = '#6d4c41'; rr(g, x + 14, y - 46, 30, 40, 6); g.fill();
     g.fillStyle = '#2d6a4f'; g.beginPath(); g.moveTo(x - 16, y); g.lineTo(x - 10, y - 56); g.quadraticCurveTo(x, y - 82, x + 12, y - 56); g.lineTo(x + 18, y); g.fill();
     circ(g, x - 2, y - 58, 9, '#f2c6a0'); g.fillStyle = '#1b4332'; g.beginPath(); g.arc(x, y - 60, 12, Math.PI * 0.9, Math.PI * 2.1); g.fill(); circ(g, x - 6, y - 58, 1.8, '#222');
     g.fillStyle = '#5c3d2e'; g.fillRect(x - 32, y - 56, 3, 30); circ(g, x - 30, y - 58, 6 + Math.sin(t * 9) * 0.6, '#ffd166');
     for (const [i, c] of ['#e63946', '#8ecae6', '#adb5bd'].entries()) circ(g, x - 40 + i * 14, y - 4, 5, c);
   }
-  function drawRune(g, x, y, t, col = '#b388eb') {
+  function drawRune(g, x, y, t, col = '#b388eb', art) {
     const p = 0.6 + Math.sin(t * 3) * 0.25, gr = g.createRadialGradient(x, y - 50, 4, x, y - 50, 80); gr.addColorStop(0, col + Math.round(115 * p).toString(16).padStart(2, '0')); gr.addColorStop(1, col + '00');
     g.fillStyle = gr; g.fillRect(x - 90, y - 140, 180, 140);
+    if (art && fit(g, art, x, y + 2, 76, 104)) return;
     g.fillStyle = '#4a4458'; g.beginPath(); g.moveTo(x - 22, y); g.lineTo(x - 18, y - 80); g.quadraticCurveTo(x, y - 96, x + 18, y - 80); g.lineTo(x + 22, y); g.fill();
     g.strokeStyle = col; g.globalAlpha *= Math.min(1, p + 0.3); g.lineWidth = 3; g.beginPath(); g.moveTo(x, y - 70); g.lineTo(x, y - 30); g.moveTo(x - 10, y - 58); g.lineTo(x + 10, y - 44); g.moveTo(x + 10, y - 58); g.lineTo(x - 10, y - 44); g.stroke();
   }
@@ -970,6 +1082,10 @@
   }
   function drawThrone(g, x, y, t, phase) {
     // a throne of rough-cut ore behind the King, crystals pulsing brighter once he wakes
+    if (ART && ART('obj-throne')) {
+      if (phase === 2) { const p = 0.5 + Math.sin(t * 5) * 0.3, cg = g.createRadialGradient(x, y - 140, 10, x, y - 140, 130); cg.addColorStop(0, `rgba(125,249,255,${p * 0.45})`); cg.addColorStop(1, 'rgba(125,249,255,0)'); g.fillStyle = cg; g.fillRect(x - 140, y - 280, 280, 280); }
+      if (fit(g, 'obj-throne', x, y + 2, 160, 240, { alpha: 0.85 })) return;
+    }
     const gr = g.createLinearGradient(0, y - 220, 0, y); gr.addColorStop(0, '#3c2f4f'); gr.addColorStop(1, '#1b1428');
     g.fillStyle = gr; g.beginPath(); g.moveTo(x - 70, y); g.lineTo(x - 64, y - 150); g.lineTo(x - 40, y - 200); g.lineTo(x - 20, y - 170); g.lineTo(x, y - 230); g.lineTo(x + 20, y - 170); g.lineTo(x + 40, y - 200); g.lineTo(x + 64, y - 150); g.lineTo(x + 70, y); g.fill();
     for (const [dx, dy, s] of [[-48, -170, 1], [48, -170, 1], [0, -205, 1.3], [-60, -100, 0.8], [60, -100, 0.8]]) {
@@ -980,6 +1096,7 @@
   function drawReliquary(g, x, y, t) {
     const p = 0.6 + Math.sin(t * 3) * 0.3, gr = g.createRadialGradient(x, y - 50, 4, x, y - 50, 80); gr.addColorStop(0, `rgba(244,132,95,${0.45 * p})`); gr.addColorStop(1, 'rgba(244,132,95,0)');
     g.fillStyle = gr; g.fillRect(x - 90, y - 140, 180, 140);
+    if (fit(g, 'obj-reliquary', x, y + 2, 84, 84)) return;
     g.fillStyle = '#5a4a3f'; rr(g, x - 30, y - 22, 60, 22, 4); g.fill(); g.fillStyle = '#6f5d50'; g.fillRect(x - 34, y - 26, 68, 6);
     const vg = g.createLinearGradient(x - 14, 0, x + 14, 0); vg.addColorStop(0, '#9c6644'); vg.addColorStop(0.5, '#f4a261'); vg.addColorStop(1, '#9c6644');
     g.fillStyle = vg; g.beginPath(); g.moveTo(x - 10, y - 26); g.quadraticCurveTo(x - 22, y - 50, x - 8, y - 66); g.lineTo(x + 8, y - 66); g.quadraticCurveTo(x + 22, y - 50, x + 10, y - 26); g.fill();

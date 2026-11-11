@@ -1,7 +1,9 @@
 // Delve Deck balance sim: node delve-deck/sim.js [who|all] [seeds] [-v]
-// Plays the real run model (game.js createRun, headless: ui null, stub fx/sfx) with a push-or-retreat bot, buys
-// sensibly between runs (cheapest first, saving for the throne once it shows), and reports runs-to-win per character,
-// decisions per run and seconds per run (animation time + ~1.3 s to read and tap each decision).
+// Plays the real run model (game.js createRun, headless: ui null, stub fx/sfx) with a push-or-retreat bot. Between runs
+// it buys toward a build: each either/or (`excl`) group gets a fixed side per climb, and every side of every group is
+// tested (Relic vs Guild x Blade vs Prospector oath x the class's two masteries). Buys are value-per-cost, not cheapest
+// first, and it saves for the throne once it shows. Reports runs-to-win per character and per path, decisions per run
+// and seconds per run (animation time + ~1.3 s to read and tap each decision).
 const D = require('./game.js');
 const args = process.argv.slice(2), VERB = args.includes('-v'), pos = args.filter((a) => a[0] !== '-');
 const WHO = !pos[0] || pos[0] === 'all' ? D.CHARS.map((c) => c.id) : [pos[0]], SEEDS = +(pos[1] || 12), READ = 1.3;
@@ -40,7 +42,7 @@ function choose(R, s, opts) {
     const want = opts.findIndex((o) => o.price != null && o.price <= R.gold && (o.k === 'potion' ? R.potions < 2 : (o.k === 'whet' || o.k === 'patch') && R.gold > o.price * 2.5));
     return want >= 0 ? want : leave;
   }
-  const rules = { altar: hp > 0.6, mush: hp < 0.65, dig: hp > 0.5, pray: true, rob: hp > 0.65, give: false, bet: false, well: R.potions < 1, ride: hp > 0.45,
+  const rules = { heart: hp > 0.55, loot: hp > 0.55, altar: hp > 0.6, mush: hp < 0.65, dig: hp > 0.5, pray: true, rob: hp > 0.65, give: false, bet: false, well: R.potions < 1, ride: hp > 0.45,
     greed: true, iron: hp > 0.7, blood: hp > 0.75, stone: true, stars: false, dusk: hp < 0.4 };
   const i = ks.findIndex((k) => rules[k]);
   return i >= 0 ? i : leave;
@@ -62,9 +64,12 @@ function bot(run, R, s, boss, act) {
       const e = run.estimate(c.m, false), eg = run.estimate(c.m, true), loot = c.m.gold + (c.m.ore || 0) * 1.6 + (c.m.relic ? 25 : 0);
       if (c.m.king) { o('c' + i, 1e6, 0); return; }
       o('c' + i, loot - e * w, e * 1.25); o('g' + i, loot / 2 - eg * w, eg * 1.25);
-      if (c.sneak != null) { const ef = run.estimate(c.m, false, { free: 2 }); o('k' + i, c.sneak * c.m.gold * s.steal - (1 - c.sneak) * (ef * w - loot), ef * 1.2); }
+      if (c.sneak != null) { const ef = run.estimate(c.m, false, s.assassin ? { pre: run.backstab(c.m) } : { free: 2 }); o('k' + i, c.sneak * c.m.gold * s.steal - (1 - c.sneak) * (ef * w - loot), ef * 1.2); }
       if (R.blasts > 0 && !c.sneak) { const eb = run.estimate(c.m, false, { pre: c.m.hp * 0.4 }); o('b' + i, loot - eb * w - 4, eb * 1.25); }
-    } else if (c.type === 'mine') o('c' + i, c.ore * 1.6 + (c.gold || 0) - c.cave * c.dmg * w + (c.streakBonus || 0), c.dmg);
+    } else if (c.type === 'mine') {
+      o('c' + i, c.ore * 1.6 + (c.gold || 0) - c.cave * c.dmg * w + (c.streakBonus || 0), c.dmg);
+      if (s.veinBlast && R.blasts > 0) o('b' + i, c.ore * 2.4 + (c.gold || 0) - 6, 0);
+    }
     else if (c.type === 'rest') o('c' + i, Math.min(R.max - R.hp, R.max * s.rest) * w * 0.9 - 2, 0);
     else if (c.type === 'treasure') o('c' + i, c.gold - c.trap * c.dmg * w + (c.potion ? 4 : 0), c.trap ? c.dmg : 0);
     else if (c.type === 'shop') o('c' + i, R.gold >= 8 + R.depth && R.potions < 2 ? 6 : -5, 0);
@@ -72,6 +77,8 @@ function bot(run, R, s, boss, act) {
     else if (c.type === 'shrine' || c.type === 'relic') o('c' + i, c.botVal != null ? c.botVal : 8, 0);
     else o('c' + i, 1, 0);
   });
+  // a trail is worth a little (more when it leads to a campfire and HP is low)
+  R.cards.forEach((c, i) => { if (c.trail) for (const x of opts) if (x.a.slice(1) === String(i)) x.val += c.trail === 'rest' && R.hp < R.max * 0.6 ? 10 : 3; });
   const ok = opts.filter((x) => x.worst < R.hp - safe).sort((a, b) => b.val - a.val);
   const bank = R.gold + R.ore * 1.6;
   if (!ok.length) { if (R.rerolls > 0 && !R.ambush) return act('reroll'); if (R.potions > 0 && R.hp < R.max) return act('potion'); return act(boss && R.depth > 16 ? opts.sort((a, b) => a.worst - b.worst)[0].a : 'retreat'); }
@@ -87,8 +94,16 @@ function ready(who, levels, win) {
   return w >= 2;
 }
 // ---------------------------------------------------------------- a whole climb to the first win
-function climb(who) {
-  const nodes = D.NODES.filter((n) => !n.who || n.who === who), win = nodes.find((n) => n.win);
+// build weights: the chosen excl sides and their branches are wanted most, then the core stats; the rest is filler
+const BRANCH = { relics: ['satchel', 'curator', 'cursed'], guild: ['deepseam', 'nocamp', 'quiet', 'lure'] };
+function climb(who, build) {
+  const all = D.NODES.filter((n) => !n.who || n.who === who), win = all.find((n) => n.win);
+  const nodes = all.filter((n) => !n.excl || build.includes(n.id) || !build.some((b) => all.find((m) => m.id === b && m.excl === n.excl)));
+  const want = Object.fromEntries([...build.map((b) => [b, 3]), ...build.flatMap((b) => (BRANCH[b] || []).map((x) => [x, 1.6])),
+    ['blade', 1.5], ['stew', 1.4], ['plate', 1.3], ['map', 1.5], ['flask', 1.3], ['chapel', 1.3]]);
+  // the prerequisites on the way to a chosen side are wanted too (every req of every ancestor)
+  const up = (id, seen = new Set()) => { const n = all.find((m) => m.id === id); for (const r of (n && n.req) || []) if (!seen.has(r)) { seen.add(r); up(r, seen); } return seen; };
+  for (const b of build) for (const a of up(b)) want[a] = Math.max(want[a] || 1, 2.2);
   const levels = {}, wallet = { gold: 0, ore: 0 }, log = [];
   let run = 0, wonAt = 0, secs = 0;
   const lens = [];
@@ -108,10 +123,11 @@ function climb(who) {
         .filter(({ n }) => !n.win).filter(({ n, c, k }) => !need[k] || wallet[k] - c >= need[k] || c <= need[k] * 0.06);
       if (!opts.length) break;
       // the throne only once a trial says the climb is winnable (a player buys it when they feel strong enough)
-      const canThrone = throneVis && wallet.gold >= costOf(win, 0) && Object.entries(win.extra || {}).every(([x, v]) => wallet[x] >= v);
+      // a player takes their chosen sides before the boss: the throne waits until the build is in
+      const canThrone = build.every((b) => levels[b]) && throneVis && wallet.gold >= costOf(win, 0) && Object.entries(win.extra || {}).every(([x, v]) => wallet[x] >= v);
       if (canThrone && ready(who, levels, win)) { wallet.gold -= costOf(win, 0); for (const [x, v] of Object.entries(win.extra || {})) wallet[x] -= v; levels[win.id] = 1; log.push(`   bought THRONE after run ${run}`); break; }
       if (canThrone === false && throneVis && !log.at(-1).includes('wait')) log.push(`   waiting: gold ${wallet.gold}/${costOf(win, 0)} ore ${wallet.ore}/${win.extra.ore}`);
-      const o = opts.sort((a, b) => a.c / (a.k === 'ore' ? 0.6 : 1) - b.c / (b.k === 'ore' ? 0.6 : 1))[0];
+      const o = opts.sort((a, b) => a.c / (a.k === 'ore' ? 0.6 : 1) / (want[a.n.id] || 1) - b.c / (b.k === 'ore' ? 0.6 : 1) / (want[b.n.id] || 1))[0];
       wallet[o.k] -= o.c; if (o.n.extra) for (const [x, v] of Object.entries(o.n.extra)) wallet[x] -= v;
       levels[o.n.id] = (levels[o.n.id] || 0) + 1;
     }
@@ -119,9 +135,11 @@ function climb(who) {
   return { who, wonAt, run, secs, lens, log, levels, wallet };
 }
 
-const out = [];
+const out = [], perPath = {};
 for (const who of WHO) {
-  const rs = []; for (let i = 0; i < SEEDS; i++) rs.push(climb(who));
+  const mast = D.NODES.filter((n) => n.who === who && n.excl === 'mastery').map((n) => n.id), builds = [];
+  for (const p of ['relics', 'guild']) for (const o of ['oathblade', 'oathlamp']) for (const m of mast) builds.push([p, o, m]);
+  const rs = []; for (let i = 0; i < SEEDS; i++) { const b = builds[i % builds.length], r = climb(who, b); rs.push(r); for (const k of b) (perPath[who + ' ' + k] = perPath[who + ' ' + k] || []).push(r.wonAt || 999); }
   if (VERB) console.log(rs[0].log.join('\n'), '\n', JSON.stringify(rs[0].levels));
   const wins = rs.filter((r) => r.wonAt).map((r) => r.wonAt).sort((a, b) => a - b), med = wins[Math.floor(wins.length / 2)];
   const all = rs.flatMap((r) => r.lens), at = (k) => all.filter((_, i) => true);
@@ -133,3 +151,6 @@ for (const who of WHO) {
     + `  | last 4: ${avg(late, (l) => l.decisions).toFixed(0)} dec ${avg(late, (l) => l.secs).toFixed(0)}s depth ${avg(late, (l) => l.depth).toFixed(1)}`
     + `  | longest ${Math.max(...all.map((l) => l.secs)).toFixed(0)}s`);
 }
+// per excl side: median runs-to-win of the climbs that took it
+const med = (a) => a.slice().sort((x, y) => x - y)[Math.floor(a.length / 2)];
+for (const who of WHO) console.log(`${who.padEnd(8)} paths: ` + Object.entries(perPath).filter(([k]) => k.startsWith(who + ' ')).map(([k, v]) => `${k.split(' ')[1]} ${med(v)} (${Math.min(...v)}-${Math.max(...v)})`).join(' · '));

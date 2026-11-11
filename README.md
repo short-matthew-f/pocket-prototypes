@@ -35,7 +35,7 @@ Balance target: runs start ~8-15 s and grow to ~45-60 s; a first win in ~25-40 r
 - `<game>/assets/SPEC.md`: the asset list the helper works from (names are the contract).
 - `env.sprite(ctx, name, x, y, w, h?, {flip, rot, alpha, anchor:'bottom'})` draws centred and returns false when the image is absent (not loaded yet / not made), so write `env.sprite(...) || drawVector(...)`. `env.art(name)` -> Image or null.
 - `hero-<characterId>` is used automatically for the character cards (locked characters show its silhouette).
-- Sounds: a sample named like a kit sound (`pop crack hit zap boom ding coin buy nope end win`) replaces that synth sound everywhere. Other names: `env.sfx.play(name, vol?, rate?)` -> false when absent, so `env.sfx.play('roar') || env.sfx.tone(...)`.
+- Sounds: a sample named like a kit sound (`pop crack hit zap boom ding coin buy nope end win`) replaces that synth sound everywhere. Other names: `env.sfx.play(name, vol?, rate?)` -> false only when absent (true even when throttled); `env.sfx.has(name)`, so `env.sfx.play('roar') || env.sfx.tone(...)`.
 - `?dev&noart` ignores the manifest (A/B against the vector look).
 
 ## Either/or upgrades

@@ -1,12 +1,24 @@
-// Void Drifter balance sim: node void-drifter/sim.js [who|all] [runsCap] [-v] [--file=path/to/game.js]
+// Void Drifter balance sim: node void-drifter/sim.js [who|all] [runsCap] [-v] [--build=name|all] [--seeds=n] [--file=path/to/game.js]
 // Drives the real createRun() model headlessly with a thumb-like bot: a virtual stick that re-aims ~5x/s, dodges what
-// is close, drifts toward salvage, kites the Leviathan, takes sensible level-up picks, and buys cheapest-first between
-// runs (win node as soon as it can). Reports runs-to-win, minutes and run lengths per character.
+// is close, drifts toward salvage and overload beacons, kites the Leviathan, takes sensible level-up picks. Between runs it
+// follows a BUILD: one side of every either/or (excl) group, saving up for that side's key node, otherwise buying the
+// best value (offense and hull weighted up); the win node as soon as it can. Reports runs-to-win per build x character
+// over several seeds (min / median / max).
 // --file loads another build (e.g. the pre-buildout copy) in a sandbox with a stub Kit, for before/after numbers.
 const args = process.argv.slice(2), V = args.includes('-v');
 const pos = args.filter((a) => a[0] !== '-');
 const fileArg = (args.find((a) => a.startsWith('--file=')) || '').slice(7);
 const seedArg = +((args.find((a) => a.startsWith('--seed=')) || '').slice(7) || 12345);
+const nSeeds = +((args.find((a) => a.startsWith('--seeds=')) || '').slice(8) || 3);
+const buildArg = (args.find((a) => a.startsWith('--build=')) || '').slice(8) || 'all';
+// every side of every excl group is covered by at least one build
+const BUILDS = {
+  lance: { arsenal: 'beam', lab: 'evo', guard: 'shield' },
+  wings: { arsenal: 'wing', lab: 'choice', guard: 'regen' },
+  'lance-scan': { arsenal: 'beam', lab: 'choice', guard: 'regen' },
+  'wings-evo': { arsenal: 'wing', lab: 'evo', guard: 'shield' },
+};
+const WEIGHT = { dmg: 2, hull: 1.6, rate: 1.5, wlvl: 1.5, over: 1.5, armor: 1.2 };
 const whoArg = pos[0] || 'all', CAP = +(pos[1] || 150), W = 390, H = 740, DT = 1 / 30;
 let seed = seedArg; Math.random = () => ((seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648); // before load: the game captures Math.random
 
@@ -65,11 +77,12 @@ function playRun(who, levels, boss, runNo, best) {
       if (R.hazards) for (const z of R.hazards) { const dx = sh.x - z.x, dy = sh.y - z.y, d = Math.hypot(dx, dy) || 1; if (d < (z.r || 100) * 1.6) { const w = 1.2; vx += dx / d * w; vy += dy / d * w; threat += w; } }
       if (B) { const h = B.segs[0], dx = sh.x - h.x, dy = sh.y - h.y, d = Math.hypot(dx, dy) || 1; vx += -dy / d * orbit * 0.8; vy += dx / d * orbit * 0.8; if (d > 280) { vx -= dx / d; vy -= dy / d; } }
       let ob = null, od = 260; for (const o of R.orbs) { const d = Math.hypot(o.x - sh.x, o.y - sh.y); if (d < od && (!o.shard || true)) { od = d; ob = o; } }
-      if (R.s.weapon === 'flail' && threat < 0.5 && R.hp > R.s.hull * 0.5) { // the wrecker swings into things on purpose: keep the nearest foe at chain length
-        let fe = null, fd = 320; for (const e of R.enemies) { const d = Math.hypot(e.x - sh.x, e.y - sh.y); if (d < fd && e.k !== 'wreck' || (d < fd && e.k === 'wreck')) { fd = d; fe = e; } }
+      if (R.s.weapon === 'flail' && threat < (B ? 1.2 : 0.5) && R.hp > R.s.hull * 0.5) { // the wrecker swings into things on purpose: keep the nearest foe (or the Leviathan) at chain length
+        let fe = null, fd = B ? 420 : 320; for (const e of R.enemies.concat(B ? B.segs : [])) { const d = Math.hypot(e.x - sh.x, e.y - sh.y); if (d < fd) { fd = d; fe = e; } }
         if (fe && fd > R.s.chain * 1.1) { vx += (fe.x - sh.x) / fd * 0.5; vy += (fe.y - sh.y) / fd * 0.5; }
       }
       if (ob && threat < 1.2) { vx += (ob.x - sh.x) / od * 0.7; vy += (ob.y - sh.y) / od * 0.7; }
+      if (R.beacon && R.hp > R.s.hull * 0.5 && threat < 1.5) { const d = Math.hypot(R.beacon.x - sh.x, R.beacon.y - sh.y) || 1; vx += (R.beacon.x - sh.x) / d * 1.2; vy += (R.beacon.y - sh.y) / d * 1.2; } // takes the overload gamble when healthy
       if (Math.hypot(vx, vy) < 0.15) { const a = Math.atan2(aim.y, aim.x) + orbit * 0.5; vx += Math.cos(a) * 0.3; vy += Math.sin(a) * 0.3; } // keep drifting, don't sit still
       const n = Math.hypot(vx, vy) || 1, jit = (Math.random() - 0.5) * 0.5, a = Math.atan2(vy / n, vx / n) + jit;
       aim = { x: Math.cos(a), y: Math.sin(a) };
@@ -83,7 +96,7 @@ function playRun(who, levels, boss, runNo, best) {
   return { res: run.result(), t: run.t, picks, R };
 }
 
-function campaign(who) {
+function campaign(who, build) {
   const nodes = NODES.filter((n) => !n.who || n.who === who), levels = {}, wallet = {};
   const lens = [], log = []; let wonAt = 0, mins = 0, best = 0, bossTries = 0;
   const cur0 = CONFIG.currencies[0].id;
@@ -97,18 +110,33 @@ function campaign(who) {
     if (res.won) { wonAt = run; break; }
     if (boss) levels[win.id] = 1; // lost the boss: the lure stays bought
     for (let guard = 0; guard < 300; guard++) {
-      const opts = nodes.filter((n) => visible(n, levels) && (levels[n.id] || 0) < (n.max || 1))
-        .map((n) => ({ n, c: costOf(n, levels[n.id] || 0) }))
-        .filter(({ n, c }) => (wallet[n.cur || cur0] || 0) >= c && (!n.extra || Object.entries(n.extra).every(([k, v]) => (wallet[k] || 0) >= v)));
+      const ok = (n) => !n.excl || build[n.excl] === n.id; // the other side of a chosen excl stays closed
+      const afford = ({ n, c }) => (wallet[n.cur || cur0] || 0) >= c && (!n.extra || Object.entries(n.extra).every(([k, v]) => (wallet[k] || 0) >= v));
+      const all = nodes.filter((n) => ok(n) && visible(n, levels) && (levels[n.id] || 0) < (n.max || 1)).map((n) => ({ n, c: costOf(n, levels[n.id] || 0) }));
+      const key = all.find((x) => x.n.excl || x.n.win); // a build's key node (or the win) in sight: save up for it
+      let opts = all.filter(afford);
+      if (key && !afford(key)) opts = opts.filter((x) => (x.n.cur || cur0) !== (key.n.cur || cur0) || x.c < 0.25 * key.c);
       if (!opts.length) break;
-      const o = opts.find((x) => x.n.win) || opts.sort((a, b) => a.c / (a.n.cur ? 25 : 1) - b.c / (b.n.cur ? 25 : 1))[0];
+      const o = opts.find((x) => x.n.win || x.n.excl) || opts.sort((a, b) => a.c / (a.n.cur ? 25 : 1) / (WEIGHT[a.n.id] || 1) - b.c / (b.n.cur ? 25 : 1) / (WEIGHT[b.n.id] || 1))[0];
       wallet[o.n.cur || cur0] -= o.c; if (o.n.extra) for (const [k, v] of Object.entries(o.n.extra)) wallet[k] -= v;
       levels[o.n.id] = (levels[o.n.id] || 0) + 1;
       if (V) log.push(`   buy ${o.n.id} -> ${levels[o.n.id]}`);
     }
   }
   if (V) console.log(log.join('\n'));
-  const q = (a) => a.filter((_, i) => i % Math.max(1, Math.floor(a.length / 12)) === 0).join(' ');
-  console.log(`${who.padEnd(8)} ${wonAt ? 'WON at run ' + wonAt : 'not won in ' + CAP} · ${mins.toFixed(1)} min · boss tries ${bossTries} · max ${Math.max(...lens)}s · run secs: ${q(lens)}`);
+  return { wonAt: wonAt || CAP + 1, mins, bossTries, lens, first: lens[0] };
 }
-for (const c of CONFIG.characters) if (whoArg === 'all' || whoArg === c.id) campaign(c.id);
+const q = (a) => a.filter((_, i) => i % Math.max(1, Math.floor(a.length / 12)) === 0).join(' ');
+const every = [];
+for (const [bn, build] of Object.entries(BUILDS)) {
+  if (buildArg !== 'all' && buildArg !== bn) continue;
+  for (const c of CONFIG.characters) {
+    if (whoArg !== 'all' && whoArg !== c.id) continue;
+    const rs = [];
+    for (let k = 0; k < nSeeds; k++) { seed = seedArg + k * 7919; rs.push(campaign(c.id, build)); }
+    const w = rs.map((r) => r.wonAt).sort((a, b) => a - b), mins = rs.map((r) => r.mins).sort((a, b) => a - b); every.push(...w);
+    console.log(`${bn.padEnd(10)} ${c.id.padEnd(8)} won at runs ${w.join('/')} (median ${w[w.length >> 1]}) · ~${mins[mins.length >> 1].toFixed(0)} min · boss tries ${rs.map((r) => r.bossTries).join('/')} · first run ${rs.map((r) => r.first).join('/')}s · secs: ${q(rs[0].lens)}`);
+  }
+}
+every.sort((a, b) => a - b);
+console.log(`ALL: runs-to-win ${every[0]}..${every[every.length - 1]}, median ${every[every.length >> 1]}`);

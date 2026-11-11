@@ -1,7 +1,9 @@
 // Bonk Knight balance sim: node bonk-knight/sim.js [who|all] [taps/s] [seeds] [gamefile]
 // Drives the real run model from game.js headlessly with a thumb-limited bot: one pointer, a capped tap rate, aim
-// noise, a finger that has to travel to sweep loot. Between runs it buys the win node when it can, else the cheapest
-// node it can afford (gems weighted). Reports runs-to-win per character and run lengths.
+// noise, a finger that has to travel to sweep loot. Between runs it plays a BUILD: one side of each either/or (excl)
+// group, never its rivals, and it favours that build's branch (cost / 4) over other nodes; else cheapest-first with gems
+// weighted. It buys the win node when it can. Reports runs-to-win per character per build and run lengths.
+// BUILD=flurry,mimicry,owl node bonk-knight/sim.js  -> only that build (default: all four builds below)
 const path = require('path');
 const G = require(path.resolve(process.argv[5] || path.join(__dirname, 'game.js')));
 const WHO = process.argv[2] || 'all', TAPS = +(process.argv[3] || 6), SEEDS = +(process.argv[4] || 3);
@@ -10,6 +12,9 @@ const noop = () => {};
 const sfx = new Proxy({}, { get: () => noop });
 const fx = () => ({ shake: 0, burst: noop, text: noop, ring: noop, update: noop, draw: noop });
 const costOf = (n, lv) => Math.ceil(n.cost * (n.grow || 1.6) ** lv);
+const PW = +(process.env.PW || 2); // how strongly the bot favours its build
+const BUILDS = process.env.BUILD ? [process.env.BUILD.split(',')] : [['flurry', 'goldfever', 'broom'], ['eye', 'mimicry', 'owl'], ['flurry', 'mimicry', 'owl'], ['eye', 'goldfever', 'broom']];
+const closed = (n, lv, nodes) => !!n.excl && nodes.some((m) => m !== n && m.excl === n.excl && (lv[m.id] || 0) > 0); // mirrors the kit's closedBy
 const visible = (n, lv) => !n.req || !n.req.length || n.req.filter((r) => (lv[r] || 0) > 0).length >= (n.reqAll || 1);
 let seed = 1;
 const rand = () => { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; };
@@ -68,9 +73,12 @@ function playRun(who, s, levels, boss, runNo) {
   return { t: run.t, res, floor: R.floor, R };
 }
 
-function sim(who, sd) {
+function sim(who, sd, build) {
   seed = sd * 7919 + 13;
   const nodes = G.NODES.filter((n) => !n.who || n.who === who), win = nodes.find((n) => n.win);
+  // the build's branch: its chosen excl nodes and everything that needs one of them
+  const path = new Set(build); for (let grew = true; grew;) { grew = false; for (const n of nodes) if (!path.has(n.id) && (n.req || []).some((r) => path.has(r))) { path.add(n.id); grew = true; } }
+  const banned = (n) => n.excl && !build.includes(n.id);
   const levels = {}, wallet = { coins: 0, gems: 0 }, lens = [], floors = [];
   let runs = 0, wonAt = 0, bossTries = 0, mins = 0;
   while (runs < 120 && !wonAt) {
@@ -78,17 +86,18 @@ function sim(who, sd) {
     const s = G.baseStats(who); for (const n of nodes) if (levels[n.id] && n.fx) n.fx(s, levels[n.id]);
     const boss = !!levels[win.id];
     const r = playRun(who, s, levels, boss, runs);
-    lens.push(Math.round(r.t)); floors.push(boss ? 'B' + Math.round(100 - 100 * (r.R.M ? r.R.M.hp / r.R.M.max : 0)) + '%' : r.floor);
+    lens.push(Math.round(r.t)); floors.push(boss ? 'B' + Math.round(100 - 100 * (r.R.M ? Math.max(0, r.R.M.hp) / r.R.M.max : 0)) + '%' : r.floor);
     mins += (r.t + 8) / 60;
     for (const [k, v] of Object.entries(r.res.earned || {})) wallet[k] = (wallet[k] || 0) + Math.floor(v);
     if (boss) bossTries++;
     if (boss && process.env.DBG) console.log('  boss', who, Math.round(r.t), 'perf', r.R.perfects, 'crits', r.R.crits, 'combo', r.R.bestCombo, 'weak', r.R.weakHits, 'p2', r.R.M && r.R.M.p2, 'burned', r.R.burned, 'smash', r.R.smashes);
     if (r.res.won) { wonAt = runs; break; }
     for (;;) {
-      const opts = nodes.filter((n) => visible(n, levels) && (levels[n.id] || 0) < (n.max || 1)).map((n) => ({ n, c: costOf(n, levels[n.id] || 0) }))
+      const opts = nodes.filter((n) => visible(n, levels) && !banned(n) && !closed(n, levels, nodes) && (levels[n.id] || 0) < (n.max || 1)).map((n) => ({ n, c: costOf(n, levels[n.id] || 0) }))
         .filter(({ n, c }) => (wallet[n.cur || 'coins'] || 0) >= c && (!n.extra || Object.entries(n.extra).every(([k, v]) => (wallet[k] || 0) >= v)));
       if (!opts.length) break;
-      const o = opts.find((x) => x.n.win) || opts.sort((a, b) => a.c * (a.n.cur ? 60 : 1) - b.c * (b.n.cur ? 60 : 1))[0];
+      const score = ({ n, c }) => c * (n.cur ? 60 : 1) / (path.has(n.id) ? PW : 1);
+      const o = opts.find((x) => x.n.win) || opts.sort((a, b) => score(a) - score(b))[0];
       if (!o.n.win && win && visible(win, levels) && !levels[win.id] && !o.n.cur && wallet.coins > win.cost * 0.5 && wallet.coins - o.c < win.cost) break; // save up for the crypt key
       wallet[o.n.cur || 'coins'] -= o.c; if (o.n.extra) for (const [k, v] of Object.entries(o.n.extra)) wallet[k] -= v;
       levels[o.n.id] = (levels[o.n.id] || 0) + 1;
@@ -99,11 +108,11 @@ function sim(who, sd) {
 }
 
 const chars = WHO === 'all' ? (G.CHARACTERS || ['berserker', 'battlemage', 'rogue']) : [WHO];
-for (const who of chars) {
+for (const build of BUILDS) for (const who of chars) {
   const out = [];
-  for (let k = 1; k <= SEEDS; k++) out.push(sim(who, k));
+  for (let k = 1; k <= SEEDS; k++) out.push(sim(who, k, build));
   const o = out[0];
-  console.log(`${who.padEnd(10)} @${TAPS}/s wins at runs: ${out.map((x) => x.wonAt || 'none(' + x.runs + ')').join(', ')}  boss tries: ${out.map((x) => x.bossTries).join(',')}  minutes: ${out.map((x) => x.mins.toFixed(0)).join(',')}`);
+  console.log(`${who.padEnd(10)} [${build.join('/')}] @${TAPS}/s wins at runs: ${out.map((x) => x.wonAt || 'none(' + x.runs + ')').join(', ')}  boss tries: ${out.map((x) => x.bossTries).join(',')}  minutes: ${out.map((x) => x.mins.toFixed(0)).join(',')}`);
   console.log(`   seed1 run secs: ${o.lens.join(' ')}`);
   console.log(`   seed1 floors:   ${o.floors.join(' ')}`);
   if (process.env.V) console.log('   levels', JSON.stringify(o.levels));

@@ -2,8 +2,9 @@
 // The bot steers the drill toward the nearest worthwhile ore at a capped drag speed, with a reaction delay and aim
 // wobble, swipes back and forth over hard rock, avoids gas, dodges most cave-ins, grabs oil flasks when low, throws
 // dynamite into crowds and, in the boss run, goes for magma stones, then veins, then the Heart.
-// Between runs it buys the cheapest affordable upgrade (the win node first once it can), like a new player would.
-// Usage: node ore-sweeper/sim.js [trials=12] [--legacy path/to/old-game.js] [--speed 550] [--verbose]
+// Between runs it follows a build plan: one side of every either/or (`excl`) group, preferring that path's nodes and the
+// core stats over the rest (cost / weight, not cheapest-first), and the win node first once it can. Picks are random.
+// Usage: node ore-sweeper/sim.js [trials=12] [--all (every excl combination)] [--legacy path/to/old-game.js] [--speed 550] [--verbose]
 const path = require('path');
 const args = process.argv.slice(2);
 const flag = (k, d) => { const i = args.indexOf(k); return i >= 0 ? args[i + 1] : d; };
@@ -57,6 +58,8 @@ function bot(R, st, s, p, b, dt) {
   }
   // dodge a cave-in shadow it is standing in (most of the time)
   for (const c of caves) if (!c.fell && Math.hypot(c.x - x, c.y - y) < c.r + 6) { if (c.seen == null) c.seen = Math.random() < 0.75; if (c.seen) { const a = Math.atan2(y - c.y, x - c.x); tx = c.x + Math.cos(a) * (c.r + 40); ty = c.y + Math.sin(a) * (c.r + 40); } }
+  const w = st.wave; // the raging Heart's shockwave: step out of the marked ring (most of the time)
+  if (w && !w.hit && Math.hypot(w.x - x, w.y - y) < w.r + 10) { if (w.seen == null) w.seen = Math.random() < 0.75; if (w.seen) { const a = Math.atan2(y - w.y, x - w.x); tx = w.x + Math.cos(a) * (w.r + 40); ty = w.y + Math.sin(a) * (w.r + 40); } }
   const d = Math.hypot(tx - x, ty - y), v = SPEED * dt;
   if (d > 1) { p.x += (tx - x) / d * Math.min(v, d); p.y += (ty - y) / d * Math.min(v, d); }
   p.x = Math.max(0, Math.min(W, p.x)); p.y = Math.max(60, Math.min(H, p.y));
@@ -68,9 +71,15 @@ function bot(R, st, s, p, b, dt) {
   }
 }
 
-function playChar(ch) {
+const PLANS = args.includes('--all')
+  ? ['dyna', 'lode'].flatMap((a) => ['pump', 'lastlight'].flatMap((b) => ['prospect', 'plunge'].map((c) => [a, b, c])))
+  : [['dyna', 'pump', 'prospect'], ['lode', 'lastlight', 'plunge']];
+const CORE = new Set(['drill', 'steel', 'oil', 'assay', 'seams', 'face', 'flask', 'wick', 'survey']);
+function playChar(ch, plan = []) {
   const C = { levels: {}, wallet: {}, runs: 0 }; let won = false, secs = 0; const lens = [], depths = [], log = [], earn = [];
-  const nodes = cfg.nodes.filter((n) => !n.who || n.who === ch.id);
+  const nodes = cfg.nodes.filter((n) => (!n.who || n.who === ch.id) && (!n.excl || plan.includes(n.id)));
+  const pathOf = new Set(plan); for (let k = 0; k < 4; k++) for (const n of nodes) if (n.req.some((r) => pathOf.has(r)) && !CORE.has(n.id) && n.req.length === 1) pathOf.add(n.id);
+  const weight = (n) => (pathOf.has(n.id) ? 0.45 : CORE.has(n.id) ? 0.6 : n.who ? 0.7 : 1);
   const vis = (n) => !n.req || !n.req.length || n.req.filter((r) => C.levels[r]).length >= (n.reqAll || 1);
   const cost = (n) => Math.ceil(n.cost * (n.grow || 1.6) ** (C.levels[n.id] || 0));
   const win = nodes.find((n) => n.win);
@@ -78,7 +87,7 @@ function playChar(ch) {
   while (!won && C.runs < 150) {
     const s = cfg.baseStats(ch.id); for (const n of nodes) if (C.levels[n.id] && n.fx) n.fx(s, C.levels[n.id]);
     const boss = !!C.levels[win.id];
-    const R = cfg.createRun({ who: ch.id, stats: s, levels: C.levels, W, H, boss, sfx, fx: mkfx(), fmt: String, ui: null, runNo: C.runs + 1, pick: (h, o, d) => d(0), best: 0 });
+    const R = cfg.createRun({ who: ch.id, stats: s, levels: C.levels, W, H, boss, sfx, fx: mkfx(), fmt: String, ui: null, runNo: C.runs + 1, pick: (h, o, d) => d(Math.floor(Math.random() * o.length)), best: 0 });
     const p = { x: W / 2, y: H * 0.6, down: true, taps: [] }, b = { react: 0, side: 1, wob: [0, 0] };
     let guard = 0;
     while (!R.over && guard++ < 30 * 200) { if (R.state && R.state.nodes) bot(R, R.state, s, p, b, DT); R.update(DT, p); }
@@ -94,7 +103,7 @@ function playChar(ch) {
         const o = open.filter((n) => n.cur && n.cur !== cfg.currencies[0].id && !win.extra?.[n.cur] && can(n)).sort((a, z) => cost(a) - cost(z))[0];
         if (!o) break; C.wallet[o.cur] -= cost(o); C.levels[o.id] = (C.levels[o.id] || 0) + 1; continue;
       }
-      const o = open.sort((a, z) => (z.win ? 1 : 0) - (a.win ? 1 : 0) || cost(a) - cost(z)).find(can);
+      const o = open.sort((a, z) => (z.win ? 1 : 0) - (a.win ? 1 : 0) || cost(a) / weight(a) - cost(z) / weight(z)).find(can);
       if (!o) break;
       C.wallet[o.cur || cfg.currencies[0].id] -= cost(o); if (o.extra) for (const [k, v] of Object.entries(o.extra)) C.wallet[k] -= v;
       C.levels[o.id] = (C.levels[o.id] || 0) + 1; if (o.win) heartAt = C.runs;
@@ -105,11 +114,11 @@ function playChar(ch) {
 
 const med = (a) => { const b = a.slice().sort((x, y) => x - y); return b[Math.floor(b.length / 2)]; };
 console.log(`${legacy ? 'LEGACY ' + legacy : 'ore-sweeper/game.js'} · ${TRIALS} trials · drag speed ${SPEED}px/s`);
-for (const ch of cfg.characters) {
-  const out = []; for (let i = 0; i < TRIALS; i++) { seed = 1000 + i * 7919; out.push(playChar(ch)); }
+for (const ch of cfg.characters) for (const plan of PLANS) {
+  const out = []; for (let i = 0; i < TRIALS; i++) { seed = 1000 + i * 7919; out.push(playChar(ch, plan)); }
   const runs = out.map((o) => (o.won ? o.runs : 999)), r0 = out[0];
   const allLens = out.flatMap((o) => o.lens);
-  console.log(`${ch.id.padEnd(6)} runs-to-win median ${med(runs)} (min ${Math.min(...runs)}, max ${Math.max(...runs)}), won ${out.filter((o) => o.won).length}/${TRIALS}` +
+  console.log(`${ch.id.padEnd(6)} ${plan.join('+').padEnd(24)} runs-to-win median ${med(runs)} (min ${Math.min(...runs)}, max ${Math.max(...runs)}), won ${out.filter((o) => o.won).length}/${TRIALS}` +
     ` · ~${med(out.map((o) => o.mins)).toFixed(1)} min · heart bought run ${med(out.map((o) => o.heartAt))}, boss tries ${med(out.map((o) => o.bossRuns))} · longest run ${Math.max(...allLens)}s`);
   console.log(`       trial 1 run secs: ${r0.lens.join(' ')}`);
   console.log(`       trial 1 depth m : ${r0.depths.join(' ')}`);

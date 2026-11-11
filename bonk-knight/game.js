@@ -26,17 +26,19 @@
     { id: 'salt', name: 'Troll Salt', icon: '🧂', desc: 'Caverns regen 35% slower; +15% damage there', cost: 260, grow: 2.4, max: 3, req: ['wind'], x: -3, y: -1, fx: (s, l) => { s.regen *= 0.65 ** l; s.cavDmg += 0.15 * l; } },
     // ---- the Hoard: loot, chests, goblins
     { id: 'lockpick', name: 'Lockpicks', icon: '🗝️', desc: 'Chests +4% more often; +40% chest loot', cost: 90, grow: 2.3, max: 5, req: ['gemfind'], x: -3, y: 1, fx: (s, l) => { s.chest += 0.04 * l; s.chestLoot += 0.4 * l; } },
-    { id: 'goldfever', name: 'Gold Fever', icon: '🤑', desc: 'Golden goblins +4% more often, 1 bonk less', cost: 240, grow: 2.5, max: 2, req: ['lockpick'], x: -4, y: 1, fx: (s, l) => { s.gob += 0.04 * l; s.gobNeed -= l; } },
-    { id: 'broom', name: 'Broom Familiar', icon: '🧹', desc: 'A broom familiar sweeps loot; faster each level', cost: 120, grow: 2.3, max: 5, req: ['sticky'], x: 0, y: 3, fx: (s, l) => { s.broom += l; } },
-    { id: 'vacuum', name: 'Hoover Hex', icon: '🌪️', desc: 'On a kill, +30% chance each floor coin flies to you', cost: 500, grow: 2.6, max: 3, req: ['broom'], x: 0, y: 4, fx: (s, l) => { s.vacuum += 0.3 * l; } },
-    { id: 'boots', name: 'Ember Boots', icon: '🥾', desc: 'Sweep Inferno embers for coins, not burns', cost: 700, grow: 1, max: 1, req: ['sticky'], x: -1, y: 3, fx: (s) => { s.boots = 1; } },
+    { id: 'goldfever', excl: 'hoard', name: 'Gold Fever', icon: '🤑', desc: 'Goblin hunter: golden goblins +4% more often and need 1 bonk less; from floor 15 the Goblin King can appear', cost: 240, grow: 2.5, max: 2, req: ['lockpick'], x: -4, y: 1, fx: (s, l) => { s.gob += 0.04 * l; s.gobNeed -= l; } },
+    { id: 'mimicry', excl: 'hoard', name: 'Mimic Hunter', icon: '👅', desc: (l) => `Mimic hunter: mimics from floor 4, ${l ? 60 : 45}% of chests; their bites cost half and every bonk spills x${l ? 3 : 2} coins`, cost: 240, grow: 2.5, max: 2, req: ['lockpick'], x: -3, y: 2, fx: (s, l) => { s.mimicHunt = l; } },
+    { id: 'broom', excl: 'familiar', name: 'Broom Familiar', icon: '🧹', desc: 'Familiar: a broom sweeps up loot for you, faster each level. You keep bonking', cost: 120, grow: 2.3, max: 5, req: ['sticky'], x: 0, y: 3, fx: (s, l) => { s.broom += l; } },
+    { id: 'owl', excl: 'familiar', name: 'Battle Owl', icon: '🦉', desc: (l) => `Familiar: an owl dives at the monster every ${(1.8 * 0.85 ** l).toFixed(1)}s for 3x damage, popping minions first. You do the sweeping`, cost: 120, grow: 2.3, max: 5, req: ['sticky'], x: -1, y: 3, fx: (s, l) => { s.owl = l; } },
+    { id: 'vacuum', name: 'Hoover Hex', icon: '🌪️', desc: 'On a kill, +30% chance each floor coin flies to you', cost: 500, grow: 2.6, max: 3, req: ['broom', 'owl'], x: 0, y: 4, fx: (s, l) => { s.vacuum += 0.3 * l; } },
+    { id: 'boots', name: 'Ember Boots', icon: '🥾', desc: 'Sweep Inferno embers for coins, not burns', cost: 700, grow: 1, max: 1, req: ['pockets'], x: -2, y: 2, fx: (s) => { s.boots = 1; } },
     // ---- Flurry: the combo build
-    { id: 'flurry', name: 'Flurry', icon: '👊', desc: 'Combo meter: +1% damage per hit in a row', cost: 40, grow: 2.1, max: 5, req: ['grip'], x: 1, y: 1, fx: (s, l) => { s.comboDmg += 0.01 * l; } },
+    { id: 'flurry', excl: 'style', name: 'Flurry', icon: '👊', desc: 'Fighting style: a combo meter, +2% damage per hit in a row. Rewards fast, nonstop bonking', cost: 40, grow: 2.1, max: 5, req: ['grip'], x: 1, y: 1, fx: (s, l) => { s.comboDmg += 0.02 * l; } },
     { id: 'momentum', name: 'Momentum', icon: '🌀', desc: 'Combos last +0.2s longer between hits', cost: 70, grow: 2.3, max: 3, req: ['flurry'], x: 1, y: 2, fx: (s, l) => { s.comboWin += 0.2 * l; } },
     { id: 'rhythm', name: 'Iron Rhythm', icon: '🥁', desc: '+10 combo cap (base 20)', cost: 110, grow: 2.4, max: 4, req: ['flurry'], x: 2, y: 2, fx: (s, l) => { s.comboCap += 10 * l; } },
     { id: 'finisher', name: 'Combo Smash', icon: '💥', desc: 'Every 20th combo hit smashes for x4 (+2 per level)', cost: 260, grow: 2.4, max: 4, req: ['momentum', 'rhythm'], x: 1, y: 3, fx: (s, l) => { s.smash += l; } },
     // ---- Hunter's Eye: the weak-spot build
-    { id: 'eye', name: "Hunter's Eye", icon: '👁️', desc: 'A weak spot glows: tap it for a sure crit, +20%/level', cost: 60, grow: 2.2, max: 4, req: ['crit'], x: 3, y: 1, fx: (s, l) => { s.eye = 1; s.eyeMul += 0.2 * l; } },
+    { id: 'eye', excl: 'style', name: "Hunter's Eye", icon: '👁️', desc: 'Fighting style: a weak spot glows on the monster; tapping it is a sure crit (+20%/level). Rewards aim', cost: 60, grow: 2.2, max: 4, req: ['crit'], x: 3, y: 1, fx: (s, l) => { s.eye = 1; s.eyeMul += 0.2 * l; } },
     { id: 'eyewide', name: 'Wide Eye', icon: '🔍', desc: 'Weak spot +6px wider, stays put 0.5s longer', cost: 100, grow: 2.3, max: 3, req: ['eye'], x: 4, y: 1, fx: (s, l) => { s.eyeR += 6 * l; s.eyeMove += 0.5 * l; } },
     { id: 'exploit', name: 'Exploit', icon: '🩻', desc: 'Weak-spot hits deal +60% per level', cost: 170, grow: 2.4, max: 5, req: ['eye'], x: 3, y: 2, fx: (s, l) => { s.eyeMul += 0.6 * l; } },
     { id: 'sunder', name: 'Sunder', icon: '🔨', desc: 'Weak-spot hits crack armour 3x, pierce shields', cost: 400, grow: 1, max: 1, req: ['exploit'], x: 4, y: 2, fx: (s) => { s.sunder = 1; } },
@@ -46,7 +48,7 @@
     { id: 'hourglass', name: 'Hourglass', icon: '⏳', desc: 'Stamina drains 8% slower per level', cost: 2, grow: 1.8, max: 5, req: ['flask'], x: -1, y: -3, cur: 'gems', fx: (s, l) => { s.drain *= 0.92 ** l; } },
     { id: 'vault', name: 'Dragon Vault', icon: '🏦', desc: '+60% coin value per level', cost: 3, grow: 1.8, max: 5, req: ['hourglass'], x: -2, y: -4, cur: 'gems', fx: (s, l) => { s.value *= 1 + 0.6 * l; } },
     { id: 'storm', name: 'Stormcaller', icon: '🌩️', desc: 'Lightning arcs +1 and strikes the monster too', cost: 3, grow: 1.9, max: 4, req: ['chain'], x: 1, y: -3, cur: 'gems', fx: (s, l) => { s.chain += l; s.storm += 0.3 * l; } },
-    { id: 'midas', name: 'Midas Touch', icon: '👑', desc: 'Chests, mimics and goblins drop +1 gem', cost: 3, grow: 1.9, max: 3, req: ['goldfever'], x: -4, y: 2, cur: 'gems', fx: (s, l) => { s.midas += l; } },
+    { id: 'midas', name: 'Midas Touch', icon: '👑', desc: 'Chests, mimics and goblins drop +1 gem', cost: 3, grow: 1.9, max: 3, req: ['goldfever', 'mimicry'], x: -4, y: 2, cur: 'gems', fx: (s, l) => { s.midas += l; } },
     { id: 'whirl', name: 'Whirlwind', icon: '🌬️', desc: 'Combo Smashes pop minions, crack armour, may drop gems', cost: 3, grow: 1.9, max: 3, req: ['finisher'], x: 1, y: 4, cur: 'gems', fx: (s, l) => { s.whirl += l; } },
     { id: 'gemeye', name: 'Gem Eye', icon: '💠', desc: 'Weak-spot hits: +3% gem chance per level', cost: 3, grow: 1.9, max: 3, req: ['exploit'], x: 3, y: 3, cur: 'gems', fx: (s, l) => { s.eyeGem += 0.03 * l; } },
     // ---- character nodes
@@ -59,27 +61,27 @@
     { id: 'tempo', who: 'bard', name: 'Tempo', icon: '🎵', desc: 'Perfect window +20ms; perfect hits +30%', cost: 50, grow: 2.3, max: 5, req: ['blade'], x: 0, y: -1, fx: (s, l) => { s.beatWin += 0.02 * l; s.perfMul += 0.3 * l; } },
     { id: 'encore', who: 'bard', name: 'Encore', icon: '🎤', desc: '8 perfects in a row: every hit perfect for 2s+', cost: 120, grow: 2.4, max: 4, req: ['tempo'], x: 0, y: -2, fx: (s, l) => { s.encore += l; } },
     // ---- capstone
-    { id: 'lich', name: 'Crypt Key', icon: '💀', desc: 'Next climb starts at the Lich King. Destroy him to win.', cost: 700000, grow: 1, max: 1, req: ['mithril', 'hourglass', 'vault', 'storm'], reqAll: 3, extra: { gems: 10 }, x: 0, y: -4, win: true },
+    { id: 'lich', name: 'Crypt Key', icon: '💀', desc: 'Next climb starts at the Lich King. Destroy him to win.', cost: 1200000, grow: 1, max: 1, req: ['mithril', 'hourglass', 'vault', 'storm'], reqAll: 3, extra: { gems: 10 }, x: 0, y: -4, win: true },
   ];
 
-  const LICH_HP = 2.5e8;
+  const LICH_HP = 1.2e8;
   const hpFor = (f) => Math.round(12 * 1.6 ** (f - 1));
   const coinFor = (f) => 1 + 0.25 * (f - 1);
   const MONS = [
-    { name: 'Slime', c: '#6ed37f', d: '#3f9a52', eyes: 2 },
-    { name: 'Goblin', c: '#9bc34a', d: '#5f7f22', ears: 1, teeth: 1 },
-    { name: 'Skeleton', c: '#ece6d2', d: '#a99f86', skull: 1 },
-    { name: 'Orc', c: '#5e9c55', d: '#33612e', tusks: 1, helm: 1 },
-    { name: 'Troll', c: '#6e9bb5', d: '#3d6077', horns: 1, teeth: 1 },
-    { name: 'Golem', c: '#9a8f80', d: '#5f564b', rock: 1, eyes: 1 },
-    { name: 'Fire Imp', c: '#e0613f', d: '#9c2f1a', horns: 1, tusks: 1 },
-    { name: 'Wyrm', c: '#7a68c2', d: '#46378a', horns: 1, teeth: 1, eyes: 1 },
-    { name: 'Shroom', c: '#efe0c4', d: '#b89c74', cap: 1 },
-    { name: 'Crystal Golem', c: '#7fb8c9', d: '#40707f', rock: 1, crystal: 1, eyes: 1 },
-    { name: 'Magma Blob', c: '#6b2a1c', d: '#331109', magma: 1, teeth: 1 },
-    { name: 'Ghost', c: '#e4ecf7', d: '#93a6c4', ghost: 1 },
-    { name: 'Bone Knight', c: '#ece6d2', d: '#a99f86', skull: 1, helm: 1 },
-    { name: 'Wraith', c: '#3b4d5e', d: '#18222c', wraith: 1, eyes: 2 },
+    { name: 'Slime', art: 'mon-slime', c: '#6ed37f', d: '#3f9a52', eyes: 2 },
+    { name: 'Goblin', art: 'mon-goblin', c: '#9bc34a', d: '#5f7f22', ears: 1, teeth: 1 },
+    { name: 'Skeleton', art: 'mon-skeleton', c: '#ece6d2', d: '#a99f86', skull: 1 },
+    { name: 'Orc', art: 'mon-orc', c: '#5e9c55', d: '#33612e', tusks: 1, helm: 1 },
+    { name: 'Troll', art: 'mon-troll', c: '#6e9bb5', d: '#3d6077', horns: 1, teeth: 1 },
+    { name: 'Golem', art: 'mon-golem', c: '#9a8f80', d: '#5f564b', rock: 1, eyes: 1 },
+    { name: 'Fire Imp', art: 'mon-fire-imp', c: '#e0613f', d: '#9c2f1a', horns: 1, tusks: 1 },
+    { name: 'Wyrm', art: 'mon-wyrm', c: '#7a68c2', d: '#46378a', horns: 1, teeth: 1, eyes: 1 },
+    { name: 'Shroom', art: 'mon-shroom', c: '#efe0c4', d: '#b89c74', cap: 1 },
+    { name: 'Crystal Golem', art: 'mon-crystal-golem', c: '#7fb8c9', d: '#40707f', rock: 1, crystal: 1, eyes: 1 },
+    { name: 'Magma Blob', art: 'mon-magma-blob', c: '#6b2a1c', d: '#331109', magma: 1, teeth: 1 },
+    { name: 'Ghost', art: 'mon-ghost', c: '#e4ecf7', d: '#93a6c4', ghost: 1 },
+    { name: 'Bone Knight', art: 'mon-skeleton', c: '#ece6d2', d: '#a99f86', skull: 1, helm: 1 },
+    { name: 'Wraith', art: 'mon-wraith', c: '#3b4d5e', d: '#18222c', wraith: 1, eyes: 2 },
   ];
   // the tower's zones: a monster family, a look, and a trait that changes the fight
   const ZONES = [
@@ -98,22 +100,34 @@
     return g;
   }
   const LICH = { name: 'The Lich King', c: '#3b2b5c', d: '#1d1430' };
+  // elite twists (from floor 6): hp multiplier, loot multiplier on the kill, and what makes them play differently
+  const ELITES = [
+    { id: 'swift', name: 'Swift', hp: 1.6, loot: 2, c: '#90e0ef', tip: 'It dodges about the hall: chase it!' },
+    { id: 'hoarder', name: 'Hoarder', hp: 2, loot: 2, c: '#ffd166', tip: 'Every bonk spills extra coins' },
+    { id: 'brute', name: 'Brute', hp: 2.4, loot: 3, c: '#ff5d73', tip: 'Heavy armour, huge loot' },
+  ];
 
   function createRun(env) {
     const s = env.stats, W = env.W, H = env.H, fx = env.fx, sfx = env.sfx, rnd = Math.random, who = env.who;
     const MX = W / 2, MY = H * 0.34, MR = Math.min(W * 0.27, H * 0.16);
     const FLOOR_TOP = H * 0.62;
-    const R = { t: 0, over: false, won: false, st: env.boss ? s.st * 2 : s.st, coins: 0, gems: 0, lost: 0, floor: 1 + s.skip, top: 1 + s.skip, kills: 0, M: null,
-      loot: [], minions: [], slashes: [], bolts: [], embers: [], skulls: [], chest: null, gob: null, broom: s.broom ? { x: W * 0.2, y: FLOOR_TOP + 40, a: 0 } : null,
+    const R = { startF: 1 + s.skip, lastElite: false, t: 0, over: false, won: false, st: env.boss ? s.st * 2 : s.st, coins: 0, gems: 0, lost: 0, floor: 1 + s.skip, top: 1 + s.skip, kills: 0, M: null,
+      loot: [], minions: [], slashes: [], bolts: [], embers: [], skulls: [], chest: null, gob: null, broom: s.broom ? { x: W * 0.2, y: FLOOR_TOP + 40, a: 0 } : null, owl: s.owl ? { x: W - 26, y: FLOOR_TOP - 44, st: 'perch', k: 0, wait: 1.5 } : null, shrineT: 0, elites: 0,
       mx: MX, my: MY, cd: 0, tapCd: 0, holdT: 0, charge: 0, chargeMax: s.chargeCap, stack: 0, trans: 0, px: null, py: null, hitOnce: false, grabbed: 0, banner: null, burnT: 0,
       seen: {}, nums: [], stop: 0, intro: env.boss ? 1.8 : 0.9, introMax: env.boss ? 1.8 : 0.9, ending: 0, cause: '', taps: [], combo: 0, bestCombo: 0, lastHit: -9, crits: 0, weakHits: 0, perfects: 0, streak: 0, encoreT: 0,
-      chests: 0, mimics: 0, gobs: 0, smashes: 0, burned: 0, zone: null, might: 1, greed: 1, breath: 1,
+      chests: 0, mimics: 0, gobs: 0, smashes: 0, burned: 0, zone: null, might: 1, greed: 1, breath: 1, luck: 1, drainMul: 1, blessings: [],
       eye: { on: false, x: 0, y: 0, ox: 0, oy: 0, next: 0, pop: 0 }, beat: who === 'bard' ? { dt: s.beat, next: 0.6, k: 0, flash: -1 } : null };
     const num = (x, y, str, c, size) => R.nums.push({ x, y, s: str, c, size, t: R.t, vx: (rnd() - 0.5) * 60 });
     const stMax = () => env.boss ? s.st * 2 : s.st + 4;
     const hitstop = (t) => { R.stop = Math.max(R.stop, t); };
 
+    // sounds: a sample from assets/ when there is one (env.sfx.play -> false when absent), else the synth
+    const sHit = (rate) => sfx.play('hit', 0.55, rate) || sfx.pop(0.6 + rnd() * 0.3);
+    const sCrit = () => sfx.play('crit', 0.75, 0.95 + rnd() * 0.1) || sfx.hit();
+    const sChomp = () => sfx.play('chomp', 0.8) || sfx.hit();
     function sting(kind) {
+      if (kind === 'jackpot' && sfx.play('jackpot', 0.7)) return;
+      if (kind === 'boss') sfx.play('roar', 0.9);
       const T = sfx.tone; if (!T) return;
       if (kind === 'boss') { [[110, 0], [131, 0.2], [156, 0.4], [147, 0.6], [98, 0.85]].forEach(([f, d], i) => T(f, i === 4 ? 1.1 : 0.32, 'sawtooth', 0.06, 0, d)); T(55, 1.6, 'sine', 0.16, 0, 0.85); }
       else if (kind === 'phase') { [[196, 0], [185, 0.12], [175, 0.24], [165, 0.36], [82, 0.5]].forEach(([f, d], i) => T(f, i === 4 ? 0.9 : 0.16, 'square', 0.05, 0, d)); sfx.boom && sfx.boom(); }
@@ -132,37 +146,54 @@
         sting('boss'); fx.shake = 10;
         return;
       }
-      const z = zoneOf(f), type = MONS[z.mons[(f - z.from) % z.mons.length]], g = gimmicks(f), hp = hpFor(f);
-      R.M = { name: type.name, type, f, hp, max: hp, r: MR * (0.86 + Math.min(0.3, f * 0.012)), g, sq: 0, flash: 0, born: R.t, burn: 0, lastHit: R.t, trait: z.trait,
-        plates: g.armour ? platesFor(2 + Math.min(3, Math.floor(f / 6)), hp * 0.14) : [], shieldAt: g.shield ? [0.55] : [], shield: 0, minionT: 0.6,
-        emberT: 1.6, phaseT: 0, phased: false, regenT: 0, regenAcc: 0 };
-      if (z !== R.zone) {
+      const z = zoneOf(f), type = MONS[z.mons[(f - z.from) % z.mons.length]], g = gimmicks(f);
+      // elites: a named twist on the floor's monster, tougher and richer (never on a zone's first floor or twice in a row)
+      const el = f >= 6 && R.zone === z && !R.lastElite && rnd() < 0.15 ? ELITES[Math.floor(rnd() * ELITES.length)] : null;
+      R.lastElite = !!el;
+      const hp = Math.round(hpFor(f) * (el ? el.hp : 1));
+      R.mx = MX;
+      R.M = { name: type.name, type, f, hp, max: hp, r: MR * (0.86 + Math.min(0.3, f * 0.012)) * (el && el.id === 'brute' ? 1.12 : 1), g, sq: 0, flash: 0, born: R.t, burn: 0, lastHit: R.t, trait: z.trait,
+        plates: g.armour || (el && el.id === 'brute') ? platesFor(2 + Math.min(3, Math.floor(f / 6)) + (el && el.id === 'brute' ? 2 : 0), hpFor(f) * 0.14) : [], shieldAt: g.shield ? [0.55] : [], shield: 0, minionT: 0.6,
+        emberT: 1.6, phaseT: 0, phased: false, regenT: 0, regenAcc: 0, elite: el };
+      if (el) { R.elites++; banner('ELITE ' + el.name.toUpperCase() + '!', el.tip); sting('zone'); fx.shake = 6; }
+      else if (z !== R.zone) {
         const first = R.zone !== null; R.zone = z;
-        if (first) { banner(z.name.toUpperCase(), z.tip || ''); sting('zone'); shrine(z); }
+        if (first) { banner(z.name.toUpperCase(), z.tip || ''); sting('zone'); shrine(z.name.replace('The ', '')); }
         else banner('FLOOR ' + f, type.name + ' · ' + z.name);
-      } else {
+      } else if (f === 5 && R.startF < 5) { banner('FLOOR 5', 'A shrine on the landing'); shrine('the Landing'); }
+      else {
         const tip = g.armour && !R.seen.armour ? 'Smash the armour plates!' : g.minions && !R.seen.minions ? 'Bonk the minions first!' : g.shield && !R.seen.shield ? 'Shielded? Sweep loot!' : '';
         banner('FLOOR ' + f, type.name + (tip ? ' · ' + tip : ''));
       }
       for (const k in g) if (g[k]) R.seen[k] = 1;
-      if (f >= 7 && !R.gob && rnd() < s.gob) spawnGob();
+      if (f >= 7 && !R.gob && rnd() < s.gob * R.luck) spawnGob(f);
     }
     function platesFor(n, hp) { return Array.from({ length: n }, (_, i) => ({ a: -0.35 + (i + 0.5) * ((Math.PI + 0.7) / n), hp, max: hp })); }
     function banner(a, b) { R.banner = { a, b, t: R.t }; }
     // a shrine between zones: one blessing for the rest of this climb
-    function shrine(z) {
+    // three of these are offered at each shrine; the curses are the gamble
+    const BLESS = [
+      { icon: '⚔️', name: 'Might', desc: '+30% damage for this climb', go: () => { R.might *= 1.3; } },
+      { icon: '🫁', name: 'Breath', desc: '+3s stamina now; kills refill 25% more', go: () => { R.st = Math.min(stMax() + 3, R.st + 3); R.breath *= 1.25; } },
+      { icon: '💰', name: 'Greed', desc: '+40% coin value for this climb', go: () => { R.greed *= 1.4; } },
+      { icon: '🍀', name: 'Luck', desc: 'Chests and golden goblins twice as often', go: () => { R.luck *= 2; } },
+      { icon: '🗿', name: 'Cursed Idol', tag: 'gamble', desc: 'Coins x2, but stamina drains 25% faster', go: () => { R.greed *= 2; R.drainMul *= 1.25; } },
+      { icon: '🩸', name: 'Blood Pact', tag: 'gamble', desc: 'Damage x1.8, but kills refill 30% less', go: () => { R.might *= 1.8; R.breath *= 0.7; } },
+    ];
+    function shrine(where) {
+      R.shrineT = 2.5;
       if (!env.pick) return;
-      env.pick('Shrine of ' + z.name.replace('The ', ''), [
-        { icon: '⚔️', name: 'Might', desc: '+30% damage for this climb' },
-        { icon: '🫁', name: 'Breath', desc: '+3s stamina now, kills refill 25% more' },
-        { icon: '💰', name: 'Greed', desc: '+40% coin value for this climb' },
-      ], (i) => { if (i === 0) R.might *= 1.3; else if (i === 1) { R.st = Math.min(stMax() + 3, R.st + 3); R.breath *= 1.25; } else R.greed *= 1.4; });
+      const pool = BLESS.slice(), opts = [];
+      while (opts.length < 3) opts.push(pool.splice(Math.floor(rnd() * pool.length), 1)[0]);
+      env.pick('Shrine of ' + where + ': pick a blessing', opts.map(({ icon, name, desc, tag }) => ({ icon, name, desc, tag })), (i) => {
+        const o = opts[i]; o.go(); R.blessings.push(o.name); fx.text(W / 2, H * 0.5, o.name.toUpperCase() + '!', '#ffd166', 26); fx.ring(W / 2, FLOOR_TOP + 40, 90, '#ffd166');
+      });
     }
 
     // ---- side targets: chests, mimics, the golden goblin
     function spawnChest(f) {
-      const mimic = f >= 12 && rnd() < 0.3;
-      R.chest = { k: 'chest', x: 60 + rnd() * (W - 120), y: FLOOR_TOP + 70 + rnd() * (H - FLOOR_TOP - 170), r: 30, hits: 0, need: 2, mimic, awake: false, t: 0, bite: 1.2, sq: 0, f };
+      const mimic = s.mimicHunt ? rnd() < 0.3 + 0.15 * s.mimicHunt : f >= 12 && rnd() < 0.3;
+      R.chest = { k: 'chest', x: 60 + rnd() * (W - 120), y: FLOOR_TOP + 70 + rnd() * (H - FLOOR_TOP - 170), r: 30, hits: 0, need: 2, mimic, awake: false, t: 0, bite: 1.2, sq: 0, f, ph: rnd() * 6 };
       R.chest.y0 = R.chest.y;
       if (!R.seen.chest) { R.seen.chest = 1; fx.text(R.chest.x, R.chest.y - 50, 'TREASURE! Tap it', '#ffd166', 18); }
       sfx.ding();
@@ -171,25 +202,25 @@
       c.hits++; c.sq = 1; sfx.crack(); combo();
       if (c.mimic && !c.awake) {
         c.awake = true; c.need = 6 + Math.floor(c.f / 8); c.hits = 1; c.bite = 0.9;
-        banner('MIMIC!', 'It bites! Bonk it fast'); fx.shake = 10; sfx.hit(); R.mimics++;
+        banner('MIMIC!', R.mimics ? 'It bites! Bonk it fast' : 'Tell: it breathes and twitches. Bonk it fast!'); fx.shake = 10; sChomp(); R.mimics++;
         return;
       }
-      if (c.awake) { num(x, y - 20, (c.need - c.hits) + '', '#ff5d73', 20); drop(c.x, c.y - 10, 1, 'coin', 0.6, 2); }
+      if (c.awake) { num(x, y - 20, (c.need - c.hits) + '', '#ff5d73', 20); drop(c.x, c.y - 10, 1 + s.mimicHunt, 'coin', 0.6, 2); }
       if (c.hits >= c.need) {
         c.dead = true; R.chests++;
         const n = Math.round((8 + c.f * 0.5) * (c.awake ? 1.6 : 1)), mul = (c.awake ? 3 : 2) * s.chestLoot;
         drop(c.x, c.y - 10, n, 'coin', 1.1, mul);
-        const gems = (c.awake ? 1 : rnd() < 0.35 ? 1 : 0) + s.midas;
+        const gems = (c.awake ? 1 + (s.mimicHunt ? 1 : 0) : rnd() < 0.35 ? 1 : 0) + s.midas;
         if (gems) drop(c.x, c.y - 10, gems, 'gem', 0.8);
         fx.burst(c.x, c.y, 22, ['#ffd166', '#fff3b0', '#b07d18'], 260, 4.5); fx.ring(c.x, c.y, 70, '#ffd166');
         fx.text(c.x, c.y - 40, c.awake ? 'MIMIC SLAIN!' : 'TREASURE!', '#ffd166', 22); sting('jackpot'); hitstop(0.06); fx.shake = 8;
       }
     }
-    function spawnGob() {
-      const dir = rnd() < 0.5 ? 1 : -1;
-      R.gob = { k: 'gob', x: dir > 0 ? -30 : W + 30, y: FLOOR_TOP + 80 + rnd() * (H - FLOOR_TOP - 180), vx: dir * (W + 60) / 5.2, r: 26, hits: 0, need: Math.max(3, s.gobNeed), t: 0, flash: 0 };
+    function spawnGob(f) {
+      const dir = rnd() < 0.5 ? 1 : -1, king = s.gobNeed < 5 && f >= 15 && rnd() < 0.35; // Gold Fever's late surprise: the Goblin King
+      R.gob = { k: 'gob', king, x: dir > 0 ? -40 : W + 40, y: FLOOR_TOP + 80 + rnd() * (H - FLOOR_TOP - 190), vx: dir * (W + 60) / (king ? 7.5 : 5.2), r: king ? 38 : 26, hits: 0, need: Math.max(3, s.gobNeed) + (king ? 6 : 0), t: 0, flash: 0, spill: 0 };
       R.gob.y0 = R.gob.y;
-      banner('GOLDEN GOBLIN!', 'Bonk it before it escapes'); sting('jackpot');
+      if (king) banner('THE GOBLIN KING!', 'He spills gold as he runs. Bonk him!'); else banner('GOLDEN GOBLIN!', 'Bonk it before it escapes'); sting('jackpot');
     }
     function hitGob(gb) {
       gb.hits++; gb.flash = 1; combo(); sfx.coin(); sfx.pop(1.6);
@@ -197,9 +228,9 @@
       gb.vx *= -1; // it panics and doubles back
       if (gb.hits >= gb.need) {
         gb.dead = true; R.gobs++;
-        drop(gb.x, gb.y - 10, 18, 'coin', 1.4, 3); drop(gb.x, gb.y - 10, 1 + s.midas, 'gem', 0.8);
+        drop(gb.x, gb.y - 10, gb.king ? 36 : 18, 'coin', 1.4, 3); drop(gb.x, gb.y - 10, (gb.king ? 3 : 1) + s.midas, 'gem', 0.8);
         fx.burst(gb.x, gb.y, 30, ['#ffd166', '#fff3b0', '#ffe066'], 300, 5); fx.ring(gb.x, gb.y, 80, '#ffd166');
-        fx.text(gb.x, gb.y - 40, 'JACKPOT!', '#ffd166', 26); sting('jackpot'); hitstop(0.08); fx.shake = 12;
+        fx.text(gb.x, gb.y - 40, gb.king ? 'KING BONKED!' : 'JACKPOT!', '#ffd166', 26); sting('jackpot'); hitstop(0.08); fx.shake = 12;
       }
     }
 
@@ -208,7 +239,7 @@
       const f = R.M ? R.M.f : R.floor;
       for (let i = 0; i < n; i++) {
         const a = -Math.PI / 2 + (rnd() - 0.5) * 2.6 * spread, v = 220 + rnd() * 260;
-        R.loot.push({ kind, x: x + (rnd() - 0.5) * 20, y, vx: Math.cos(a) * v * 0.9, vy: Math.sin(a) * v - 60, gy: FLOOR_TOP + 18 + rnd() * (H - FLOOR_TOP - 54),
+        R.loot.push({ kind, x: x + (rnd() - 0.5) * 20, y, vx: Math.cos(a) * v * 0.9, vy: Math.sin(a) * v - 60, gy: FLOOR_TOP + 18 + rnd() * (H - FLOOR_TOP - 76),
           v: kind === 'coin' ? s.value * coinFor(f) * (env.boss ? 4 : 1) * mul * R.greed : 1, t: 0, bounced: false, grab: 0, spin: rnd() * 6,
           life: s.life + (kind === 'gem' ? 2 : kind === 'flask' ? 1 : 0) });
       }
@@ -235,7 +266,7 @@
       L.grab = 0.0001; R.grabbed++;
       if (L.kind === 'gem') { R.gems += 1; sfx.ding(); fx.text(L.x, L.y - 10, '+1 gem', '#e0aaff', 18); }
       else if (L.kind === 'flask') { R.st = Math.min(stMax() + 2, R.st + 1.5); sfx.ding(); fx.text(L.x, L.y - 14, '+1.5s', '#7ae582', 20); fx.burst(L.x, L.y, 10, ['#ff5d73', '#ffb3c1', '#fff'], 140); }
-      else { R.coins += L.v; sfx.coin(); }
+      else { R.coins += L.v; sfx.play('coin', 0.45, 0.95 + rnd() * 0.15) || sfx.coin(); } // coins come in bursts: keep the sample soft
     }
     function segDist(px, py, ax, ay, bx, by) {
       const dx = bx - ax, dy = by - ay, l = dx * dx + dy * dy, t = l ? Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / l)) : 0;
@@ -291,6 +322,7 @@
       }
       const { d, crit } = roll(weak || o.big);
       let dm = d * mult;
+      if (weak && perfect) { dm *= 1.6; fx.text(x, y - 64, 'BULLSEYE', '#ff7ab6', 16); } // the bard's on-beat weak-spot hit
       if (weak) { dm *= s.eyeMul; R.weakHits++; R.eye.next = R.t + 0.15; R.eye.pop = 1; if (s.eyeGem && rnd() < s.eyeGem) drop(x, y, 1, 'gem'); }
       if (s.comboDmg) dm *= 1 + s.comboDmg * Math.min(R.combo, s.comboCap);
       if (s.smash && tg === R.M && Math.floor((R.combo + 1) / 20) > Math.floor((R.lastSmash || 0) / 20)) { R.lastSmash = R.combo + 1; smash = true; dm *= 2 + 2 * s.smash; R.smashes++; }
@@ -342,11 +374,11 @@
       M.hp -= d;
       num(x + (rnd() - 0.5) * 30, y - 20, env.fmt(Math.max(1, d)) + (crit ? '!' : ''), weak ? '#ff7ab6' : crit ? '#ffd166' : ward ? '#b8b8d0' : '#fff', weak ? 36 : crit ? 34 : 24);
       fx.shake = Math.max(fx.shake, crit ? 9 : 4);
-      if (crit) { fx.ring(x, y, 40, weak ? '#ff7ab6' : '#ffd166'); sfx.hit(); if (weak || R.stop <= 0) hitstop(weak ? 0.05 : 0.025); }
-      sfx.pop(0.6 + rnd() * 0.3);
+      if (crit) { fx.ring(x, y, 40, weak ? '#ff7ab6' : '#ffd166'); sCrit(); if (weak || R.stop <= 0) hitstop(weak ? 0.05 : 0.025); }
+      else sHit(0.9 + rnd() * 0.25);
       fx.burst(x, y, crit ? 9 : 5, [M.type.c, '#fff'], 170);
       if (fromSwing) {
-        drop(x, y, 1 + (rnd() < s.extra % 1 ? 1 : 0) + Math.floor(s.extra));
+        drop(x, y, 1 + (rnd() < s.extra % 1 ? 1 : 0) + Math.floor(s.extra) + (M.elite && M.elite.id === 'hoarder' ? 2 : 0));
         if (rnd() < s.gem) drop(x, y, 1, 'gem');
         if (s.fire && rnd() < s.fire) { if (M.burn <= 0) fx.text(R.mx, R.my - M.r - 10, 'ABLAZE', '#ff9f1c', 16); M.burn = 2.5; }
       }
@@ -367,7 +399,7 @@
         if (t.minion) dealt(t, d, false, tx, ty); else if (t.k === 'skull') popSkull(t); else { t.hp -= d; t.flash = 1; if (t.hp <= 0) plateBreak(t); }
       }
       if (s.storm && R.M && R.M.shield <= 0 && !R.M.plates.some((p) => p.hp > 0)) { R.bolts.push({ x0: R.mx, y0: 0, x1: R.mx + (rnd() - 0.5) * 40, y1: R.my, t: R.t }); dealt(R.M, d * s.storm / 0.6, false, R.mx, R.my - 20); }
-      if (tg.length) sfx.zap();
+      if (tg.length) sfx.tone && sfx.tone(900, 0.07, 'sawtooth', 0.04, 0.4); // a synth crackle: the zap sample means 'blocked'
     }
     function blast(c) {
       const k = Math.min(R.chargeMax, c), mult = s.blast * k * k;
@@ -384,14 +416,15 @@
       const M = R.M; R.kills++;
       fx.burst(R.mx, R.my, 30, [M.type.c, '#ffd166', '#fff'], 300, 5); fx.ring(R.mx, R.my, M.r * 2, '#ffd166'); fx.shake = 16; sfx.boom(); sfx.ding(); hitstop(M.boss ? 0.3 : 0.09);
       if (M.boss) { R.won = true; R.winT = R.t; drop(R.mx, R.my, 30, 'coin', 1.6); R.skulls = []; return; }
-      drop(R.mx, R.my, 4 + Math.min(16, M.f), 'coin', 1.4);
+      drop(R.mx, R.my, Math.round((4 + Math.min(16, M.f)) * (M.elite ? M.elite.loot : 1)), 'coin', 1.4);
       if (M.f >= 3 && rnd() < s.gemKill) drop(R.mx, R.my, 1, 'gem');
+      if (M.elite) { drop(R.mx, R.my, 1, 'gem'); fx.text(R.mx, R.my - M.r - 20, 'ELITE SLAIN!', M.elite.c, 24); sting('jackpot'); }
       if (s.flask && rnd() < s.flask) drop(R.mx, R.my, 1, 'flask', 0.6);
       let add = s.refill / (1 + R.kills / 6) * R.breath;
       if (who === 'berserker' && s.cry && R.st < stMax() * 0.5) add += s.cry;
       R.st = Math.min(stMax(), R.st + add); fx.text(110, 50, '+' + add.toFixed(1) + 's', '#7ae582', 18);
       if (s.vacuum) for (const L of R.loot) if (!L.grab && L.kind !== 'gem' && rnd() < s.vacuum) collect(L);
-      if (M.f >= 4 && !R.chest && rnd() < s.chest) spawnChest(M.f);
+      if (M.f >= 4 && !R.chest && rnd() < s.chest * R.luck) spawnChest(M.f);
       R.minions = []; R.trans = 0.9; R.M = null; R.floor++; R.top = Math.max(R.top, R.floor);
     }
     function updMinions(dt) {
@@ -472,6 +505,33 @@
       }
       R.embers = R.embers.filter((e) => !e.dead);
     }
+    // ---- the Battle Owl familiar: perches top-right, dives at skulls, then minions, then the monster (its weak spot if one glows)
+    function updOwl(dt) {
+      const O = R.owl; if (!O) return; const M = R.M, px = W - 26, py = FLOOR_TOP - 44; // perch: right wall, clear of the HUD and banners
+      O.flap = (O.flap || 0) + dt;
+      if (O.st === 'perch' || O.st === 'back') {
+        const k = Math.min(1, dt * (O.st === 'back' ? 5 : 8)); O.x += (px - O.x) * k; O.y += (py - O.y) * k;
+        if (O.st === 'back' && Math.hypot(px - O.x, py - O.y) < 6) O.st = 'perch';
+        O.wait -= dt;
+        if (O.wait <= 0 && M && !R.trans && R.intro <= 0 && R.st > 0) {
+          O.tg = R.skulls.find((k2) => !k2.dead) || R.minions.find((m) => !m.dead) || M; O.st = 'dive'; O.k = 0; O.x0 = O.x; O.y0 = O.y; O.weak = O.tg === M && R.eye.on;
+          if (O.weak) { O.ox = R.eye.ox; O.oy = R.eye.oy; } else { O.ox = (rnd() - 0.5) * M.r * 0.6; O.oy = (rnd() - 0.5) * M.r * 0.4; }
+        }
+      } else if (O.st === 'dive') {
+        const tg = O.tg, isM = !tg.k, alive = isM ? tg === R.M && !R.trans : !tg.dead;
+        if (!alive) { O.st = 'back'; O.wait = 0.4; return; }
+        O.k = Math.min(1, O.k + dt / 0.3);
+        const tx = isM ? R.mx + O.ox : tg.x, ty = isM ? R.my + O.oy : tg.y, e = O.k * O.k;
+        O.x = O.x0 + (tx - O.x0) * e; O.y = O.y0 + (ty - O.y0) * e - Math.sin(O.k * Math.PI) * 40; O.dir = tx < O.x0 ? -1 : 1;
+        if (O.k >= 1) {
+          O.st = 'back'; O.wait = 1.8 * 0.85 ** (s.owl - 1);
+          fx.burst(tx, ty, 8, ['#d4a373', '#fff'], 160); fx.ring(tx, ty, 34, '#e9c46a');
+          if (tg.k === 'skull') popSkull(tg);
+          else if (tg.minion) dealt(tg, s.dmg * R.might * 3, false, tx, ty);
+          else { const crit = O.weak || rnd() < s.crit, d = s.dmg * R.might * 3 * (crit ? s.critMul : 1) * (O.weak ? s.eyeMul : 1); dealt(R.M, d, crit, tx, ty, true, O.weak); }
+        }
+      }
+    }
     const eyeR = () => R.M && R.M.p2 ? 30 : s.eyeR;
     function updEye(M) {
       const E = R.eye;
@@ -501,7 +561,7 @@
         if (R.won) { updLoot(dt, { ...input, down: true }); for (const L of R.loot) if (!L.grab && L.bounced) collect(L); if (R.t - R.winT > 1.6) R.over = true; return; }
         if (R.intro > 0) R.intro -= dt;
         if (R.trans > 0) { R.trans -= dt; if (R.trans <= 0) { R.trans = 0; newMonster(); } }
-        else if (R.intro <= 0) R.st -= s.drain * (1 + Math.max(0, R.t - 10) / 20) * dt;
+        else if (R.intro <= 0) R.st -= s.drain * R.drainMul * (1 + Math.max(0, R.t - 10) / 20) * dt;
         if (R.beat) { while (R.t >= R.beat.next) { R.beat.next += R.beat.dt; R.beat.k++; R.beat.flash = R.t; sfx.tone && sfx.tone(R.beat.k % 4 ? 520 : 780, 0.05, 'triangle', 0.035); } }
         if (R.encoreT > 0) R.encoreT -= dt;
         const M = R.M;
@@ -538,15 +598,18 @@
         updSkulls(dt);
         if (R.chest) {
           const c = R.chest; c.t += dt; c.sq = Math.max(0, c.sq - dt * 6);
-          if (c.awake) { c.bite -= dt; c.x += Math.sin(R.t * 3) * 30 * dt; if (c.bite <= 0) { c.bite = 1.3; R.st -= 0.5; R.burned++; R.cause = 'mimic'; R.causeT = R.t; fx.text(c.x, c.y - 50, 'CHOMP -0.5s', '#ff5d73', 18); fx.shake = 9; sfx.hit(); c.sq = 1.4; } }
+          if (c.awake) { c.bite -= dt; c.x += Math.sin(R.t * 3) * 30 * dt; if (c.bite <= 0) { const b = s.mimicHunt ? 0.25 : 0.5; c.bite = 1.3; R.st -= b; R.burned++; R.cause = 'mimic'; R.causeT = R.t; fx.text(c.x, c.y - 50, 'CHOMP -' + b + 's', '#ff5d73', 18); fx.shake = 9; sChomp(); c.sq = 1.4; } }
           if (c.dead || c.t > (c.awake ? 12 : 6)) { if (!c.dead) fx.burst(c.x, c.y, 10, ['#8d6e4f', '#fff'], 120); R.chest = null; }
         }
         if (R.gob) {
-          const gb = R.gob; gb.t += dt; gb.x += gb.vx * dt; gb.y = gb.y0 - Math.abs(Math.sin(gb.t * 10)) * 10; gb.flash = Math.max(0, gb.flash - dt * 6);
+          const gb = R.gob; gb.t += dt; gb.x += gb.vx * dt; if (gb.king && (gb.spill -= dt) <= 0 && gb.x > 20 && gb.x < W - 20) { gb.spill = 0.45; drop(gb.x, gb.y - 20, 1, 'coin', 0.5, 2); } gb.y = gb.y0 - Math.abs(Math.sin(gb.t * 10)) * 10; gb.flash = Math.max(0, gb.flash - dt * 6);
           if (gb.dead) R.gob = null;
-          else if (gb.t > 8 || gb.x < -50 || gb.x > W + 50) { if (gb.t > 1) fx.text(Math.max(60, Math.min(W - 60, gb.x)), gb.y - 30, 'It got away!', '#a49eb8', 16); R.gob = null; }
+          else if (gb.t > (gb.king ? 11 : 8) || gb.x < -50 || gb.x > W + 50) { if (gb.t > 1) fx.text(Math.max(60, Math.min(W - 60, gb.x)), gb.y - 30, 'It got away!', '#a49eb8', 16); R.gob = null; }
         }
+        if (R.M && R.M.elite && R.M.elite.id === 'swift' && !R.trans) R.mx = MX + Math.sin((R.t - R.M.born) * 1.3) * W * 0.22; // the swift elite dodges about
+        if (R.shrineT > 0) R.shrineT -= dt;
         updMinions(dt);
+        updOwl(dt);
         updLoot(dt, input);
         updBroom(dt);
         R.px = input.down ? input.x : null; R.py = input.down ? input.y : null;
@@ -556,14 +619,24 @@
       draw(g) { drawRun(g, R, env, s, { MX, MY, W, H, FLOOR_TOP, stMax: stMax(), eyeR: eyeR() }); },
       result() {
         const zn = R.zone.name.replace('The ', 'the ');
-        const bits = [`Best combo x${R.bestCombo}`];
+        const bits = R.bestCombo >= 3 ? [`Best combo x${R.bestCombo}`] : [];
         if (R.weakHits) bits.push(`${R.weakHits} weak-spot hits`);
         if (R.perfects) bits.push(`${R.perfects} perfects`);
         if (R.chests) bits.push(`${R.chests} chest${R.chests > 1 ? 's' : ''}`);
         if (R.gobs) bits.push(`${R.gobs} golden goblin${R.gobs > 1 ? 's' : ''}`);
+        if (R.elites) bits.push(`${R.elites} elite${R.elites > 1 ? 's' : ''}`);
         if (R.lost >= 1) bits.push(`${env.fmt(R.lost)} coins faded`);
+        if (R.blessings.length) bits.push('Blessed: ' + R.blessings.join(', '));
         const lines = [env.boss ? `The Lich King had ${Math.ceil(100 * Math.max(0, R.M ? R.M.hp / R.M.max : 0))}% left${R.M && R.M.p2 ? ' (phase 2)' : ''} · ${Math.round(R.t)}s`
           : `Reached floor ${R.top} in ${zn} · ${R.kills} bonked in ${Math.round(R.t)}s`, bits.join(' · ')];
+        // one line pointing at what to buy next, keyed on why this climb ended
+        const has = (id) => (env.levels[id] || 0) > 0;
+        const tip = R.won ? '' : env.boss ? (R.M && R.M.p2 ? 'Next: pop skulls before they land; more damage (Mithril Edge) ends phase 2 sooner' : 'Next: more damage (Sharper Blade, Mithril Edge) and Hourglass for a longer fight')
+          : R.cause === 'mimic' ? 'Next: mimics breathe and twitch, real chests sparkle. Mimic Hunter halves their bite'
+          : R.cause === 'ember' ? (has('boots') ? 'Next: keep your sweeps clear of landed embers' : 'Next: don’t sweep through embers. Ember Boots turn them into coins')
+          : R.lost > Math.max(5, R.coins * 0.25) ? 'Next: coins faded. Loot Magnet and Sticky Loot make sweeping easier'
+          : !has('lungs') || (env.levels.lungs || 0) < 3 ? 'Next: Deep Lungs gives every climb more breath' : 'Next: Second Wind refills more breath per kill';
+        if (tip) lines.push(tip);
         const out = { won: R.won, earned: { coins: R.coins, gems: R.gems }, lines, score: R.top };
         if (!R.won) out.title = env.boss ? (R.cause === 'skull' ? 'Blasted by skull bombs' : 'The Lich King endures')
           : R.cause === 'quit' ? `Left on floor ${R.floor}` : R.cause === 'mimic' ? `Chomped by a mimic on floor ${R.floor}`
@@ -577,15 +650,36 @@
 
   // ---------------------------------------------------------------- drawing
   const BGS = {};
+  // art: env.sprite/env.art from the kit (null in the sim); every call falls back to the vector drawing when the image is absent
+  let ENV = null;
+  const spr = (g, name, x, y, w, h, o) => !!(ENV && ENV.sprite && ENV.sprite(g, name, x, y, w, h, o));
+  const hasArt = (name) => !!(ENV && ENV.art && ENV.art(name));
+  // sprite plus a hit flash: the same image added on top ('lighter') so it whitens without a second asset
+  function sprFlash(g, name, x, y, w, flash, o) {
+    if (!spr(g, name, x, y, w, null, o)) return false;
+    if (flash > 0) { const op = g.globalCompositeOperation; g.globalCompositeOperation = 'lighter'; spr(g, name, x, y, w, null, { ...(o || {}), alpha: Math.min(1, flash) * 0.85 }); g.globalCompositeOperation = op; }
+    return true;
+  }
+  const BG_FLOOR = 0.77; // where bg-tower's floor starts (fraction of the image height)
   function rr(g, x, y, w, h, r) { g.beginPath(); g.roundRect ? g.roundRect(x, y, w, h, r) : g.rect(x, y, w, h); }
   function mix(a, b, k) {
     const p = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)), A = p(a), B = p(b);
     return '#' + A.map((v, i) => Math.round(v + (B[i] - v) * k).toString(16).padStart(2, '0')).join('');
   }
   function background(W, H, FT, Z) {
-    const key = Z.id + W + 'x' + H; if (BGS[key]) return BGS[key];
+    const im = ENV && ENV.art && ENV.art('bg-tower');
+    const key = Z.id + W + 'x' + H + (im ? 'art' : ''); if (BGS[key]) return BGS[key];
     const c = document.createElement('canvas'), dpr = Math.min(2, window.devicePixelRatio || 1); c.width = W * dpr; c.height = H * dpr;
     const g = c.getContext('2d'); g.scale(dpr, dpr);
+    if (im) { // bg-tower in two slices so its floor line meets the game's floor; tinted per zone, then a scrim for readability
+      const iw = im.naturalWidth, ih = im.naturalHeight, sw = Math.min(iw, ih * W / H * (1 / 1)), sx = (iw - sw) / 2;
+      g.drawImage(im, sx, 0, sw, ih * BG_FLOOR, 0, 0, W, FT);
+      g.drawImage(im, sx, ih * BG_FLOOR, sw, ih * (1 - BG_FLOOR), 0, FT, W, H - FT);
+      if (Z.id !== 'dungeon') { g.globalCompositeOperation = 'color'; g.globalAlpha = 0.75; const tg = g.createLinearGradient(0, 0, 0, H); tg.addColorStop(0, Z.wall[1]); tg.addColorStop(0.6, Z.wall[1]); tg.addColorStop(1, Z.floor[0]); g.fillStyle = tg; g.fillRect(0, 0, W, H); g.globalCompositeOperation = 'source-over'; g.globalAlpha = 1; }
+      const sc = g.createLinearGradient(0, 0, 0, H); sc.addColorStop(0, 'rgba(12,9,24,.55)'); sc.addColorStop(0.45, 'rgba(12,9,24,.25)'); sc.addColorStop(0.62, 'rgba(12,9,24,.2)'); sc.addColorStop(1, 'rgba(12,9,24,.5)'); g.fillStyle = sc; g.fillRect(0, 0, W, H);
+      const rug = g.createRadialGradient(W / 2, FT + 40, 10, W / 2, FT + 40, W * 0.6); rug.addColorStop(0, `rgba(${Z.glow},.14)`); rug.addColorStop(1, `rgba(${Z.glow},0)`); g.fillStyle = rug; g.fillRect(0, FT, W, H - FT);
+      BGS[key] = c; return c;
+    }
     const wall = g.createLinearGradient(0, 0, 0, FT); wall.addColorStop(0, Z.wall[0]); wall.addColorStop(1, Z.wall[1]); g.fillStyle = wall; g.fillRect(0, 0, W, FT);
     let s = 7; const r = () => { s = (s * 16807) % 2147483647; return s / 2147483647; };
     if (Z.id === 'dungeon' || Z.id === 'crypt') {
@@ -639,20 +733,27 @@
     }
   }
   function drawRun(g, R, env, s, L) {
+    ENV = env;
     const { W, H, FLOOR_TOP } = L, fx = env.fx, t = R.t, Z = R.zone || ZONES[0], MX = R.mx, MY = R.my;
     const sx = (Math.random() - 0.5) * fx.shake, sy = (Math.random() - 0.5) * fx.shake;
     g.save(); g.translate(sx, sy);
     g.drawImage(background(W, H, FLOOR_TOP, Z), 0, 0, W, H);
-    if (Z.id === 'dungeon' || Z.id === 'crypt') { torch(g, 34, H * 0.3, t, Z.glow); torch(g, W - 34, H * 0.3, t, Z.glow); }
+    if (hasArt('bg-tower')) { for (const x of [W * 0.115, W * 0.885]) { const y = FLOOR_TOP * 0.37, f = 1 + Math.sin(t * 17 + x) * 0.1 + Math.sin(t * 7) * 0.06; const gl = g.createRadialGradient(x, y, 2, x, y, 80 * f); gl.addColorStop(0, `rgba(${Z.glow},.3)`); gl.addColorStop(1, `rgba(${Z.glow},0)`); g.fillStyle = gl; g.beginPath(); g.arc(x, y, 80 * f, 0, 6.28); g.fill(); } }
+    else if (Z.id === 'dungeon' || Z.id === 'crypt') { torch(g, 34, H * 0.3, t, Z.glow); torch(g, W - 34, H * 0.3, t, Z.glow); }
     ambient(g, Z, W, H, FLOOR_TOP, t);
     if (env.boss) { g.fillStyle = `rgba(20,0,40,${0.25 + 0.1 * Math.sin(t * 2)})`; g.fillRect(0, 0, W, H); }
     // embers (hazards) sit on the floor under the loot
     for (const e of R.embers) drawEmber(g, e, t, s.boots);
+    if (R.shrineT > 0) drawShrine(g, W / 2, FLOOR_TOP + 70, t, Math.min(1, R.shrineT * 2));
     if (R.chest) drawChest(g, R.chest, t);
     const M = R.M;
     if (M) {
       const intro = R.intro > 0 ? (R.intro / R.introMax) ** 2 * (env.boss ? 1 : 0.5) : 0;
       g.fillStyle = 'rgba(0,0,0,.35)'; g.beginPath(); g.ellipse(MX, FLOOR_TOP + 14, M.r * 0.9 * (1 - intro * 0.6), 14, 0, 0, 6.28); g.fill();
+      if (M.g.minions && !M.p2 && !R.minions.some((m) => !m.dead) && M.minionT < 1 && !R.trans) { // telegraph: a summoning circle grows a second before minions appear
+        const k = 1 - M.minionT, rr2 = M.r * 1.55; g.strokeStyle = `rgba(179,136,235,${0.3 + 0.6 * k})`; g.lineWidth = 2 + 3 * k; g.setLineDash([10, 8]); g.lineDashOffset = -t * 40;
+        g.beginPath(); g.ellipse(MX, MY + 10, rr2 * k, rr2 * 0.55 * k, 0, 0, 6.28); g.stroke(); g.setLineDash([]); g.lineDashOffset = 0;
+      }
       for (const m of R.minions) if (m.y < MY) drawMinion(g, m, t);
       if (R.minions.length) { g.strokeStyle = 'rgba(179,136,235,.45)'; g.lineWidth = 3; g.setLineDash([6, 6]); for (const m of R.minions) { g.beginPath(); g.moveTo(m.x, m.y); g.lineTo(MX, MY); g.stroke(); } g.setLineDash([]); }
       const alpha = M.fadeT > 0 ? Math.abs(M.fadeT - 0.25) / 0.25 : M.phased ? 0.28 + 0.08 * Math.sin(t * 20) : 1;
@@ -667,6 +768,7 @@
     for (const l of R.loot) drawLoot(g, l, t);
     if (R.gob) drawGob(g, R.gob, t);
     if (R.broom) drawBroom(g, R.broom, t);
+    if (R.owl) drawOwl(g, R.owl, t);
     // slashes + bolts
     for (const q of R.slashes) { const k = (t - q.t) / 0.18; g.strokeStyle = q.big ? `rgba(255,159,28,${1 - k})` : q.crit ? `rgba(255,209,102,${1 - k})` : `rgba(255,255,255,${1 - k})`; g.lineWidth = (q.big ? 14 : q.crit ? 9 : 6) * (1 - k) + 1; g.beginPath(); g.arc(q.x, q.y, (q.big ? 40 : 26) + k * 24, q.a, q.a + 2.2); g.stroke(); }
     for (const b of R.bolts) { g.strokeStyle = '#bde0fe'; g.lineWidth = 3; g.beginPath(); g.moveTo(b.x0, b.y0); for (let i = 1; i < 6; i++) { const k = i / 6; g.lineTo(b.x0 + (b.x1 - b.x0) * k + (Math.random() - 0.5) * 18, b.y0 + (b.y1 - b.y0) * k + (Math.random() - 0.5) * 18); } g.lineTo(b.x1, b.y1); g.stroke(); }
@@ -722,18 +824,21 @@
         const hg = g.createLinearGradient(bx, 0, bx + bwid, 0); hg.addColorStop(0, M.p2 ? '#7effbe' : '#b388eb'); hg.addColorStop(1, M.p2 ? '#2ec4b6' : '#7b2cbf');
         g.fillStyle = hg; rr(g, bx, y, bwid * Math.max(0, M.hp / M.max), 16, 8); g.fill();
         g.fillStyle = '#fff'; g.fillRect(bx + bwid * 0.5 - 1, y - 2, 2, 20);
-        g.textAlign = 'center'; g.font = '800 12px Nunito, system-ui'; g.fillStyle = '#fff'; g.fillText(M.p2 ? 'THE LICH UNBOUND' : 'THE LICH KING', W / 2, y + 12);
+        g.textAlign = 'center'; g.font = '800 12px Nunito, system-ui'; g.lineWidth = 3; g.strokeStyle = '#1b1830'; g.strokeText(M.p2 ? 'THE LICH UNBOUND' : 'THE LICH KING', W / 2, y + 12); g.fillStyle = '#fff'; g.fillText(M.p2 ? 'THE LICH UNBOUND' : 'THE LICH KING', W / 2, y + 12);
       } else { // HP bar under the monster
         const hw = Math.min(W - 80, 240), hx = W / 2 - hw / 2, hy2 = L.MY + M.r + 30;
         g.fillStyle = 'rgba(0,0,0,.6)'; rr(g, hx, hy2, hw, 12, 6); g.fill();
-        g.fillStyle = '#ff6b6b'; rr(g, hx, hy2, hw * Math.max(0, M.hp / M.max), 12, 6); g.fill();
-        const pl = M.plates.filter((p) => p.hp > 0).length; if (pl) { g.fillStyle = '#ced4da'; g.font = '800 12px Nunito, system-ui'; g.textAlign = 'center'; g.fillText('ARMOUR ' + pl, W / 2, hy2 + 28); }
+        g.fillStyle = M.elite ? M.elite.c : '#ff6b6b'; rr(g, hx, hy2, hw * Math.max(0, M.hp / M.max), 12, 6); g.fill();
+        const pl = M.plates.filter((p) => p.hp > 0).length, el = M.elite ? 'ELITE ' + M.elite.name.toUpperCase() + (pl ? ' · ' : '') : '';
+        if (el && !pl) { g.fillStyle = M.elite.c; g.font = '800 12px Nunito, system-ui'; g.textAlign = 'center'; g.fillText(el, W / 2, hy2 + 28); }
+        else if (pl) { g.fillStyle = M.elite ? M.elite.c : '#ced4da'; g.font = '800 12px Nunito, system-ui'; g.textAlign = 'center'; g.fillText(el + 'ARMOUR ' + pl, W / 2, hy2 + 28); }
         else if (M.trait === 'regen' && R.t - M.lastHit > 1 && M.hp < M.max) { g.fillStyle = '#7ae582'; g.font = '800 12px Nunito, system-ui'; g.textAlign = 'center'; g.fillText('REGENERATING', W / 2, hy2 + 28); }
         else if (M.phased) { g.fillStyle = '#c8d6e5'; g.font = '800 12px Nunito, system-ui'; g.textAlign = 'center'; g.fillText('FADED: SWEEP!', W / 2, hy2 + 28); }
       }
     }
     // banner
-    if (R.banner) { const k = t - R.banner.t; if (k < 2.2) { const a = Math.min(1, k * 5, (2.2 - k) * 3); g.globalAlpha = a; g.textAlign = 'center'; g.fillStyle = '#ffd166'; g.font = `${32 + Math.max(0, 1 - k * 4) * 16}px "Lilita One", system-ui`; g.strokeStyle = '#1b1830'; g.lineWidth = 6; const by = H * 0.18; g.strokeText(R.banner.a, W / 2, by); g.fillText(R.banner.a, W / 2, by); if (R.banner.b) { g.font = '800 14px Nunito, system-ui'; g.fillStyle = '#fff'; g.strokeText(R.banner.b, W / 2, by + 24); g.fillText(R.banner.b, W / 2, by + 24); } g.globalAlpha = 1; } }
+    if (R.banner) { const k = t - R.banner.t; if (k < 2.2) { const a = Math.min(1, k * 5, (2.2 - k) * 3); g.globalAlpha = a; g.textAlign = 'center'; g.fillStyle = '#ffd166'; g.font = `${32 + Math.max(0, 1 - k * 4) * 16}px "Lilita One", system-ui`; g.strokeStyle = '#1b1830'; g.lineWidth = 6; const by = H * 0.18;
+      const band = g.createLinearGradient(0, by - 44, 0, by + 36); band.addColorStop(0, 'rgba(12,9,24,0)'); band.addColorStop(0.3, 'rgba(12,9,24,.55)'); band.addColorStop(0.75, 'rgba(12,9,24,.55)'); band.addColorStop(1, 'rgba(12,9,24,0)'); g.fillStyle = band; g.fillRect(0, by - 44, W, 80); g.fillStyle = '#ffd166'; g.strokeText(R.banner.a, W / 2, by); g.fillText(R.banner.a, W / 2, by); if (R.banner.b) { g.font = '800 14px Nunito, system-ui'; g.fillStyle = '#fff'; g.strokeText(R.banner.b, W / 2, by + 24); g.fillText(R.banner.b, W / 2, by + 24); } g.globalAlpha = 1; } }
     // lead-in and run end
     g.textAlign = 'center';
     if (R.intro > 0 || (R.t < R.introMax + 0.45 && !R.ending)) {
@@ -764,8 +869,11 @@
     g.font = '800 16px Nunito, system-ui'; const w = Math.min(g.measureText(s).width + 28, 380);
     g.fillStyle = 'rgba(0,0,0,.6)'; rr(g, x - w / 2, y - 21, w, 32, 16); g.fill(); g.fillStyle = '#fff'; g.fillText(s, x, y);
   }
+  let COINC = null; // obj-coin downscaled once: dozens of coins a frame from a 384px source is wasteful
   function coinIcon(g, x, y, r, t, spin = 0) {
     const w = Math.abs(Math.cos(t * 3 + spin)) * 0.7 + 0.3;
+    if (!COINC && hasArt('obj-coin')) { COINC = document.createElement('canvas'); COINC.width = COINC.height = 64; COINC.getContext('2d').drawImage(ENV.art('obj-coin'), 0, 0, 64, 64); }
+    if (COINC) { g.drawImage(COINC, x - r * 1.15 * w, y - r * 1.15, r * 2.3 * w, r * 2.3); return; }
     g.fillStyle = '#b07d18'; g.beginPath(); g.ellipse(x, y + 1.5, r * w, r, 0, 0, 6.28); g.fill();
     const gr = g.createLinearGradient(x - r, y - r, x + r, y + r); gr.addColorStop(0, '#ffe8a3'); gr.addColorStop(1, '#f0b429');
     g.fillStyle = gr; g.beginPath(); g.ellipse(x, y, r * w, r, 0, 0, 6.28); g.fill();
@@ -811,7 +919,7 @@
     g.fillStyle = '#fff'; g.beginPath(); g.arc(E.x, E.y, 3.5, 0, 6.28); g.fill();
   }
   function drawBeat(g, R, x, y, r, t, s) {
-    const k = 1 - (R.beat.next - t) / R.beat.dt, rad = r * (2.1 - 1.0 * k), hit = t - R.beat.flash < 0.1;
+    const k = Math.max(0, Math.min(1, 1 - (R.beat.next - t) / R.beat.dt)), rad = r * (2.1 - 1.0 * k), hit = t - R.beat.flash < 0.1;
     g.strokeStyle = R.encoreT > 0 ? 'rgba(255,209,102,.9)' : `rgba(144,224,239,${0.25 + 0.6 * k})`; g.lineWidth = 3 + 3 * k;
     g.beginPath(); g.arc(x, y, rad, 0, 6.28); g.stroke();
     g.strokeStyle = 'rgba(144,224,239,.35)'; g.lineWidth = 2; g.setLineDash([4, 8]); g.beginPath(); g.arc(x, y, r * 1.1, 0, 6.28); g.stroke(); g.setLineDash([]);
@@ -824,9 +932,15 @@
   function drawChest(g, c, t) {
     const sq = c.sq, appear = Math.min(1, c.t * 4), fall = (1 - appear) * -120;
     const fade = !c.awake && c.t > 5 ? Math.max(0, 1 - (c.t - 5)) : 1;
-    g.save(); g.globalAlpha = fade; g.translate(c.x, c.y + fall); g.scale(1 + sq * 0.15, 1 - sq * 0.12);
-    g.fillStyle = 'rgba(0,0,0,.35)'; g.beginPath(); g.ellipse(0, 4, 34, 8, 0, 0, 6.28); g.fill();
+    // a sleeping mimic's tells (work with or without art): it breathes, twitch-hops every ~1.7s and peeks out, and it never sparkles
+    const sleepy = c.mimic && !c.awake, br = sleepy ? Math.sin(t * 3.4 + c.ph) : 0, ph = (t + c.ph) % 1.7, hop = sleepy && ph < 0.3 ? Math.sin(ph / 0.3 * Math.PI) : 0;
+    g.save(); g.globalAlpha = fade; g.translate(c.x, c.y + fall);
+    g.fillStyle = 'rgba(0,0,0,.35)'; g.beginPath(); g.ellipse(0, 4, 34 - hop * 6, 8, 0, 0, 6.28); g.fill();
+    g.translate(0, -hop * 9); g.rotate(hop * 0.12 * (c.ph > 3 ? 1 : -1)); g.scale(1 + sq * 0.15 + br * 0.05, 1 - sq * 0.12 - br * 0.06);
     const glow = g.createRadialGradient(0, -14, 4, 0, -14, 60); glow.addColorStop(0, c.awake ? 'rgba(255,93,115,.3)' : 'rgba(255,209,102,.35)'); glow.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = glow; g.beginPath(); g.arc(0, -14, 60, 0, 6.28); g.fill();
+    if (spr(g, c.awake ? 'obj-mimic' : 'obj-chest', 0, c.awake ? -26 : -20, c.awake ? 96 : 84)) { // obj-mimic only once revealed
+      if (c.awake && c.bite < 0.2) { g.fillStyle = 'rgba(255,93,115,.35)'; g.beginPath(); g.arc(0, -20, 46, 0, 6.28); g.fill(); }
+    } else {
     const open = c.awake ? 0.35 + 0.25 * Math.max(0, Math.sin(t * 9)) + (c.bite < 0.2 ? 0.3 : 0) : 0;
     const wood = g.createLinearGradient(0, -24, 0, 2); wood.addColorStop(0, '#a0703f'); wood.addColorStop(1, '#6b4423');
     g.fillStyle = wood; rr(g, -30, -24, 60, 26, 4); g.fill();
@@ -838,13 +952,19 @@
     if (c.awake) { g.fillStyle = '#fff'; for (let i = -3; i <= 3; i++) { g.beginPath(); g.moveTo(i * 8 - 4, 0); g.lineTo(i * 8 + 4, 0); g.lineTo(i * 8, 8); g.fill(); } g.fillStyle = '#ffd166'; for (const sd of [-1, 1]) { g.beginPath(); g.arc(sd * 14, -10, 4, 0, 6.28); g.fill(); g.fillStyle = '#1b1830'; g.beginPath(); g.arc(sd * 14, -10, 2, 0, 6.28); g.fill(); g.fillStyle = '#ffd166'; } }
     g.restore();
     g.fillStyle = '#ffd166'; g.fillRect(-32, -14, 64, 3); rr(g, -6, -18, 12, 12, 3); g.fill(); g.fillStyle = '#6b4423'; g.fillRect(-1.5, -14, 3, 5);
-    if (c.mimic && !c.awake) { g.fillStyle = '#ff5d73'; g.beginPath(); g.ellipse(18, -23, 4, 2, 0, 0, 6.28); g.fill(); } // the tell: a tongue tip
-    if (!c.awake) { const sp = (t * 2) % 1; g.fillStyle = `rgba(255,255,255,${1 - sp})`; g.beginPath(); g.arc(-20 + sp * 8, -38 - sp * 10, 2.5, 0, 6.28); g.fill(); }
+    }
+    if (sleepy) { // tongue tip lolls out with each breath; on a hop the lid lifts and two eyes peek out
+      g.fillStyle = '#ff5d73'; g.beginPath(); g.ellipse(16, -22 + br * 1.5, 6, 3 + Math.max(0, br) * 2.5, 0.2, 0, 6.28); g.fill();
+      if (hop > 0.2) { g.fillStyle = '#1b1020'; g.fillRect(-26, -27, 52, 5); g.fillStyle = '#ffe066'; for (const sd of [-1, 1]) { g.beginPath(); g.arc(sd * 11, -25, 2.6, 0, 6.28); g.fill(); } }
+    }
+    if (!c.mimic) for (const [ox, oy, o] of [[-22, -40, 0], [20, -34, 0.5]]) { const sp = (t * 1.6 + o) % 1, k = Math.sin(sp * Math.PI) * 7; g.fillStyle = `rgba(255,248,220,${0.9 * Math.sin(sp * Math.PI)})`; g.beginPath(); g.moveTo(ox, oy - k); g.lineTo(ox + k * 0.3, oy); g.lineTo(ox, oy + k); g.lineTo(ox - k * 0.3, oy); g.closePath(); g.moveTo(ox - k, oy); g.lineTo(ox, oy - k * 0.3); g.lineTo(ox + k, oy); g.lineTo(ox, oy + k * 0.3); g.closePath(); g.fill(); } // real chests twinkle; mimics never do
     g.restore();
   }
   function drawGob(g, gb, t) {
-    g.save(); g.translate(gb.x, gb.y); g.scale(gb.vx < 0 ? -1 : 1, 1);
+    const K = gb.king ? 1.45 : 1;
+    g.save(); g.translate(gb.x, gb.y); g.scale((gb.vx < 0 ? -1 : 1) * K, K);
     const glow = g.createRadialGradient(0, -10, 4, 0, -10, 50); glow.addColorStop(0, 'rgba(255,209,102,.5)'); glow.addColorStop(1, 'rgba(255,209,102,0)'); g.fillStyle = glow; g.beginPath(); g.arc(0, -10, 50, 0, 6.28); g.fill();
+    if (!sprFlash(g, 'obj-golden-goblin', 0, -8 - Math.abs(Math.sin(t * 20)) * 2, 62, gb.flash)) {
     const w = gb.flash > 0.4, c = w ? '#fff' : '#f2c14e', d = w ? '#fff' : '#b8860b';
     g.fillStyle = '#8d6e4f'; g.beginPath(); g.ellipse(-16, -8, 13, 15, -0.3, 0, 6.28); g.fill(); g.fillStyle = '#ffd166'; g.font = '800 12px Nunito, system-ui'; g.textAlign = 'center'; g.fillText('$', -16, -4);
     const legs = Math.sin(t * 20) * 6;
@@ -854,8 +974,11 @@
     g.fillStyle = '#fff'; g.beginPath(); g.arc(5, -11, 4.5, 0, 6.28); g.fill(); g.fillStyle = '#1b1830'; g.beginPath(); g.arc(6.5, -11, 2.2, 0, 6.28); g.fill();
     g.fillStyle = '#3a1020'; g.beginPath(); g.ellipse(6, -1, 5, 3, 0, 0, 6.28); g.fill();
     g.fillStyle = 'rgba(255,255,255,.4)'; g.beginPath(); g.ellipse(-4, -15, 5, 3, -0.5, 0, 6.28); g.fill();
+    }
+    if (gb.king) { g.fillStyle = '#ffd166'; g.strokeStyle = '#1b1830'; g.lineWidth = 2; g.beginPath(); g.moveTo(-10, -30); g.lineTo(-10, -42); g.lineTo(-4, -35); g.lineTo(1, -45); g.lineTo(6, -35); g.lineTo(11, -42); g.lineTo(11, -30); g.closePath(); g.fill(); g.stroke(); }
     g.restore();
-    for (let i = 0; i < gb.need; i++) { g.fillStyle = i < gb.hits ? '#ffd166' : 'rgba(0,0,0,.5)'; g.beginPath(); g.arc(gb.x - (gb.need - 1) * 6 + i * 12, gb.y - 40, 4, 0, 6.28); g.fill(); }
+    const pipY = gb.y - (gb.king ? 70 : 44), gap = gb.need > 8 ? 9 : 12;
+    for (let i = 0; i < gb.need; i++) { g.fillStyle = i < gb.hits ? '#ffd166' : 'rgba(0,0,0,.55)'; g.beginPath(); g.arc(gb.x - (gb.need - 1) * gap / 2 + i * gap, pipY, 4, 0, 6.28); g.fill(); }
   }
   function drawSkull(g, k, t) {
     for (let i = 1; i <= 4; i++) { const q = Math.max(0, k.t - i * 0.05) / k.dur; const x = k.x0 + (k.tx - k.x0) * q, y = k.y0 + (k.ty - k.y0) * q - Math.sin(Math.min(1, q) * Math.PI) * 120; g.fillStyle = `rgba(126,255,190,${0.3 - i * 0.06})`; g.beginPath(); g.arc(x, y, k.r * (1 - i * 0.12), 0, 6.28); g.fill(); }
@@ -879,6 +1002,27 @@
     g.fillStyle = '#fff'; g.beginPath(); g.arc(-3, -2, 2.5, 0, 6.28); g.arc(3, -2, 2.5, 0, 6.28); g.fill(); g.fillStyle = '#1b1830'; g.beginPath(); g.arc(-2.5, -2, 1.2, 0, 6.28); g.arc(3.5, -2, 1.2, 0, 6.28); g.fill();
     g.restore();
   }
+  function drawOwl(g, O, t) {
+    const dive = O.st === 'dive', fl = Math.sin(t * (dive ? 10 : 22)) * (O.st === 'perch' ? 0.25 : 1);
+    g.save(); g.translate(O.x, O.y); g.scale(O.dir || -1, 1); if (dive) g.rotate(0.5);
+    g.fillStyle = '#8d6e4f'; for (const sd of [-1, 1]) { g.save(); g.scale(sd, 1); g.rotate(-0.3 - fl * 0.5); g.beginPath(); g.ellipse(12, -2, 13, 6, -0.4, 0, 6.28); g.fill(); g.restore(); }
+    const bg = g.createRadialGradient(-3, -5, 1, 0, 0, 15); bg.addColorStop(0, '#d4a373'); bg.addColorStop(1, '#8d6e4f'); g.fillStyle = bg; g.beginPath(); g.ellipse(0, 0, 11, 14, 0, 0, 6.28); g.fill();
+    g.fillStyle = '#f1e3c8'; g.beginPath(); g.ellipse(0, 5, 6, 7, 0, 0, 6.28); g.fill();
+    g.fillStyle = '#8d6e4f'; g.beginPath(); g.moveTo(-9, -10); g.lineTo(-7, -18); g.lineTo(-3, -11); g.moveTo(9, -10); g.lineTo(7, -18); g.lineTo(3, -11); g.fill();
+    for (const sd of [-1, 1]) { g.fillStyle = '#fff'; g.beginPath(); g.arc(sd * 4.5, -6, 4.2, 0, 6.28); g.fill(); g.fillStyle = '#ff9f1c'; g.beginPath(); g.arc(sd * 4.5 + 0.8, -6, 2.4, 0, 6.28); g.fill(); g.fillStyle = '#1b1830'; g.beginPath(); g.arc(sd * 4.5 + 1, -6, 1.2, 0, 6.28); g.fill(); }
+    g.fillStyle = '#ffd166'; g.beginPath(); g.moveTo(-2, -2); g.lineTo(2, -2); g.lineTo(0, 2); g.fill();
+    g.restore();
+  }
+  function drawShrine(g, x, y, t, a) {
+    g.save(); g.globalAlpha *= a;
+    const gl = g.createRadialGradient(x, y - 40, 4, x, y - 40, 90); gl.addColorStop(0, 'rgba(255,209,102,.45)'); gl.addColorStop(0.5, 'rgba(179,136,235,.2)'); gl.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = gl; g.beginPath(); g.arc(x, y - 40, 90, 0, 6.28); g.fill();
+    if (!spr(g, 'obj-shrine', x, y + 14, 140, null, { anchor: 'bottom' })) {
+      g.fillStyle = '#6c757d'; rr(g, x - 26, y - 30, 52, 40, 4); g.fill(); g.fillStyle = '#495057'; g.fillRect(x - 34, y + 4, 68, 8); g.fillStyle = '#5c8d4f'; g.fillRect(x - 26, y - 30, 52, 5);
+      const bob = Math.sin(t * 3) * 4; g.fillStyle = '#ffd166'; g.beginPath(); g.moveTo(x, y - 76 + bob); g.lineTo(x + 11, y - 56 + bob); g.lineTo(x, y - 38 + bob); g.lineTo(x - 11, y - 56 + bob); g.closePath(); g.fill();
+      g.fillStyle = '#fff3b0'; g.beginPath(); g.moveTo(x, y - 76 + bob); g.lineTo(x + 5, y - 56 + bob); g.lineTo(x, y - 46 + bob); g.lineTo(x - 5, y - 56 + bob); g.closePath(); g.fill();
+    }
+    g.restore();
+  }
   function drawMinion(g, m, t) {
     const pop = Math.min(1, (t - m.born) * 5), r = m.r * pop, fl = Math.sin(t * 20 + m.a) * 0.5;
     g.save(); g.translate(m.x, m.y);
@@ -898,7 +1042,14 @@
     const T = M.type, c = white ? '#fff' : T.c, d = white ? '#eee' : T.d;
     const lx = inp ? Math.max(-1, Math.min(1, (inp.x - x) / 150)) : 0, ly = inp ? Math.max(-1, Math.min(1, (inp.y - y) / 200)) : 0;
     const blink = (t + (M.f || 0) * 0.7) % 3.7 < 0.12;
-    if (M.boss) drawLich(g, M, r, c, d, white, t, lx, ly);
+    if (M.elite) { // elite aura: a pulsing ring in the elite's colour behind the body
+      const ea = 0.35 + 0.2 * Math.sin(t * 6), eg = g.createRadialGradient(0, 0, r * 0.6, 0, 0, r * 1.5); eg.addColorStop(0, `rgba(0,0,0,0)`); eg.addColorStop(0.7, M.elite.c); eg.addColorStop(1, 'rgba(0,0,0,0)');
+      g.globalAlpha *= ea; g.fillStyle = eg; g.beginPath(); g.arc(0, 0, r * 1.5, 0, 6.28); g.fill(); g.globalAlpha /= ea;
+    }
+    if (M.boss) { if (!sprFlash(g, 'boss-lich', 0, -r * 0.05, r * 2.7, white ? 1 : M.flash * 0.6)) drawLich(g, M, r, c, d, white, t, lx, ly); else if (M.p2) { const op = g.globalCompositeOperation; g.globalCompositeOperation = 'lighter'; const pa = 0.12 + 0.1 * Math.sin(t * 6); g.fillStyle = `rgba(126,255,190,${pa})`; g.beginPath(); g.arc(0, 0, r * 1.2, 0, 6.28); g.fill(); g.globalCompositeOperation = op; } }
+    else if (T.art && sprFlash(g, T.art, 0, -r * 0.08, r * 2.35, white ? 1 : M.flash * 0.6)) {
+      if (T.helm && T.skull) { g.fillStyle = white ? '#fff' : '#8d99ae'; g.strokeStyle = '#1b1830'; g.lineWidth = 3; g.beginPath(); g.arc(r * 0.08, -r * 0.42, r * 0.5, Math.PI * 1.05, Math.PI * 1.95); g.closePath(); g.fill(); g.stroke(); g.fillStyle = white ? '#fff' : '#ff5d73'; g.fillRect(r * 0.02, -r * 1.12, r * 0.12, r * 0.28); } // Bone Knight: the skeleton art with a helm
+    }
     else {
       if (T.horns) { g.fillStyle = white ? '#fff' : '#f1e3c8'; for (const sd of [-1, 1]) { g.beginPath(); g.moveTo(sd * r * 0.35, -r * 0.75); g.quadraticCurveTo(sd * r * 0.9, -r * 1.3, sd * r * 0.8, -r * 1.45); g.quadraticCurveTo(sd * r * 0.65, -r * 1.05, sd * r * 0.6, -r * 0.6); g.fill(); } }
       if (T.ears) { g.fillStyle = c; for (const sd of [-1, 1]) { g.beginPath(); g.moveTo(sd * r * 0.7, -r * 0.3); g.lineTo(sd * r * 1.35, -r * 0.7); g.lineTo(sd * r * 0.8, r * 0.05); g.fill(); } }
@@ -1046,9 +1197,9 @@
     const s = { dmg: 3, swing: 0.32, crit: 0.04, critMul: 2.5, magnet: 40, life: 3.6, value: 1, extra: 0, gem: 0.005, gemKill: 0.12, st: 7, drain: 1, refill: 1.5,
       skip: 0, fire: 0, burn: 0.6, chain: 0, storm: 0, rage: 0, blast: 0, chargeT: 1.2, chargeCap: 1, blastFire: 0, stackCrit: 0, stackMul: 0, pick: 0, cry: 0,
       comboDmg: 0, comboWin: 0.7, comboCap: 20, smash: 0, whirl: 0, eye: 0, eyeR: 22, eyeMul: 1.4, eyeMove: 1.8, sunder: 0, eyeGem: 0,
-      chest: 0.12, chestLoot: 1, gob: 0.06, gobNeed: 5, midas: 0, broom: 0, vacuum: 0, boots: 0, flask: 0, regen: 1, cavDmg: 0, ghost: 0,
+      chest: 0.12, chestLoot: 1, gob: 0.06, gobNeed: 5, midas: 0, mimicHunt: 0, broom: 0, owl: 0, vacuum: 0, boots: 0, flask: 0, regen: 1, cavDmg: 0, ghost: 0,
       beat: 0, beatWin: 0.07, perfMul: 4.2, encore: 0 };
-    if (who === 'berserker') { s.swing = 0.25; s.rage = 1; }
+    if (who === 'berserker') { s.swing = 0.25; s.rage = 1.5; }
     if (who === 'battlemage') { s.dmg = 2.6; s.swing = 0.36; s.blast = 14; s.chargeT = 1.0; }
     if (who === 'rogue') { s.dmg = 2.4; s.crit = 0.18; s.stackCrit = 0.06; s.stackMul = 0.4; }
     if (who === 'bard') { s.dmg = 2.6; s.swing = 0.3; s.beat = 0.4; }
@@ -1062,7 +1213,7 @@
     { id: 'bard', name: 'Wren the Bard', blurb: 'Tap on the beat for perfect hits. Keep the song going for an Encore.', unlock: 3 },
   ];
   if (typeof module !== 'undefined' && typeof window === 'undefined') { module.exports = { NODES, LICH_HP, ZONES, MONS, hpFor, coinFor, gimmicks, baseStats, createRun, CHARACTERS: CHARACTERS.map((c) => c.id) }; return; }
-  window.BonkKnight = { NODES, LICH_HP, ZONES, hpFor, coinFor, gimmicks, baseStats, createRun };
+  window.BonkKnight = { NODES, LICH_HP, ZONES, ELITES, hpFor, coinFor, gimmicks, baseStats, createRun };
   Kit.game({
     id: 'bonk-knight', title: 'Bonk Knight', tagline: 'Bonk the monster on every floor of the tower, sweep up the loot it spills, and climb until you run out of breath.',
     howTo: 'Tap or hold on the monster to bonk it. Swipe over coins on the floor before they fade. Treasure chests and golden goblins pay big; watch out for mimics. Spend coins on the upgrade map between climbs.',

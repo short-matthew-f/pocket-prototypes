@@ -7,54 +7,64 @@
   const BOSS_HP = 9000, BOSS_AT = 40, STORM_AT = 58, LEAD = 1.1;
   const CAP = { enemies: 70, bullets: 160, orbs: 110, parts: 280, ebullets: 110 };
   const HAS_DOM = typeof document !== 'undefined' && typeof window !== 'undefined';
+  // optional raster art (assets/SPEC.md): SPR(...) draws it and returns true, or returns false so the vector look draws instead
+  let SPR = (HAS_DOM && typeof Kit !== 'undefined' && Kit.sprite) || (() => false);
+  const HALF = Math.PI / 2;
+  // a sprite plus its hit flash: the same image again in 'lighter' mode reads as a white-hot blink on the art's own shape
+  function art(g, name, x, y, w, h, o, flash) {
+    o = o || {}; h = h || undefined;
+    if (!SPR(g, name, x, y, w, h, o)) return false;
+    if (flash) { const op = g.globalCompositeOperation; g.globalCompositeOperation = 'lighter'; SPR(g, name, x, y, w, h, Object.assign({}, o, { alpha: 0.85 })); g.globalCompositeOperation = op; }
+    return true;
+  }
 
   // ---------------------------------------------------------------- permanent tree
   // Layout: offense to the right, salvage/utility to the left, defence below, the pilot's own line straight up to the
   // Leviathan Lure. Every node hangs off one neighbouring node so no line crosses another node.
   const NODES = [
-    { id: 'hull', name: 'Hull Plating', icon: '🛡️', desc: (l) => `+6 max hull (now +${6 * l})`, cost: 7, grow: 1.5, max: 10, req: [], x: 0, y: 0, fx: (s, l) => { s.hull += 6 * l; } },
+    { id: 'hull', name: 'Hull Plating', icon: '🛡️', desc: (l) => `+6 max hull (now +${6 * l})`, cost: 13, grow: 1.5, max: 10, req: [], x: 0, y: 0, fx: (s, l) => { s.hull += 6 * l; } },
     // offense (right)
-    { id: 'dmg', name: 'Hot Barrels', icon: '🔥', desc: (l) => `+20% damage, all weapons (now x${(1.2 ** l).toFixed(2)})`, cost: 10, grow: 1.6, max: 10, req: ['hull'], x: 1, y: 0, fx: (s, l) => { s.dmg *= 1.2 ** l; } },
-    { id: 'rate', name: 'Coolant', icon: '❄️', desc: '+12% fire rate (Wrecker: ball spin)', cost: 24, grow: 1.65, max: 8, req: ['dmg'], x: 2, y: 0, fx: (s, l) => { s.rate *= 1.12 ** l; } },
+    { id: 'dmg', name: 'Hot Barrels', icon: '🔥', desc: (l) => `+20% damage, all weapons (now x${(1.2 ** l).toFixed(2)})`, cost: 18, grow: 1.6, max: 10, req: ['hull'], x: 1, y: 0, fx: (s, l) => { s.dmg *= 1.2 ** l; } },
+    { id: 'rate', name: 'Coolant', icon: '❄️', desc: '+12% fire rate (Wrecker: ball spin)', cost: 43, grow: 1.65, max: 8, req: ['dmg'], x: 2, y: 0, fx: (s, l) => { s.rate *= 1.12 ** l; } },
     { id: 'over', name: 'Overcharge', icon: '⚡', desc: '+25% damage, all weapons', cost: 3, grow: 1.8, max: 4, req: ['rate'], x: 3, y: 0, cur: 'shards', fx: (s, l) => { s.dmg *= 1.25 ** l; } },
     { id: 'over2', name: 'Overclock', icon: '🌡️', desc: '+15% fire rate and orbit speed', cost: 4, grow: 1.9, max: 3, req: ['over'], x: 4, y: 0, cur: 'shards', fx: (s, l) => { s.rate *= 1.15 ** l; s.spin *= 1.1 ** l; } },
-    { id: 'crit', name: 'Targeting', icon: '🎯', desc: (l) => `+5% chance of a x2.5 crit (now ${5 * l}%)`, cost: 60, grow: 1.75, max: 6, req: ['rate'], x: 2, y: 1, fx: (s, l) => { s.crit += 0.05 * l; } },
-    { id: 'streak', name: 'Bounty Streak', icon: '🔗', desc: 'Long kill streaks pay up to +25% more salvage', cost: 110, grow: 1.8, max: 4, req: ['crit'], x: 3, y: 1, fx: (s, l) => { s.streakPay += 0.25 * l; } },
-    { id: 'blades', name: 'Orbit Blades', icon: '🌀', desc: 'Orbit Blades can appear in level-ups', cost: 82, max: 1, req: ['dmg'], x: 1, y: -1, fx: (s) => { s.poolBlades = 1; } },
-    { id: 'wlvl', name: 'Weapon Mk', icon: '🔧', desc: 'Start each run +1 main weapon level', cost: 42, grow: 1.85, max: 5, req: ['dmg'], x: 2, y: -1, fx: (s, l) => { s.wlvl += l; } },
-    { id: 'missiles', name: 'Seeker Pods', icon: '🚀', desc: 'Homing missiles can appear in level-ups', cost: 165, max: 1, req: ['wlvl'], x: 3, y: -1, fx: (s) => { s.poolMissiles = 1; } },
-    { id: 'beam', name: 'Arc Lance', icon: '🌩️', desc: 'Chain lightning can appear in level-ups', cost: 240, max: 1, req: ['wlvl'], x: 2, y: -2, fx: (s) => { s.poolBeam = 1; } },
+    { id: 'crit', name: 'Targeting', icon: '🎯', desc: (l) => `+5% chance of a x2.5 crit (now ${5 * l}%)`, cost: 108, grow: 1.75, max: 6, req: ['rate'], x: 2, y: 1, fx: (s, l) => { s.crit += 0.05 * l; } },
+    { id: 'streak', name: 'Bounty Streak', icon: '🔗', desc: 'Long kill streaks pay up to +25% more salvage', cost: 198, grow: 1.8, max: 4, req: ['crit'], x: 3, y: 1, fx: (s, l) => { s.streakPay += 0.25 * l; } },
+    { id: 'blades', name: 'Orbit Blades', icon: '🌀', desc: 'Orbit Blades can appear in level-ups', cost: 148, max: 1, req: ['dmg'], x: 1, y: -1, fx: (s) => { s.poolBlades = 1; } },
+    { id: 'wlvl', name: 'Weapon Mk', icon: '🔧', desc: 'Start each run +1 main weapon level', cost: 76, grow: 1.85, max: 5, req: ['dmg'], x: 2, y: -1, fx: (s, l) => { s.wlvl += l; } },
+    { id: 'missiles', name: 'Seeker Pods', icon: '🚀', desc: 'Homing missiles can appear in level-ups', cost: 297, max: 1, req: ['wlvl'], x: 3, y: -1, fx: (s) => { s.poolMissiles = 1; } },
+    { id: 'beam', name: 'Arc Lance', icon: '🌩️', excl: 'arsenal', desc: 'Chain lightning joins your level-ups. Leaps through packs: shreds swarms.', cost: 432, max: 1, req: ['wlvl'], x: 2, y: -2, fx: (s) => { s.poolBeam = 1; } },
     { id: 'beamx', name: 'Capacitors', icon: '🔋', desc: 'Arc Lance hits +25% harder and jumps 1 more', cost: 3, grow: 1.9, max: 3, req: ['beam'], x: 3, y: -2, cur: 'shards', fx: (s, l) => { s.beamDmg *= 1.25 ** l; s.beamJump += l; } },
-    { id: 'evo', name: 'Evolution Lab', icon: '🧪', desc: 'Maxed weapons can evolve into stronger forms', cost: 6, grow: 1, max: 1, req: ['blades', 'beam'], x: 1, y: -3, cur: 'shards', fx: (s) => { s.evo = 1; } },
+    { id: 'evo', name: 'Evolution Lab', icon: '🧪', excl: 'lab', desc: 'Max a weapon and take its partner boost: it evolves. Huge late spikes.', cost: 6, grow: 1, max: 1, req: ['blades', 'beam'], x: 1, y: -3, cur: 'shards', fx: (s) => { s.evo = 1; } },
     // defence (below)
-    { id: 'armor', name: 'Armor', icon: '🧱', desc: (l) => `Take 8% less damage (now ${8 * l}% less)`, cost: 45, grow: 1.9, max: 5, req: ['hull'], x: 0, y: 1, fx: (s, l) => { s.armor += 0.08 * l; } },
-    { id: 'nova', name: 'Nova Core', icon: '💫', desc: 'Shockwave pulses can appear in level-ups', cost: 120, max: 1, req: ['armor'], x: 0, y: 2, fx: (s) => { s.poolNova = 1; } },
-    { id: 'regen', name: 'Nanites', icon: '🧬', desc: 'Hull repairs 0.2 per second', cost: 3, grow: 1.8, max: 3, req: ['armor'], x: 1, y: 1, cur: 'shards', fx: (s, l) => { s.regen += 0.2 * l; } },
+    { id: 'armor', name: 'Armor', icon: '🧱', desc: (l) => `Take 8% less damage (now ${8 * l}% less)`, cost: 81, grow: 1.9, max: 5, req: ['hull'], x: 0, y: 1, fx: (s, l) => { s.armor += 0.08 * l; } },
+    { id: 'nova', name: 'Nova Core', icon: '💫', desc: 'Shockwave pulses can appear in level-ups', cost: 216, max: 1, req: ['armor'], x: 0, y: 2, fx: (s) => { s.poolNova = 1; } },
+    { id: 'regen', name: 'Nanites', icon: '🧬', excl: 'guard', desc: (l) => `Hull repairs ${(0.2 * (l + 1)).toFixed(1)}/s${l ? '' : '; opens Heavy Frame'}. Wins long fights.`, cost: 3, grow: 1.8, max: 3, req: ['armor'], x: 1, y: 1, cur: 'shards', fx: (s, l) => { s.regen += 0.2 * l; } },
     { id: 'hull2', name: 'Heavy Frame', icon: '🏗️', desc: '+15 max hull', cost: 3, grow: 1.9, max: 3, req: ['regen'], x: 1, y: 2, cur: 'shards', fx: (s, l) => { s.hull += 15 * l; } },
     { id: 'crate', name: 'Prep Crate', icon: '🎁', desc: 'Start each run with a free level-up', cost: 4, grow: 2.2, max: 2, req: ['armor'], x: -1, y: 1, cur: 'shards', fx: (s, l) => { s.headStart += l; } },
-    { id: 'shield', name: 'Deflector', icon: '🔰', desc: (l) => `Blocks one hit, recharging every ${14 - 2 * l}s${l ? ` (now ${16 - 2 * l}s)` : ''}`, cost: 140, grow: 1.9, max: 4, req: ['armor'], x: -1, y: 2, fx: (s, l) => { s.shield = 16 - 2 * l; } },
+    { id: 'shield', name: 'Deflector', icon: '🔰', excl: 'guard', desc: (l) => `A bubble blocks a hit, back every ${14 - 2 * l}s${l ? ` (now ${16 - 2 * l}s)` : ''}. Dive in for loot.`, cost: 252, grow: 1.9, max: 4, req: ['armor'], x: -1, y: 2, fx: (s, l) => { s.shield = 16 - 2 * l; } },
     // salvage + mobility (left)
-    { id: 'magnet', name: 'Tractor Beam', icon: '🧲', desc: (l) => `+30% magnet range (now +${30 * l}%)`, cost: 8, grow: 1.6, max: 6, req: ['hull'], x: -1, y: 0, fx: (s, l) => { s.magnet *= 1 + 0.3 * l; } },
-    { id: 'speed', name: 'Thrusters', icon: '💨', desc: (l) => `+8% flight speed (now +${Math.round((1.08 ** l - 1) * 100)}%)`, cost: 18, grow: 1.6, max: 5, req: ['magnet'], x: -2, y: 0, fx: (s, l) => { s.speed *= 1.08 ** l; } },
-    { id: 'wing', name: 'Wingmen', icon: '🛩️', desc: 'Escort fighters can appear in level-ups', cost: 220, max: 1, req: ['speed'], x: -3, y: 0, fx: (s) => { s.poolWing = 1; } },
+    { id: 'magnet', name: 'Tractor Beam', icon: '🧲', desc: (l) => `+30% magnet range (now +${30 * l}%)`, cost: 14, grow: 1.6, max: 6, req: ['hull'], x: -1, y: 0, fx: (s, l) => { s.magnet *= 1 + 0.3 * l; } },
+    { id: 'speed', name: 'Thrusters', icon: '💨', desc: (l) => `+8% flight speed (now +${Math.round((1.08 ** l - 1) * 100)}%)`, cost: 32, grow: 1.6, max: 5, req: ['magnet'], x: -2, y: 0, fx: (s, l) => { s.speed *= 1.08 ** l; } },
+    { id: 'wing', name: 'Wingmen', icon: '🛩️', excl: 'arsenal', desc: 'Escort fighters join your level-ups. Extra guns on your tail: melt big targets.', cost: 396, max: 1, req: ['speed'], x: -3, y: 0, fx: (s) => { s.poolWing = 1; } },
     { id: 'wingx', name: 'Flight Deck', icon: '🛫', desc: 'Start with 1 wingman; wingmen fire 20% faster', cost: 4, grow: 2, max: 3, req: ['wing'], x: -4, y: 0, cur: 'shards', fx: (s, l) => { s.wingStart = 1; s.wingRate *= 1.2 ** l; } },
-    { id: 'scan', name: 'Wreck Scanner', icon: '📡', desc: 'Derelict wrecks show up 25% more often', cost: 55, grow: 1.8, max: 4, req: ['magnet'], x: -2, y: 1, fx: (s, l) => { s.wrecks *= 1 + 0.25 * l; } },
-    { id: 'salv', name: 'Scrap Haulers', icon: '📦', desc: (l) => `+25% salvage banked (now +${25 * l}%)`, cost: 27, grow: 1.85, max: 8, req: ['magnet'], x: -1, y: -1, fx: (s, l) => { s.value *= 1 + 0.25 * l; } },
+    { id: 'scan', name: 'Wreck Scanner', icon: '📡', desc: 'Derelict wrecks show up 25% more often', cost: 99, grow: 1.8, max: 4, req: ['magnet'], x: -2, y: 1, fx: (s, l) => { s.wrecks *= 1 + 0.25 * l; } },
+    { id: 'salv', name: 'Scrap Haulers', icon: '📦', desc: (l) => `+25% salvage banked (now +${25 * l}%)`, cost: 49, grow: 1.85, max: 8, req: ['magnet'], x: -1, y: -1, fx: (s, l) => { s.value *= 1 + 0.25 * l; } },
     { id: 'lens', name: 'Void Lens', icon: '🔮', desc: '+40% void shard drops', cost: 2, grow: 1.9, max: 4, req: ['salv'], x: -2, y: -1, cur: 'shards', fx: (s, l) => { s.shardLuck *= 1 + 0.4 * l; } },
-    { id: 'bounty', name: 'Elite Bounty', icon: '💰', desc: 'Elites drop 50% more salvage', cost: 90, grow: 1.8, max: 4, req: ['lens'], x: -3, y: -1, fx: (s, l) => { s.bounty += 0.5 * l; } },
+    { id: 'bounty', name: 'Elite Bounty', icon: '💰', desc: 'Elites drop 50% more salvage', cost: 162, grow: 1.8, max: 4, req: ['lens'], x: -3, y: -1, fx: (s, l) => { s.bounty += 0.5 * l; } },
     { id: 'salvx', name: 'Haggler', icon: '🤝', desc: '+20% salvage banked', cost: 4, grow: 1.9, max: 3, req: ['lens'], x: -2, y: -2, cur: 'shards', fx: (s, l) => { s.value *= 1 + 0.2 * l; } },
-    { id: 'xp', name: 'Data Core', icon: '💾', desc: 'Level-ups need 8% less salvage', cost: 50, grow: 1.8, max: 5, req: ['salv'], x: -1, y: -2, fx: (s, l) => { s.xpMul *= 0.92 ** l; } },
-    { id: 'choice', name: 'Wide Scanner', icon: '🃏', desc: 'Level-ups offer 4 boosts instead of 3', cost: 320, max: 1, req: ['xp'], x: -1, y: -3, fx: (s) => { s.choices = 4; } },
+    { id: 'xp', name: 'Data Core', icon: '💾', desc: 'Level-ups need 8% less salvage', cost: 90, grow: 1.8, max: 5, req: ['salv'], x: -1, y: -2, fx: (s, l) => { s.xpMul *= 0.92 ** l; } },
+    { id: 'choice', name: 'Wide Scanner', icon: '🃏', excl: 'lab', desc: 'Level-ups offer 4 boosts instead of 3 and come 10% sooner.', cost: 576, max: 1, req: ['xp'], x: -1, y: -3, fx: (s) => { s.choices = 4; s.xpMul *= 0.9; } },
     // the pilot's own line (straight up)
-    { id: 'waspsp', who: 'wasp', name: 'Stinger Rounds', icon: '🐝', desc: 'Pulse bolts pierce +1 and fire 8% faster', cost: 52, grow: 1.9, max: 5, req: ['hull'], x: 0, y: -1, fx: (s, l) => { s.pierce += l; s.rate *= 1.08 ** l; } },
-    { id: 'wasp2', who: 'wasp', name: 'Afterburner', icon: '☄️', desc: 'Flying fast leaves a burning trail', cost: 150, grow: 1.9, max: 4, req: ['waspsp'], x: 0, y: -2, fx: (s, l) => { s.trail += l; } },
-    { id: 'bulsp', who: 'bulwark', name: 'Reactive Plating', icon: '🪖', desc: 'Getting hit blasts flak all around; +4 hull', cost: 52, grow: 1.9, max: 5, req: ['hull'], x: 0, y: -1, fx: (s, l) => { s.reactive += l; s.hull += 4 * l; } },
-    { id: 'bul2', who: 'bulwark', name: 'Ram Prow', icon: '🐏', desc: 'Ramming hits 2x harder, hurts you 15% less', cost: 150, grow: 1.9, max: 4, req: ['bulsp'], x: 0, y: -2, fx: (s, l) => { s.ram += l; } },
-    { id: 'phasp', who: 'phantom', name: 'Phase Rift', icon: '👻', desc: 'Blink recharges 15% faster, leaves a damaging rift', cost: 52, grow: 1.9, max: 5, req: ['hull'], x: 0, y: -1, fx: (s, l) => { s.blinkCD *= 0.85 ** l; s.rift += l; } },
-    { id: 'pha2', who: 'phantom', name: 'Echo Volley', icon: '🔦', desc: 'Blinking fires lasers at +1 nearby target', cost: 150, grow: 1.9, max: 4, req: ['phasp'], x: 0, y: -2, fx: (s, l) => { s.echo += l; } },
-    { id: 'wrksp', who: 'wrecker', name: 'Heavy Ball', icon: '⚫', desc: '+25% ball damage and a bigger ball', cost: 52, grow: 1.9, max: 5, req: ['hull'], x: 0, y: -1, fx: (s, l) => { s.ballDmg *= 1.25 ** l; s.ballR += 2 * l; } },
-    { id: 'wrk2', who: 'wrecker', name: 'Spiked Chain', icon: '⛓️', desc: 'The chain itself shreds what it sweeps', cost: 150, grow: 1.9, max: 4, req: ['wrksp'], x: 0, y: -2, fx: (s, l) => { s.chainDmg += l; } },
-    { id: 'lure', name: 'Leviathan Lure', icon: '🐉', desc: `Next run the Void Leviathan comes at ${BOSS_AT}s. Kill it to win.`, cost: 4000, grow: 1, max: 1, req: ['evo', 'choice'], reqAll: 1, extra: { shards: 12 }, x: 0, y: -4, win: true },
+    { id: 'waspsp', who: 'wasp', name: 'Stinger Rounds', icon: '🐝', desc: 'Pulse bolts pierce +1 and fire 8% faster', cost: 94, grow: 1.9, max: 5, req: ['hull'], x: 0, y: -1, fx: (s, l) => { s.pierce += l; s.rate *= 1.08 ** l; } },
+    { id: 'wasp2', who: 'wasp', name: 'Afterburner', icon: '☄️', desc: 'Flying fast leaves a burning trail', cost: 270, grow: 1.9, max: 4, req: ['waspsp'], x: 0, y: -2, fx: (s, l) => { s.trail += l; } },
+    { id: 'bulsp', who: 'bulwark', name: 'Reactive Plating', icon: '🪖', desc: 'Getting hit blasts flak all around; +4 hull', cost: 94, grow: 1.9, max: 5, req: ['hull'], x: 0, y: -1, fx: (s, l) => { s.reactive += l; s.hull += 4 * l; } },
+    { id: 'bul2', who: 'bulwark', name: 'Ram Prow', icon: '🐏', desc: 'Ramming hits 2x harder, hurts you 15% less', cost: 270, grow: 1.9, max: 4, req: ['bulsp'], x: 0, y: -2, fx: (s, l) => { s.ram += l; } },
+    { id: 'phasp', who: 'phantom', name: 'Phase Rift', icon: '👻', desc: 'Blink recharges 15% faster, leaves a damaging rift', cost: 94, grow: 1.9, max: 5, req: ['hull'], x: 0, y: -1, fx: (s, l) => { s.blinkCD *= 0.85 ** l; s.rift += l; } },
+    { id: 'pha2', who: 'phantom', name: 'Echo Volley', icon: '🔦', desc: 'Blinking fires lasers at +1 nearby target', cost: 270, grow: 1.9, max: 4, req: ['phasp'], x: 0, y: -2, fx: (s, l) => { s.echo += l; } },
+    { id: 'wrksp', who: 'wrecker', name: 'Heavy Ball', icon: '⚫', desc: '+25% ball damage and a bigger ball', cost: 94, grow: 1.9, max: 5, req: ['hull'], x: 0, y: -1, fx: (s, l) => { s.ballDmg *= 1.25 ** l; s.ballR += 2 * l; } },
+    { id: 'wrk2', who: 'wrecker', name: 'Spiked Chain', icon: '⛓️', desc: 'The chain itself shreds what it sweeps', cost: 270, grow: 1.9, max: 4, req: ['wrksp'], x: 0, y: -2, fx: (s, l) => { s.chainDmg += l; } },
+    { id: 'lure', name: 'Leviathan Lure', icon: '🐉', desc: `Next run the Void Leviathan comes at ${BOSS_AT}s. Kill it to win.`, cost: 5600, grow: 1, max: 1, req: ['evo', 'choice'], reqAll: 1, extra: { shards: 12 }, x: 0, y: -4, win: true },
   ];
 
   // ---------------------------------------------------------------- in-run level-up picks (shown with env.pick)
@@ -90,10 +100,26 @@
   const CAUSE = { rock: 'Smashed by an asteroid', crystal: 'Smashed by a crystal', drone: 'Swarmed by drones', hunter: 'Torn apart by a hunter', lancer: 'Skewered by a lancer',
     wreck: 'Crushed by a wreck', boss: 'Devoured by the Leviathan', spit: 'Shot down by the Leviathan', well: 'Swallowed by a gravity well', storm: 'Lost in the void storm', brood: 'Swarmed by the brood' };
 
+  // ---------------------------------------------------------------- sectors: from run 3 every launch rolls one twist
+  const SECTORS = [
+    { id: 'belt', name: 'Dense Belt', sub: 'Extra rocks everywhere. Salvage +20%.', rock: 0.6, value: 1.2 },
+    { id: 'nest', name: 'Drone Nest', sub: 'Drones swarm thicker, and drop double.', drone: 1.6, droneVal: 2 },
+    { id: 'crystal', name: 'Crystal Rain', sub: 'Void crystals (shards!) are 5x as common.', crystal: 5 },
+    { id: 'grave', name: 'Ship Graveyard', sub: 'Wrecks drift by twice as often.', wreck: 2 },
+    { id: 'calm', name: 'Quiet Drift', sub: 'Fewer foes. Elites pay double.', spawn: 0.8, bounty: 2 },
+    { id: 'ion', name: 'Ion Front', sub: 'The void storm hits 10s early. Salvage +40%.', storm: -10, value: 1.4, noBoss: true },
+  ];
+  // what each early run introduces (shown once, at the point it starts happening)
+  const NEWS = { 2: 'NEW: derelict wrecks. Crack one open for a jackpot.', 3: 'NEW: sectors. Every launch rolls a twist.', 4: 'NEW: overload beacons. Fly through one for double salvage.', 5: 'NEW: golden wrecks. Rare, and worth triple.' };
+  const costOf = (n, lv) => Math.ceil(n.cost * (n.grow || 1.6) ** lv);
+
   // ---------------------------------------------------------------- the run
   function createRun(env) {
     const s = Object.assign({}, env.stats), W = env.W, H = env.H, fx = env.fx, sfx = env.sfx, runNo = env.runNo || 1;
+    if (env.sprite) SPR = env.sprite;
     const who = env.who, SY = H * 0.4; // ship sits 40% down the screen: above the thumb
+    const pool = SECTORS.filter((x) => !(env.boss && x.noBoss)), sec = runNo < 3 ? {} : runNo === 3 ? SECTORS[2] : pool[Math.floor(rnd() * pool.length)];
+    s.value *= sec.value || 1; s.wrecks *= sec.wreck || 1; s.bounty *= sec.bounty || 1;
     const R = {
       s, t: 0, lead: LEAD, over: false, won: false, quit: false, hp: s.hull, ship: { x: 0, y: 0, vx: 0, vy: 0, a: -Math.PI / 2 }, inv: 0,
       wp: { main: s.wlvl, blades: 0, missiles: 0, nova: 0, beam: 0, wing: s.wingStart, balls: 1 }, evo: {}, took: {}, cd: { main: 0.3, missiles: 1, nova: 2, beam: 1, wing: 0.5 },
@@ -101,13 +127,14 @@
       xp: 0, need: Math.round(7 * s.xpMul), picks: 0, pending: s.headStart, picking: false,
       spawnT: 0.4, ringT: 7, eliteT: 0, wreckT: 9 / s.wrecks, wellT: 0, anchor: null, wasDown: false, blinkT: 0, blinks: 0, hurtT: -9, ending: 0, endT: 0, boss: null, warned: false, steered: false,
       bladeA: 0, flailA: 0, novaFx: [], shotSnd: 0, in: null, freeze: 0, streak: 0, streakT: 0, bestStreak: 0, popT: 0, banner: null, shieldUp: !!s.shield, shieldT: 0, cause: '', trailT: 0,
-      balls: [], evt: 0, evtN: 0,
+      balls: [], evt: 0, evtN: 0, sec, stormAt: STORM_AT + (sec.storm || 0), beacon: null, beaconT: runNo >= 4 && !env.boss ? 15 : Infinity, over2: 0, lowWarned: false,
     };
+    if (runNo < 2) R.wreckT = Infinity; // run 1 keeps it simple: wrecks arrive from run 2
     const ELITE_AT = Math.max(13, 22 - runNo * 0.3), LANCER_AT = Math.max(20, 30 - runNo * 0.3), WELL_AT = Math.max(30, 44 - runNo * 0.4);
     R.eliteT = ELITE_AT; R.wellT = WELL_AT;
     const view = Math.hypot(W / 2, H * 0.6) + 40;
     const ship = R.ship;
-    const storm = () => Math.max(0, (R.t - STORM_AT) / 5) ** 2, hpMul = () => (1 + R.t / 24 + (R.t / 38) ** 2) * (1 + storm()), dmgMul = () => 1 + R.t / 30 + storm(); // past STORM_AT the void storm turns lethal
+    const storm = () => Math.max(0, (R.t - R.stormAt) / 5) ** 2, hpMul = () => (1 + R.t / 24 + (R.t / 38) ** 2) * (1 + storm()), dmgMul = () => 1 + R.t / 30 + storm(); // past STORM_AT the void storm turns lethal
 
     // ---- spawning
     function spawn(kind, x, y, size) {
@@ -127,10 +154,10 @@
         e.vx = Math.cos(a) * v; e.vy = Math.sin(a) * v;
         for (let i = 0; i < 9; i++) e.shape.push(0.75 + rnd() * 0.3);
         e.craters = [[-0.3, -0.2, 0.22], [0.3, 0.25, 0.14], [0.1, -0.45, 0.1]];
-      } else if (kind === 'drone') Object.assign(e, { r: 12, hp: 3 * m, val: 2, dmg: 7, sp: 100 * (1 + R.t / 80) * (1 + storm() * 0.15) });
+      } else if (kind === 'drone') Object.assign(e, { r: 12, hp: 3 * m, val: 2 * (sec.droneVal || 1), dmg: 7, sp: 100 * (1 + R.t / 80) * (1 + storm() * 0.15) });
       else if (kind === 'lancer') Object.assign(e, { r: 15, hp: 9 * m, val: 4, dmg: 13, sp: 70, mode: 'near', modeT: 0, dashA: 0 });
       else if (kind === 'wreck') {
-        const gold = rnd() < 0.1;
+        const gold = runNo >= 5 && (rnd() < 0.1 || (runNo === 5 && !R.goldSeen)); if (gold) R.goldSeen = true; // run 5's first wreck is golden, as announced
         Object.assign(e, { r: 30, hp: 14 * Math.sqrt(m), val: 0, dmg: 4, gold, spin: (rnd() - 0.5) * 0.3 });
         const a = rnd() * TAU; e.vx = Math.cos(a) * 18; e.vy = Math.sin(a) * 18;
       } else Object.assign(e, { r: 19, hp: 22 * m, val: 6, dmg: 12, sp: 74 * (1 + R.t / 130) });
@@ -139,15 +166,16 @@
     function makeElite(e) {
       if (!e) return;
       e.elite = true; e.hp *= 6; e.max = e.hp; e.r *= 1.35; e.val *= 5; e.dmg *= 1.3; if (e.sp) e.sp *= 0.9;
-      sfx.tone(520, 0.25, 'triangle', 0.06, 1.5);
+      sfx.play('alarm', 0.6) || sfx.tone(520, 0.25, 'triangle', 0.06, 1.5);
     }
     function spawnWave() {
       const t = R.t, r = rnd();
-      const pDrone = Math.min(0.5, t < 4 ? 0 : 0.16 + t / 120), pHunter = t < 22 ? 0 : Math.min(0.14, (t - 22) / 300), pLancer = t < LANCER_AT ? 0 : Math.min(0.12, 0.04 + (t - LANCER_AT) / 250);
+      if (sec.rock && rnd() < sec.rock) spawn('rock');
+      const pDrone = Math.min(0.5, t < 4 ? 0 : 0.16 + t / 120) * (sec.drone || 1), pHunter = t < 22 ? 0 : Math.min(0.14, (t - 22) / 300), pLancer = t < LANCER_AT ? 0 : Math.min(0.12, 0.04 + (t - LANCER_AT) / 250);
       if (r < pHunter) spawn('hunter');
       else if (r < pHunter + pLancer) spawn('lancer');
       else if (r < pHunter + pLancer + pDrone) { const n = t > 30 && rnd() < 0.35 ? 3 : 1, a = rnd() * TAU; for (let i = 0; i < n; i++) spawn('drone', ship.x + Math.cos(a + i * 0.12) * view, ship.y + Math.sin(a + i * 0.12) * view); }
-      else spawn(rnd() < 0.025 * s.shardLuck ? 'crystal' : 'rock');
+      else spawn(rnd() < 0.025 * s.shardLuck * (sec.crystal || 1) ? 'crystal' : 'rock');
     }
     for (let i = 0; i < 7; i++) { const a = rnd() * TAU, d = 200 + rnd() * 160; const e = spawn('rock', Math.cos(a) * d, Math.sin(a) * d, 1 + (i % 2)); if (e) { e.vx *= 0.5; e.vy *= 0.5; } }
 
@@ -158,7 +186,7 @@
       const segs = []; for (let i = 0; i < 16; i++) segs.push({ x: x + Math.cos(a) * i * 24, y: y + Math.sin(a) * i * 24, r: i === 0 ? 30 : Math.max(11, 26 - i * 0.9), seg: true, bladeCD: 0, ballCD: 0, chainCD: 0, trailCD: 0 });
       R.boss = { hp: BOSS_HP, max: BOSS_HP, bladeCD: 0, ballCD: 0, chainCD: 0, trailCD: 0, evt: -1, a: a + Math.PI, segs, fireT: 3, flash: 0, phase: 1, mode: 'swim', modeT: 0, spiralA: 0, spitT: 0, dashA: 0 };
       sfx.boom(); fx.shake = 12; R.freeze = 0.25;
-      sting([110, 131, 98, 82, 55], 'sawtooth', 0.08, 0.2); sfx.tone(41, 1.6, 'sine', 0.16, 1, 0.9);
+      if (!sfx.play('roar', 1)) { sting([110, 131, 98, 82, 55], 'sawtooth', 0.08, 0.2); sfx.tone(41, 1.6, 'sine', 0.16, 1, 0.9); }
       banner('VOID LEVIATHAN', 'It has your scent. Keep moving.', '#f72585', 2.8);
     }
 
@@ -178,6 +206,7 @@
         if (R.evt && B.evt === R.evt) return; B.evt = R.evt; // one hit per blast/beam, not one per segment
         B.hp -= d; B.flash = 0.08;
         if (B.phase === 1 && B.hp < B.max / 2) frenzy();
+        if (R.t - (B.popT || 0) > 0.25 && d >= 6) { B.popT = R.t; fx.text(e.x, e.y - e.r - 4, String(Math.round(d)), '#ffd6e8', 13); } // boss damage numbers
         if (B.hp <= 0) killBoss(); return;
       }
       if (e.dead) return;
@@ -221,7 +250,7 @@
     function frenzy() {
       const B = R.boss; B.phase = 2; B.mode = 'aim'; B.modeT = 1.1;
       R.freeze = 0.3; fx.shake = 16; sfx.boom();
-      sting([196, 185, 175, 165, 147, 98], 'square', 0.06, 0.09);
+      if (!sfx.play('roar', 1, 1.25)) sting([196, 185, 175, 165, 147, 98], 'square', 0.06, 0.09);
       banner('FRENZY!', 'It sheds its tail and charges. Watch the red line.', '#ff4d6d', 2.6);
       const shed = B.segs.splice(10); // the tail breaks off into brood
       for (const g of shed) { burst(g.x, g.y, 10, ['#72efdd', '#f72585', '#fff'], 200, 3); const d = spawn('drone', g.x, g.y); if (d) { d.brood = true; d.sp *= 1.15; } }
@@ -267,7 +296,7 @@
         const kind = s.weapon, base = Math.atan2(tgt.y - ship.y, tgt.x - ship.x), n = 1 + s.spread;
         if (kind === 'pulse') {
           R.cd.main = 0.48 / (s.rate * lvRate());
-          for (let i = 0; i < n; i++) fire(ship.x, ship.y, base + (i - (n - 1) / 2) * 0.16, 560, 0.62, 1.5 * D, 'pulse', s.pierce);
+          for (let i = 0; i < n; i++) fire(ship.x, ship.y, base + (i - (n - 1) / 2) * 0.16, 560, 0.62, 1.65 * D, 'pulse', s.pierce);
           snd(660 + rnd() * 80, 'square');
         } else if (kind === 'flak') {
           R.cd.main = 0.9 / (s.rate * lvRate());
@@ -276,7 +305,7 @@
           snd(180, 'sawtooth'); fx.shake = Math.max(fx.shake, 1.5);
         } else {
           R.cd.main = 0.95 / (s.rate * lvRate());
-          for (let i = 0; i < n && i < targets.length; i++) laser(ship.x, ship.y, Math.atan2(targets[i].y - ship.y, targets[i].x - ship.x), 3.4 * D);
+          for (let i = 0; i < n && i < targets.length; i++) laser(ship.x, ship.y, Math.atan2(targets[i].y - ship.y, targets[i].x - ship.x), 3.1 * D);
           snd(1200, 'sawtooth');
         }
       }
@@ -306,7 +335,7 @@
           R.cd.nova = (4.4 - 0.5 * R.wp.nova) * (R.evo.nova ? 0.5 : 1); const rad = 100 + 25 * R.wp.nova; let hits = 0;
           R.evt = ++R.evtN; for (const e of targets.all) { const d = Math.hypot(e.x - ship.x, e.y - ship.y); if (d < rad + e.r) { hits++; hitE(e, 3 * s.dmg); if (!e.seg && e.k !== 'wreck') { e.vx += (e.x - ship.x) / (d || 1) * 180; e.vy += (e.y - ship.y) / (d || 1) * 180; } } } R.evt = 0;
           if (R.evo.nova && hits) R.hp = Math.min(s.hull, R.hp + Math.min(4, hits * 0.5));
-          R.novaFx.push({ x: ship.x, y: ship.y, r: rad, t: 0 }); sfx.tone(140, 0.35, 'sine', 0.12, 3);
+          R.novaFx.push({ x: ship.x, y: ship.y, r: rad, t: 0 }); sfx.play('nova', 0.6) || sfx.tone(140, 0.35, 'sine', 0.12, 3);
         }
       }
       // arc lance: lightning that jumps target to target
@@ -329,11 +358,11 @@
       if (R.wp.wing) {
         R.cd.wing -= dt;
         if (R.cd.wing <= 0 && tgt) {
-          R.cd.wing = 0.75 / (s.wingRate * Math.sqrt(s.rate));
+          R.cd.wing = 0.7 / (s.wingRate * Math.sqrt(s.rate));
           for (let i = 0; i < R.wp.wing; i++) {
             const p = wingPos(i), a = Math.atan2(tgt.y - p.y, tgt.x - p.x);
-            fire(p.x, p.y, a, 520, 0.6, 0.9 * s.dmg, 'wing', R.evo.wing ? 2 : 0);
-            if (R.evo.wing) fire(p.x, p.y, a + 0.12, 520, 0.6, 0.9 * s.dmg, 'wing', 2);
+            fire(p.x, p.y, a, 520, 0.6, 1.05 * s.dmg, 'wing', R.evo.wing ? 2 : 0);
+            if (R.evo.wing) fire(p.x, p.y, a + 0.12, 520, 0.6, 1.05 * s.dmg, 'wing', 2);
           }
         }
       }
@@ -453,19 +482,23 @@
         const sp = Math.hypot(ship.vx, ship.vy);
         if (sp > 25) { let da = Math.atan2(ship.vy, ship.vx) - ship.a; da = Math.atan2(Math.sin(da), Math.cos(da)); ship.a += da * Math.min(1, dt * 10); }
         R.blinkT -= dt; syncBlinkBtn();
+        const hf = R.hp / s.hull; // low-hull warning: a sound once on the way down, then the HUD pulses
+        if (hf < 0.25 && !R.lowWarned && !R.ending && R.hp > 0) { R.lowWarned = true; sfx.tone(330, 0.15, 'square', 0.05); sfx.tone(247, 0.22, 'square', 0.05, 1, 0.16); fx.text(ship.x, ship.y - 40, 'HULL LOW!', '#ff6b6b', 18); }
+        else if (hf > 0.4) R.lowWarned = false;
         // ready lead-in: you can fly, nothing else moves yet
-        if (R.lead > 0) { R.lead -= dt; if (R.lead <= 0) { sfx.tone(880, 0.12, 'triangle', 0.08); sfx.tone(1320, 0.16, 'triangle', 0.07, 1, 0.08); } updParts(dt); fx.update(dt); return; }
+        if (R.lead > 0) { R.lead -= dt; if (R.lead <= 0) { sfx.tone(880, 0.12, 'triangle', 0.08); sfx.tone(1320, 0.16, 'triangle', 0.07, 1, 0.08); if (sec.name) banner('Sector: ' + sec.name, sec.sub, '#e0aaff', 2.8); } updParts(dt); fx.update(dt); return; }
         R.t += dt;
         R.inv -= dt;
         if (s.regen && !ending) R.hp = Math.min(s.hull, R.hp + s.regen * dt);
         if (s.shield && !R.shieldUp && (R.shieldT -= dt) <= 0) { R.shieldUp = true; sfx.tone(990, 0.1, 'sine', 0.05); }
         if (R.streak && (R.streakT -= dt) <= 0) R.streak = 0;
+        if (!ending && Math.floor(R.t) !== Math.floor(R.t - dt) && R.t > R.stormAt - 10 && R.t < R.stormAt && !env.boss) sfx.tone(140, 0.12, 'square', 0.03); // storm countdown ticks
         if (!ending && storm() > 0.6 && Math.floor(R.t * 2) !== Math.floor((R.t - dt) * 2)) { hurt(s.hull * 0.03 * storm(), ship.x, ship.y - 1, 'storm'); }
 
         // ---- spawns
         if (!ending) {
           R.spawnT -= dt;
-          const rate = 0.75 / (1 + R.t / 11) * (R.boss ? 1.7 : 1);
+          const rate = 0.75 / (1 + R.t / 11) * (R.boss ? 1.7 : 1) / (sec.spawn || 1) / (R.over2 > 0 ? 2 : 1);
           while (R.spawnT <= 0) { R.spawnT += Math.max(0.2, rate); spawnWave(); }
           if (R.t >= R.ringT) { // a ring of rocks and drones closes in from every side
             R.ringT += 13; const n = Math.min(26, 7 + Math.floor(R.t / 5)), off = rnd() * TAU;
@@ -485,8 +518,25 @@
             R.wellT += 16 + rnd() * 6;
             const a = rnd() * TAU, d = 150 + rnd() * 90;
             R.hazards.push({ x: ship.x + Math.cos(a) * d, y: ship.y + Math.sin(a) * d, r: 44, t: 0, life: 9, str: 0 });
-            fx.text(ship.x, ship.y - 60, 'GRAVITY WELL!', '#b388ff', 20); sfx.tone(70, 1.2, 'sine', 0.12, 0.5);
+            fx.text(ship.x, ship.y - 60, 'GRAVITY WELL!', '#b388ff', 20); sfx.play('alarm', 0.6, 0.7) || sfx.tone(70, 1.2, 'sine', 0.12, 0.5);
           }
+          if (R.t >= R.beaconT) { // overload beacon: a risk/reward detour; it fades if you ignore it
+            R.beaconT = R.t + 26 + rnd() * 8;
+            const a = rnd() * TAU, d = 190 + rnd() * 60; R.beacon = { x: ship.x + Math.cos(a) * d, y: ship.y + Math.sin(a) * d, t: 0, life: 10 };
+            fx.text(ship.x, ship.y - 60, 'OVERLOAD BEACON!', '#4cc9f0', 19); sfx.tone(660, 0.12, 'triangle', 0.06); sfx.tone(990, 0.16, 'triangle', 0.06, 1, 0.1);
+          }
+          const bc = R.beacon;
+          if (bc) {
+            bc.t += dt;
+            if (bc.t > bc.life) R.beacon = null;
+            else if (Math.hypot(bc.x - ship.x, bc.y - ship.y) < 30) {
+              R.beacon = null; R.over2 = 10; R.overloads = (R.overloads || 0) + 1;
+              banner('OVERLOAD!', 'Double salvage for 10s. Everything is coming.', '#4cc9f0', 2);
+              fx.ring(ship.x, ship.y, 120, '#4cc9f0'); fx.shake = Math.max(fx.shake, 6); R.freeze = 0.08; sfx.zap(); sfx.play('alarm', 0.6) || sfx.tone(520, 0.25, 'triangle', 0.06, 1.5);
+              makeElite(spawn(R.t > 30 ? 'hunter' : 'drone'));
+            }
+          }
+          if (R.over2 > 0 && (R.over2 -= dt) <= 0) fx.text(ship.x, ship.y - 46, 'overload over', '#90e0ef', 15);
           if (env.boss && !R.boss && R.t >= BOSS_AT) spawnBoss();
           if (env.boss && !R.warned && R.t >= BOSS_AT - 6) { R.warned = true; sfx.tone(90, 0.8, 'sawtooth', 0.08, 0.7); sfx.tone(85, 0.8, 'sawtooth', 0.06, 0.7, 0.9); }
         }
@@ -585,12 +635,12 @@
           if (!ending && d < 18) {
             o.got = true;
             if (o.shard) { R.shards++; sfx.ding(); fx.text(ship.x, ship.y - 28, '+1 void shard', '#e0aaff', 17); }
-            else { R.salv += o.v; R.xp += o.v; sfx.coin(); }
+            else { const v = o.v * (R.over2 > 0 ? 2 : 1); R.salv += v; R.xp += v; sfx.coin(); }
           }
           if (d > keep * 1.4) o.got = true;
         }
         R.orbs = R.orbs.filter((o) => !o.got);
-        if (R.xp >= R.need) { R.xp -= R.need; R.need = Math.round((R.need / s.xpMul * 1.6 + 4) * s.xpMul); R.pending++; }
+        if (R.xp >= R.need) { R.xp -= R.need; R.need = Math.round((R.need / s.xpMul * 1.6 + 4) * s.xpMul); R.pending++; sfx.play('levelup', 0.7) || sfx.tone(990, 0.1, 'triangle', 0.05, 1.3); fx.text(ship.x, ship.y - 34, 'LEVEL UP!', '#4cc9f0', 18); }
 
         updParts(dt);
         for (const b of R.beams) b.t += dt; R.beams = R.beams.filter((b) => b.t < 0.16);
@@ -603,7 +653,17 @@
         const banked = R.salv * s.value, earned = { salvage: banked, shards: R.shards }, score = Math.floor(R.t);
         const lines = [`Survived ${score}s · ${R.kills} destroyed · ${R.picks} boosts`,
           `Best streak x${R.bestStreak}${R.elites ? ` · ${R.elites} elite${R.elites > 1 ? 's' : ''}` : ''}${R.wrecksLooted ? ` · ${R.wrecksLooted} wreck${R.wrecksLooted > 1 ? 's' : ''} looted` : ''}`];
+        if (R.overloads) lines[1] += ` · ${R.overloads} overload${R.overloads > 1 ? 's' : ''}`;
+        if (sec.name) lines.push(`Sector: ${sec.name}`);
         if (R.won) return { won: true, earned, lines, score };
+        // point at a next goal: the cheapest salvage upgrade that's open (the tree screen shows if it's affordable)
+        if (env.levels) {
+          const lv = env.levels, open = NODES.filter((n) => (!n.who || n.who === who) && !n.win && !n.cur && (lv[n.id] || 0) < (n.max || 1)
+            && (!n.req.length || n.req.filter((r) => (lv[r] || 0) > 0).length >= (n.reqAll || 1))
+            && !(n.excl && !(lv[n.id] || 0) && NODES.some((m) => m !== n && m.excl === n.excl && (lv[m.id] || 0) > 0)));
+          const nx = open.map((n) => [n, costOf(n, lv[n.id] || 0)]).sort((a, b) => a[1] - b[1])[0];
+          if (nx && !env.boss) lines.push(`Next up: ${nx[0].name} for ${env.fmt(nx[1])} salvage`);
+        }
         if (env.boss) lines.push(R.boss ? `The Leviathan had ${Math.ceil(R.boss.hp / R.boss.max * 100)}% left.` : `Survive to ${BOSS_AT}s to meet the Leviathan.`);
         const title = R.quit ? 'Back to base' : CAUSE[R.cause] || 'Hull destroyed';
         return { won: false, title, earned, lines, score };
@@ -647,7 +707,7 @@
       burst(ox, oy, 14, ['#c77dff', '#72efdd'], 140, 3);
       ship.x += nx * s.blinkDist; ship.y += ny * s.blinkDist; ship.vx = nx * s.speed; ship.vy = ny * s.speed; R.inv = Math.max(R.inv, 0.4);
       R.blinkFx = { ox, oy, x: ship.x, y: ship.y, t: R.t };
-      burst(ship.x, ship.y, 10, ['#c77dff', '#fff'], 120, 3); sfx.tone(1400, 0.12, 'sine', 0.06, 0.4);
+      burst(ship.x, ship.y, 10, ['#c77dff', '#fff'], 120, 3); sfx.play('blink', 0.7) || sfx.tone(1400, 0.12, 'sine', 0.06, 0.4);
       if (s.rift) { fx.ring(ox, oy, 60, '#c77dff'); R.evt = ++R.evtN; for (const e of R.targetsAll || []) if (Math.hypot(e.x - ox, e.y - oy) < 60 + e.r) hitE(e, 3 * s.rift * s.dmg); R.evt = 0; }
       if (s.echo) { const near = (R.targetsAll || []).filter((e) => !e.dead).sort((a, b) => Math.hypot(a.x - ship.x, a.y - ship.y) - Math.hypot(b.x - ship.x, b.y - ship.y)).slice(0, 1 + s.echo); for (const e of near) laser(ship.x, ship.y, Math.atan2(e.y - ship.y, e.x - ship.x), 2.6 * s.dmg * lvMul()); }
     }
@@ -658,11 +718,14 @@
       const ox = W / 2 - ship.x + shx, oy = SY - ship.y + shy;
       // backdrop: deep void, a far planet, slow nebulae, parallax stars
       const bg = g.createLinearGradient(0, 0, 0, H); bg.addColorStop(0, '#070a1c'); bg.addColorStop(1, '#03040b'); g.fillStyle = bg; g.fillRect(0, 0, W, H);
-      { const px = mod(W * 0.78 - ship.x * 0.02, W + 400) - 200, py = mod(H * 0.22 - ship.y * 0.02, H + 400) - 200, pr = 70;
+      const bgArt = drawBg(g, 'bg-void', 1);
+      if (bgArt && storm() > 0) drawBg(g, 'bg-storm', Math.min(1, storm() * 0.6));
+      if (bgArt) { g.fillStyle = 'rgba(3,4,11,.35)'; g.fillRect(0, 0, W, H); } // scrim: art stays behind the play
+      if (!bgArt) { const px = mod(W * 0.78 - ship.x * 0.02, W + 400) - 200, py = mod(H * 0.22 - ship.y * 0.02, H + 400) - 200, pr = 70;
         const pg = g.createRadialGradient(px - pr * 0.4, py - pr * 0.4, pr * 0.1, px, py, pr); pg.addColorStop(0, '#3a4a8c'); pg.addColorStop(0.7, '#1b2250'); pg.addColorStop(1, '#0b0e24');
         g.fillStyle = pg; g.beginPath(); g.arc(px, py, pr, 0, TAU); g.fill();
         g.strokeStyle = 'rgba(160,190,255,.25)'; g.lineWidth = 3; g.beginPath(); g.ellipse(px, py, pr * 1.6, pr * 0.32, -0.35, 0, TAU); g.stroke(); }
-      for (const [nx, ny, nr, col, f] of NEB) {
+      if (!bgArt) for (const [nx, ny, nr, col, f] of NEB) {
         const x = mod(nx - ship.x * f, 1400) - 300, y = mod(ny - ship.y * f, 1600) - 300;
         const gr = g.createRadialGradient(x, y, 0, x, y, nr); gr.addColorStop(0, col); gr.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = gr; g.fillRect(x - nr, y - nr, nr * 2, nr * 2);
       }
@@ -676,8 +739,11 @@
       if (storm() > 0) { g.fillStyle = `rgba(120,40,200,${Math.min(0.35, storm() * 0.12)})`; g.fillRect(0, 0, W, H); }
       g.save(); g.translate(ox, oy);
       for (const z of R.hazards) drawWell(g, z);
+      if (R.beacon) drawBeacon(g, R.beacon);
       // salvage
       for (const o of R.orbs) {
+        if (o.shard && art(g, 'obj-shard', o.x, o.y, 22 * (1 + Math.sin(R.t * 8 + o.x) * 0.15))) continue;
+        if (!o.shard && art(g, 'obj-salvage', o.x, o.y, o.v > 2 ? 16 : 13, null, { rot: o.t * 3 + o.x })) continue;
         if (o.shard) { const p = 1 + Math.sin(R.t * 8 + o.x) * 0.15; g.save(); g.translate(o.x, o.y); g.scale(p, p); const sg = g.createRadialGradient(0, 0, 2, 0, 0, 16); sg.addColorStop(0, 'rgba(224,170,255,.6)'); sg.addColorStop(1, 'rgba(199,125,255,0)'); g.fillStyle = sg; g.beginPath(); g.arc(0, 0, 16, 0, TAU); g.fill(); g.fillStyle = '#e0aaff'; g.beginPath(); g.moveTo(0, -9); g.lineTo(6, 0); g.lineTo(0, 9); g.lineTo(-6, 0); g.closePath(); g.fill(); g.fillStyle = '#fff'; g.fillRect(-1.5, -4, 3, 4); g.restore(); }
         else { const z = o.v > 2 ? 6 : 4.5; g.save(); g.translate(o.x, o.y); g.rotate(o.t * 3 + o.x); g.fillStyle = 'rgba(123,241,168,.2)'; g.beginPath(); g.arc(0, 0, z + 5, 0, TAU); g.fill(); g.fillStyle = '#3fbf74'; g.fillRect(-z, -z, z * 2, z * 2); g.fillStyle = '#7bf1a8'; g.fillRect(-z, -z, z * 2 - 2, z * 2 - 2); g.fillStyle = '#e9fff1'; g.fillRect(-z * 0.5, -z * 0.5, z * 0.7, z * 0.7); g.restore(); }
       }
@@ -710,6 +776,7 @@
         const br = s.ballR + 1.2 * R.wp.main;
         g.strokeStyle = s.chainDmg ? '#e5e5e5' : '#9a8c98'; g.lineWidth = 3; g.setLineDash([5, 4]); g.beginPath(); g.moveTo(ship.x, ship.y); g.lineTo(b.x, b.y); g.stroke(); g.setLineDash([]);
         if ((b.k || 0) > 1.3) { g.fillStyle = `rgba(255,140,66,${Math.min(0.5, (b.k - 1.3) * 0.5)})`; g.beginPath(); g.arc(b.x, b.y, br * 1.9, 0, TAU); g.fill(); }
+        if (art(g, 'obj-ball', b.x, b.y, br * 2.5, null, { rot: R.flailA * 2 })) continue;
         const bgr = g.createRadialGradient(b.x - br * 0.35, b.y - br * 0.35, br * 0.1, b.x, b.y, br); bgr.addColorStop(0, '#9aa5b1'); bgr.addColorStop(1, '#2b2d42');
         g.fillStyle = bgr; g.beginPath(); g.arc(b.x, b.y, br, 0, TAU); g.fill();
         g.fillStyle = '#ffd166'; for (let k = 0; k < 6; k++) { const a = k / 6 * TAU + R.flailA; g.beginPath(); g.moveTo(b.x + Math.cos(a - 0.25) * br, b.y + Math.sin(a - 0.25) * br); g.lineTo(b.x + Math.cos(a) * (br + 6), b.y + Math.sin(a) * (br + 6)); g.lineTo(b.x + Math.cos(a + 0.25) * br, b.y + Math.sin(a + 0.25) * br); g.fill(); }
@@ -734,14 +801,20 @@
 
       // off-screen pointers: the boss (pink) and wrecks (green)
       const B = R.boss;
-      const pointer = (wx, wy, col) => {
+      const pointer = (wx, wy, col) => { // an arrow on the screen edge (below the HUD), in the thing's direction
         const sx = wx + ox, sy = wy + oy;
-        if (sx > -10 && sx < W + 10 && sy > 130 && sy < H + 10) return;
-        const a = Math.atan2(sy - SY, sx - W / 2), px = Math.max(20, Math.min(W - 20, W / 2 + Math.cos(a) * W)), py = Math.max(142, Math.min(H - 24, SY + Math.sin(a) * W));
+        if (sx > -10 && sx < W + 10 && sy > 136 && sy < H + 10) return;
+        const a = Math.atan2(sy - SY, sx - W / 2), c = Math.cos(a), s2 = Math.sin(a);
+        const k = Math.min(c ? (c > 0 ? W - 20 - W / 2 : 20 - W / 2) / c : 1e9, s2 ? (s2 > 0 ? H - 44 - SY : 146 - SY) / s2 : 1e9), px = W / 2 + c * k, py = SY + s2 * k;
         g.save(); g.translate(px, py); g.rotate(a); g.fillStyle = col; g.beginPath(); g.moveTo(13, 0); g.lineTo(-8, -9); g.lineTo(-8, 9); g.fill(); g.restore();
       };
       if (B && B.hp > 0) pointer(B.segs[0].x, B.segs[0].y, '#f72585');
       for (const e of R.enemies) if (e.k === 'wreck') pointer(e.x, e.y, e.gold ? '#ffd166' : '#7bf1a8');
+      if (R.beacon) pointer(R.beacon.x, R.beacon.y, '#4cc9f0');
+      if (R.hp > 0 && R.hp / s.hull < 0.25 && !R.ending) { // low hull: a pulsing red rim (on top of the red bar and the HULL LOW label)
+        const p = 0.5 + 0.5 * Math.sin(R.t * 8), v = g.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.max(W, H) * 0.7);
+        v.addColorStop(0, 'rgba(255,0,60,0)'); v.addColorStop(1, `rgba(255,0,60,${0.18 + 0.17 * p})`); g.fillStyle = v; g.fillRect(0, 0, W, H);
+      }
 
       // stick
       if (R.anchor && R.in?.down) {
@@ -765,6 +838,10 @@
           g.fillStyle = 'rgba(255,255,255,.55)'; g.beginPath(); g.arc(fxx, fyy, 18, 0, TAU); g.fill();
         }
         g.globalAlpha = 1;
+      } else if (NEWS[runNo] && !R.ending && R.t > (runNo === 2 ? 2.6 : 0.2) && R.t < (runNo === 2 ? 7.5 : 5)) { // what this run introduces
+        const t0 = runNo === 2 ? 2.6 : 0.2, a = Math.min(1, (R.t - t0) * 3, ((runNo === 2 ? 7.5 : 5) - R.t) * 2);
+        g.globalAlpha = Math.max(0, a); g.fillStyle = 'rgba(0,0,0,.55)'; rr(g, 16, H * 0.62, W - 32, 44, 14); g.fill();
+        g.textAlign = 'center'; g.fillStyle = '#ffd166'; g.font = '800 15px Nunito, system-ui'; g.fillText(NEWS[runNo], W / 2, H * 0.62 + 27, W - 44); g.globalAlpha = 1;
       } else if (blinkBtn && !R.blinks && R.t > 3 && R.t < 14 && !R.ending) { // phantom: point at the blink button once
         g.textAlign = 'right'; g.font = '800 14px Nunito, system-ui'; g.fillStyle = '#e0aaff'; g.fillText('Tap Blink to dash ahead ↘', W - 24, H - 120);
       }
@@ -772,33 +849,38 @@
     // HUD: every element has a fixed slot. Bars stop 72px short of the right edge (pause button), numbers are
     // right- or left-anchored at fixed x so they grow away from their neighbours.
     function drawHud(g, B) {
-      const sc = g.createLinearGradient(0, 0, 0, 96); sc.addColorStop(0, 'rgba(3,4,11,.7)'); sc.addColorStop(1, 'rgba(3,4,11,0)'); g.fillStyle = sc; g.fillRect(0, 0, W, 96); // scrim so the HUD reads over busy space
+      const sc = g.createLinearGradient(0, 0, 0, 100); sc.addColorStop(0, 'rgba(3,4,11,.7)'); sc.addColorStop(1, 'rgba(3,4,11,0)'); g.fillStyle = sc; g.fillRect(0, 0, W, 100); // scrim so the HUD reads over busy space
       const bw = W - 88; // 16px left gutter, ends at W-72: clear of the kit's pause button
       g.fillStyle = 'rgba(0,0,0,.55)'; rr(g, 16, 16, bw, 12, 6); g.fill();
       const hf = Math.max(0, R.hp / s.hull); g.fillStyle = hf < 0.3 ? '#ff6b6b' : hf < 0.6 ? '#ffd166' : '#7bd389'; rr(g, 16, 16, Math.max(0, bw * hf), 12, 6); g.fill();
       g.fillStyle = 'rgba(0,0,0,.55)'; rr(g, 16, 32, bw, 6, 3); g.fill();
       g.fillStyle = '#4cc9f0'; rr(g, 16, 32, bw * Math.min(1, R.xp / R.need), 6, 3); g.fill();
       g.font = '800 14px Nunito, system-ui'; g.textBaseline = 'alphabetic';
-      g.textAlign = 'left'; g.fillStyle = '#fff'; g.fillText(`Hull ${Math.ceil(R.hp)}/${Math.round(s.hull)}`, 16, 60);
-      g.textAlign = 'right'; g.fillStyle = 'rgba(255,255,255,.75)'; g.fillText(`${Math.floor(R.t)}s`, W / 2 + 22, 60);
-      g.fillStyle = '#7bf1a8'; g.fillText(`${env.fmt(R.salv * s.value)} salvage`, W - 16, 60);
+      const low = hf < 0.25 && R.hp > 0;
+      g.textAlign = 'left'; g.fillStyle = low ? (Math.floor(R.t * 4) % 2 ? '#ff6b6b' : '#fff') : '#fff'; g.fillText(`${low ? 'LOW ' : 'Hull '}${Math.ceil(R.hp)}/${Math.round(s.hull)}`, 16, 66);
+      g.textAlign = 'right'; g.fillStyle = 'rgba(255,255,255,.75)'; g.fillText(`${Math.floor(R.t)}s`, W / 2 + 22, 66);
+      g.fillStyle = '#7bf1a8'; g.fillText(`${env.fmt(R.salv * s.value)} salvage`, W - 16, 66);
       // row 2: streak (left) and shards (right); always in place, dim when idle
-      g.textAlign = 'left'; g.fillStyle = R.streak >= 5 ? '#ffd166' : 'rgba(255,255,255,.35)'; g.fillText(`Streak x${R.streak}`, 16, 80);
-      g.textAlign = 'right'; g.fillStyle = R.shards ? '#e0aaff' : 'rgba(224,170,255,.4)'; g.fillText(`${R.shards} void shard${R.shards === 1 ? '' : 's'}`, W - 16, 80);
-      if (s.shield) { g.textAlign = 'left'; g.fillStyle = R.shieldUp ? '#90e0ef' : 'rgba(144,224,239,.4)'; g.fillText(R.shieldUp ? 'Deflector ready' : `Deflector ${Math.ceil(R.shieldT)}s`, 120, 80); }
+      g.textAlign = 'left'; g.fillStyle = R.streak >= 5 ? '#ffd166' : 'rgba(255,255,255,.45)'; g.fillText(`Streak x${R.streak}`, 16, 86);
+      g.textAlign = 'right'; g.fillStyle = R.shards ? '#e0aaff' : 'rgba(224,170,255,.55)'; g.fillText(`${R.shards} void shard${R.shards === 1 ? '' : 's'}`, W - 16, 86);
+      if (s.shield) { g.textAlign = 'left'; g.fillStyle = R.shieldUp ? '#90e0ef' : 'rgba(144,224,239,.55)'; g.fillText(R.shieldUp ? 'Deflector ready' : `Deflector ${Math.ceil(R.shieldT)}s`, 120, 86); }
       // row 3 (reserved): boss bar / countdown
       if (B && B.hp > 0) {
-        g.textAlign = 'center'; g.fillStyle = '#f72585'; g.font = '400 16px "Lilita One", system-ui'; g.fillText(B.phase === 2 ? 'VOID LEVIATHAN · FRENZY' : 'VOID LEVIATHAN', W / 2, 102);
-        g.fillStyle = 'rgba(0,0,0,.6)'; rr(g, 24, 108, W - 48, 10, 5); g.fill();
+        g.textAlign = 'center'; g.fillStyle = '#f72585'; g.font = '400 16px "Lilita One", system-ui'; g.fillText(B.phase === 2 ? 'VOID LEVIATHAN · FRENZY' : 'VOID LEVIATHAN', W / 2, 108);
+        g.fillStyle = 'rgba(0,0,0,.6)'; rr(g, 24, 114, W - 48, 10, 5); g.fill();
         const bg2 = g.createLinearGradient(24, 0, W - 24, 0); bg2.addColorStop(0, '#f72585'); bg2.addColorStop(1, '#b5179e');
-        g.fillStyle = bg2; rr(g, 24, 108, (W - 48) * Math.max(0, B.hp / B.max), 10, 5); g.fill();
-        g.fillStyle = '#fff'; g.fillRect(W / 2 - 1, 106, 2, 14); // phase-two notch at half health
+        g.fillStyle = bg2; rr(g, 24, 114, (W - 48) * Math.max(0, B.hp / B.max), 10, 5); g.fill();
+        g.fillStyle = '#fff'; g.fillRect(W / 2 - 1, 112, 2, 14); // phase-two notch at half health
       } else if (env.boss && !B && R.t > BOSS_AT - 10) {
-        g.textAlign = 'center'; g.fillStyle = Math.floor(R.t * 3) % 2 ? '#f72585' : '#ff8fab'; g.font = '400 20px "Lilita One", system-ui'; g.fillText(`Something huge stirs… ${Math.ceil(BOSS_AT - R.t)}`, W / 2, 108);
+        g.textAlign = 'center'; g.fillStyle = Math.floor(R.t * 3) % 2 ? '#f72585' : '#ff8fab'; g.font = '400 20px "Lilita One", system-ui'; g.fillText(`Something huge stirs… ${Math.ceil(BOSS_AT - R.t)}`, W / 2, 114);
       } else if (env.boss && !B && R.t < 5 && R.lead <= 0) {
-        g.textAlign = 'center'; g.fillStyle = '#ff8fab'; g.font = '800 15px Nunito, system-ui'; g.fillText(`The Leviathan comes at ${BOSS_AT}s. Survive!`, W / 2, 108);
+        g.textAlign = 'center'; g.fillStyle = '#ff8fab'; g.font = '800 15px Nunito, system-ui'; g.fillText(`The Leviathan comes at ${BOSS_AT}s. Survive!`, W / 2, 114);
+      } else if (R.over2 > 0 && !R.ending) {
+        g.textAlign = 'center'; g.fillStyle = '#4cc9f0'; g.font = '400 18px "Lilita One", system-ui'; g.fillText(`OVERLOAD · double salvage · ${Math.ceil(R.over2)}s`, W / 2, 114);
       } else if (storm() > 0 && !R.ending) {
-        g.textAlign = 'center'; g.fillStyle = '#c77dff'; g.font = '400 18px "Lilita One", system-ui'; g.fillText('VOID STORM: hull failing', W / 2, 108);
+        g.textAlign = 'center'; g.fillStyle = '#c77dff'; g.font = '400 18px "Lilita One", system-ui'; g.fillText('VOID STORM: hull failing', W / 2, 114);
+      } else if (R.t > R.stormAt - 10 && !R.ending && !env.boss) {
+        g.textAlign = 'center'; g.fillStyle = Math.floor(R.t * 2) % 2 ? '#c77dff' : '#e0aaff'; g.font = '400 18px "Lilita One", system-ui'; g.fillText(`Void storm in ${Math.ceil(R.stormAt - R.t)}s`, W / 2, 114);
       }
     }
     // banners: one reserved slot a third of the way down; nothing else moves for them
@@ -813,6 +895,16 @@
       g.textAlign = 'center'; g.fillStyle = col; g.font = `400 ${title.length > 14 ? 30 : 36}px "Lilita One", system-ui`; g.fillText(title, W / 2 + (1 - k) * 30, y, W - 32);
       if (sub) { g.fillStyle = 'rgba(255,255,255,.85)'; g.font = '800 14px Nunito, system-ui'; g.fillText(sub, W / 2, y + 26, W - 32); }
       g.globalAlpha = 1;
+    }
+    function drawBeacon(g, b) { // a pulsing cyan pylon; the ring around it drains as it times out
+      const p = 1 + Math.sin(R.t * 7) * 0.12, fade = Math.min(1, (b.life - b.t) * 2, b.t * 4);
+      g.save(); g.translate(b.x, b.y); g.globalAlpha = fade;
+      const gl = g.createRadialGradient(0, 0, 2, 0, 0, 46 * p); gl.addColorStop(0, 'rgba(76,201,240,.55)'); gl.addColorStop(1, 'rgba(76,201,240,0)'); g.fillStyle = gl; g.beginPath(); g.arc(0, 0, 46 * p, 0, TAU); g.fill();
+      g.strokeStyle = 'rgba(255,255,255,.25)'; g.lineWidth = 4; g.beginPath(); g.arc(0, 0, 30, 0, TAU); g.stroke();
+      g.strokeStyle = '#4cc9f0'; g.beginPath(); g.arc(0, 0, 30, -HALF, -HALF + TAU * (1 - b.t / b.life)); g.stroke();
+      g.rotate(R.t * 2); g.fillStyle = '#e6f8ff'; g.beginPath(); g.moveTo(0, -14 * p); g.lineTo(10, 0); g.lineTo(0, 14 * p); g.lineTo(-10, 0); g.closePath(); g.fill();
+      g.fillStyle = '#4cc9f0'; g.beginPath(); g.moveTo(0, -7); g.lineTo(5, 0); g.lineTo(0, 7); g.lineTo(-5, 0); g.closePath(); g.fill();
+      g.restore();
     }
     function drawWell(g, z) {
       const k = z.str, r = z.r * 2.4;
@@ -835,6 +927,7 @@
         g.rotate(e.rot);
         const cr = e.k === 'crystal';
         if (cr) { g.fillStyle = 'rgba(199,125,255,.22)'; g.beginPath(); g.arc(0, 0, e.r * 1.6, 0, TAU); g.fill(); }
+        if (art(g, cr ? 'enemy-crystal' : 'enemy-rock', 0, 0, e.r * 2.3, null, null, fl)) { g.restore(); return drawEnemyBar(g, e); }
         const rg = g.createRadialGradient(-e.r * 0.35, -e.r * 0.35, e.r * 0.1, 0, 0, e.r);
         rg.addColorStop(0, cr ? '#b06cf0' : '#9a8b7a'); rg.addColorStop(1, cr ? '#4a1680' : '#4a4038');
         g.fillStyle = fl ? '#fff' : rg; g.beginPath();
@@ -847,6 +940,7 @@
         }
       } else if (e.k === 'drone') {
         g.fillStyle = e.brood ? 'rgba(114,239,221,.2)' : 'rgba(255,107,107,.18)'; g.beginPath(); g.arc(0, 0, e.r * 1.7, 0, TAU); g.fill();
+        if (art(g, 'enemy-drone', 0, 0, e.r * 2.5, null, null, fl)) { g.restore(); return drawEnemyBar(g, e); }
         const dg = g.createRadialGradient(-e.r * 0.3, -e.r * 0.3, 1, 0, 0, e.r); dg.addColorStop(0, e.brood ? '#72efdd' : '#ff6b6b'); dg.addColorStop(1, e.brood ? '#16425b' : '#9d0208');
         g.fillStyle = fl ? '#fff' : dg; g.beginPath(); g.ellipse(0, 0, e.r, e.r * 0.8, 0, 0, TAU); g.fill();
         g.strokeStyle = e.elite ? '#ffd166' : '#ffd166aa'; g.lineWidth = 2; g.beginPath(); g.ellipse(0, 0, e.r * 1.35, e.r * 0.45, Math.sin(R.t * 3 + e.x) * 0.3, 0, TAU); g.stroke();
@@ -855,23 +949,27 @@
       } else if (e.k === 'lancer') {
         if (e.mode === 'aim') { g.save(); g.rotate(e.dashA); const k = 1 - Math.max(0, e.modeT) / 0.85; g.strokeStyle = `rgba(255,77,109,${0.25 + 0.5 * k})`; g.lineWidth = 2 + 4 * k; g.setLineDash([10, 8]); g.beginPath(); g.moveTo(e.r, 0); g.lineTo(300, 0); g.stroke(); g.setLineDash([]); g.restore(); }
         g.rotate(e.rot);
+        if (e.mode === 'dash') { g.fillStyle = 'rgba(255,159,28,.5)'; g.beginPath(); g.moveTo(-e.r * 0.6, -5); g.lineTo(-e.r * 2.6, 0); g.lineTo(-e.r * 0.6, 5); g.fill(); }
+        if (art(g, 'enemy-lancer', 0, 0, e.r * 2.7, null, { rot: HALF }, fl)) { if (e.mode === 'aim') { g.fillStyle = '#ff4d6d'; g.beginPath(); g.arc(e.r * 0.35, 0, 4, 0, TAU); g.fill(); } g.restore(); return drawEnemyBar(g, e); }
         const lg = g.createLinearGradient(-e.r, 0, e.r * 1.4, 0); lg.addColorStop(0, '#9c4a00'); lg.addColorStop(1, '#ffb347');
         g.fillStyle = fl ? '#fff' : lg; g.beginPath(); g.moveTo(e.r * 1.5, 0); g.lineTo(-e.r, -e.r * 0.85); g.lineTo(-e.r * 0.45, 0); g.lineTo(-e.r, e.r * 0.85); g.closePath(); g.fill();
         g.strokeStyle = '#ffd166'; g.lineWidth = 1.5; g.stroke();
         g.fillStyle = e.mode === 'aim' ? '#ff4d6d' : '#fff'; g.beginPath(); g.arc(e.r * 0.35, 0, 3.5, 0, TAU); g.fill();
-        if (e.mode === 'dash') { g.fillStyle = 'rgba(255,159,28,.5)'; g.beginPath(); g.moveTo(-e.r * 0.6, -5); g.lineTo(-e.r * 2.6, 0); g.lineTo(-e.r * 0.6, 5); g.fill(); }
       } else if (e.k === 'wreck') {
         g.rotate(e.rot);
+        if (e.gold) { g.fillStyle = 'rgba(255,209,102,.22)'; g.beginPath(); g.arc(0, 0, e.r * 1.5, 0, TAU); g.fill(); }
+        if (art(g, 'enemy-wreck', 0, 0, e.r * 2.6, null, null, fl)) { g.rotate(-e.rot); wreckBar(g, e); g.restore(); return; }
         const wg = g.createLinearGradient(-e.r, -e.r, e.r, e.r); wg.addColorStop(0, e.gold ? '#ffe08a' : '#7d8ea3'); wg.addColorStop(1, e.gold ? '#9c6b00' : '#2f3a4a');
         g.fillStyle = fl ? '#fff' : wg; g.beginPath(); [[-1.1, -0.45], [0.6, -0.55], [1.15, -0.1], [0.9, 0.5], [-0.2, 0.55], [-0.5, 0.3], [-1.2, 0.35]].forEach(([px, py]) => g.lineTo(px * e.r, py * e.r)); g.closePath(); g.fill();
         g.strokeStyle = e.gold ? '#fff3c4' : '#c9d6e3'; g.lineWidth = 1.5; g.stroke();
         g.strokeStyle = 'rgba(0,0,0,.35)'; g.beginPath(); g.moveTo(-0.3 * e.r, -0.5 * e.r); g.lineTo(-0.3 * e.r, 0.5 * e.r); g.moveTo(0.3 * e.r, -0.5 * e.r); g.lineTo(0.3 * e.r, 0.5 * e.r); g.stroke();
         g.fillStyle = Math.floor(R.t * 2 + e.x) % 2 ? '#7bf1a8' : '#1b4332'; g.beginPath(); g.arc(0.85 * e.r, 0, 3, 0, TAU); g.fill();
         g.fillStyle = '#ff6b6b'; g.beginPath(); g.arc(-0.9 * e.r, 0, 2.5, 0, TAU); g.fill();
-        g.rotate(-e.rot); if (e.hp < e.max) { g.strokeStyle = 'rgba(123,241,168,.9)'; g.lineWidth = 3; g.beginPath(); g.arc(0, 0, e.r + 8, -1.57, -1.57 + TAU * e.hp / e.max); g.stroke(); }
+        g.rotate(-e.rot); wreckBar(g, e);
       } else {
         g.rotate(e.rot);
         g.fillStyle = 'rgba(247,37,133,.2)'; g.beginPath(); g.arc(0, 0, e.r * 1.6, 0, TAU); g.fill();
+        if (art(g, 'enemy-hunter', 0, 0, e.r * 2.5, null, null, fl)) { g.restore(); return drawEnemyBar(g, e); }
         const hg = g.createRadialGradient(0, 0, 2, 0, 0, e.r * 1.1); hg.addColorStop(0, '#f72585'); hg.addColorStop(1, '#5a0a4a');
         g.fillStyle = fl ? '#fff' : hg; g.beginPath();
         for (let i = 0; i < 12; i++) { const a = i / 12 * TAU + R.t, rr2 = i % 2 ? e.r * 0.65 : e.r * 1.1; g.lineTo(Math.cos(a) * rr2, Math.sin(a) * rr2); } g.closePath(); g.fill();
@@ -879,14 +977,26 @@
         g.fillStyle = '#240046'; g.beginPath(); g.arc(e.r * 0.15, 0, e.r * 0.2, 0, TAU); g.fill();
       }
       g.restore();
-      if ((e.k === 'hunter' || e.elite) && e.hp < e.max) { g.strokeStyle = 'rgba(255,255,255,.8)'; g.lineWidth = 3; g.beginPath(); g.arc(e.x, e.y, e.r + 7, -1.57, -1.57 + TAU * e.hp / e.max); g.stroke(); }
+      drawEnemyBar(g, e);
+    }
+    function wreckBar(g, e) { if (e.hp < e.max) { g.strokeStyle = 'rgba(123,241,168,.9)'; g.lineWidth = 3; g.beginPath(); g.arc(0, 0, e.r + 8, -1.57, -1.57 + TAU * e.hp / e.max); g.stroke(); } }
+    function drawEnemyBar(g, e) { if ((e.k === 'hunter' || e.elite) && e.hp < e.max) { g.strokeStyle = 'rgba(255,255,255,.8)'; g.lineWidth = 3; g.beginPath(); g.arc(e.x, e.y, e.r + 7, -1.57, -1.57 + TAU * e.hp / e.max); g.stroke(); } }
+    // full-screen art backdrop, scaled to cover; a whisper of parallax so it doesn't feel painted on the glass
+    function drawBg(g, name, alpha) {
+      const im = env.art && env.art(name); if (!im) return false;
+      const k = Math.max(W / im.naturalWidth, H / im.naturalHeight) * 1.08, w = im.naturalWidth * k, h = im.naturalHeight * k;
+      const px = Math.sin(ship.x * 0.0015) * (w - W) / 2, py = Math.sin(ship.y * 0.0015) * (h - H) / 2;
+      return SPR(g, name, W / 2 + px, H / 2 + py, w, h, { alpha });
     }
     function drawBoss(g, B) {
       const fl = B.flash > 0, red = B.phase === 2;
+      if (B.phase === 1 && B.fireT < 0.6) { const h = B.segs[0], k = 1 - B.fireT / 0.6; g.strokeStyle = `rgba(255,143,171,${0.3 + 0.6 * k})`; g.lineWidth = 3 + 4 * k; g.beginPath(); g.arc(h.x, h.y, h.r * (2.6 - 1.2 * k), 0, TAU); g.stroke(); } // spit-ring tell: a ring closes on the head
       if (B.mode === 'aim') { const h = B.segs[0], k = 1 - Math.max(0, B.modeT) / 0.9; g.save(); g.translate(h.x, h.y); g.rotate(B.dashA); g.fillStyle = `rgba(255,77,109,${0.12 + 0.25 * k})`; g.fillRect(0, -34, 520, 68); g.strokeStyle = `rgba(255,77,109,${0.5 + 0.5 * k})`; g.lineWidth = 2; g.setLineDash([14, 10]); g.strokeRect(0, -34, 520, 68); g.setLineDash([]); g.restore(); }
       for (let i = B.segs.length - 1; i >= 1; i--) {
         const q = B.segs[i], p = B.segs[i - 1], a = Math.atan2(p.y - q.y, p.x - q.x);
         g.save(); g.translate(q.x, q.y); g.rotate(a);
+        if (red) { g.fillStyle = 'rgba(255,77,109,.25)'; g.beginPath(); g.arc(0, 0, q.r * 1.5, 0, TAU); g.fill(); }
+        if (art(g, 'boss-leviathan-segment', 0, 0, q.r * 2.6, null, { rot: HALF }, fl)) { g.restore(); continue; }
         const sg = g.createRadialGradient(0, -q.r * 0.3, 2, 0, 0, q.r * 1.1); sg.addColorStop(0, red ? '#3a5f80' : '#2a6f97'); sg.addColorStop(1, i % 2 ? '#0b2e45' : '#092235');
         g.fillStyle = fl ? '#fff' : sg; g.beginPath(); g.ellipse(0, 0, q.r * 1.1, q.r, 0, 0, TAU); g.fill();
         g.strokeStyle = red ? '#ff4d6d' : '#72efdd'; g.lineWidth = 2; g.beginPath(); g.arc(0, 0, q.r * 0.8, -1.2, 1.2); g.stroke();
@@ -900,6 +1010,7 @@
       g.save(); g.translate(h.x, h.y); g.rotate(B.a);
       const glow = g.createRadialGradient(0, 0, 4, 0, 0, h.r * 2); glow.addColorStop(0, red ? 'rgba(255,77,109,.45)' : 'rgba(247,37,133,.3)'); glow.addColorStop(1, 'rgba(247,37,133,0)');
       g.fillStyle = glow; g.beginPath(); g.arc(0, 0, h.r * 2, 0, TAU); g.fill();
+      if (art(g, 'boss-leviathan-head', h.r * 0.2, 0, h.r * 3.2, null, { rot: HALF }, fl)) { g.restore(); return; }
       g.fillStyle = fl ? '#fff' : '#0b2e45';
       for (const sgn of [-1, 1]) { g.save(); g.rotate(sgn * jaw); g.beginPath(); g.moveTo(-h.r * 0.6, 0); g.quadraticCurveTo(h.r * 0.6, sgn * h.r * 1.1, h.r * 1.5, sgn * h.r * 0.15); g.lineTo(-h.r * 0.2, sgn * h.r * 0.2); g.closePath(); g.fill(); g.fillStyle = '#fff'; for (let k = 0; k < 3; k++) { g.beginPath(); g.moveTo(h.r * (0.4 + k * 0.3), sgn * h.r * 0.25); g.lineTo(h.r * (0.5 + k * 0.3), sgn * h.r * 0.05); g.lineTo(h.r * (0.6 + k * 0.3), sgn * h.r * 0.22); g.fill(); } g.fillStyle = fl ? '#fff' : '#0b2e45'; g.restore(); }
       const hg = g.createRadialGradient(-h.r * 0.4, -h.r * 0.3, 2, -h.r * 0.2, 0, h.r); hg.addColorStop(0, '#3a86b0'); hg.addColorStop(1, '#123552');
@@ -925,6 +1036,7 @@
     g.fillStyle = eg; g.beginPath(); g.arc(0, 12, 16 + fl * 0.6, 0, TAU); g.fill();
     g.fillStyle = C.fl; g.globalAlpha = 0.9; g.beginPath(); g.moveTo(-5, 10); g.lineTo(0, 10 + fl); g.lineTo(5, 10); g.fill();
     g.fillStyle = '#fff'; g.beginPath(); g.moveTo(-2.5, 10); g.lineTo(0, 10 + fl * 0.5); g.lineTo(2.5, 10); g.fill(); g.globalAlpha = 1;
+    if (SPR(g, who === 'wing' ? 'unit-wingman' : 'unit-' + who, 0, 0, 40)) { g.restore(); return; }
     g.lineJoin = 'round'; g.strokeStyle = '#0b0a12'; g.lineWidth = 2.5;
     const body = g.createLinearGradient(-16, 0, 16, 0); body.addColorStop(0, C.d); body.addColorStop(0.45, C.c); body.addColorStop(1, C.d);
     if (who === 'bulwark') {
@@ -970,10 +1082,10 @@
       poolBlades: 0, poolMissiles: 0, poolNova: 0, poolBeam: 0, poolWing: 0, weapon: 'pulse', blink: 0, blinkCD: 2.4, blinkDist: 95, rift: 0, reactive: 0,
       crit: 0, streakPay: 0, xpMul: 1, choices: 3, shield: 0, bounty: 1, wrecks: 1, evo: 0, beamDmg: 1, beamJump: 0, wingStart: 0, wingRate: 1, spin: 1,
       trail: 0, ram: 0, echo: 0, ballDmg: 1, ballR: 13, chain: 66, chainDmg: 0 };
-    if (who === 'wasp') { s.speed = 200; s.hull = 18; }
+    if (who === 'wasp') { s.speed = 200; s.hull = 22; }
     if (who === 'bulwark') { s.speed = 140; s.hull = 26; s.armor = 0.12; s.weapon = 'flak'; }
     if (who === 'phantom') { s.speed = 170; s.hull = 17; s.weapon = 'laser'; s.blink = 1; }
-    if (who === 'wrecker') { s.speed = 185; s.hull = 34; s.armor = 0.12; s.weapon = 'flail'; s.value = 1.25; s.chain = 76; s.ballR = 15; }
+    if (who === 'wrecker') { s.speed = 185; s.hull = 34; s.armor = 0.12; s.weapon = 'flail'; s.value = 1.25; s.chain = 76; s.ballR = 15; s.ballDmg = 1.15; }
     return s;
   }
 

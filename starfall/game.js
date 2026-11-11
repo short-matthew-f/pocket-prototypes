@@ -12,7 +12,8 @@
     { id: 'gun', name: 'Turret Damage', icon: '🔫', desc: '+30% shot damage', cost: 10, grow: 1.7, max: 12, req: ['core'], x: 0, y: -1, fx: (s, l) => { s.dmg *= 1.3 ** l; } },
     { id: 'shield', name: 'Shield Cells', icon: '🛡️', desc: '+1 shield', cost: 12, grow: 1.75, max: 6, req: ['core'], x: 0, y: 1, fx: (s, l) => { s.shield += l; } },
     { id: 'wide', name: 'Wide Gates', icon: '↔️', desc: (l) => `Multiplier gates 20% wider (${Math.round(74 * 1.2 ** l)} → ${Math.round(74 * 1.2 ** (l + 1))} px)`, cost: 15, grow: 1.75, max: 6, req: ['core'], x: 1, y: 0, fx: (s, l) => { s.gateW *= 1.2 ** l; } },
-    { id: 'gate', name: 'Extra Gate', icon: '🚪', desc: (l) => `+1 moving multiplier gate (${l + 1} → ${l + 2} gates)`, cost: 38, grow: 2.8, max: 3, req: ['wide'], x: 2, y: 0, fx: (s, l) => { s.gates += l; } },
+    // excl 'machine': the gate stack (more gates, higher tiers: aim matters) or the pinball (splitters, magnets, portals: volume)
+    { id: 'gate', excl: 'machine', name: 'Extra Gate', icon: '🚪', desc: (l) => `Gate Stack: +1 moving multiplier gate (${l + 1} → ${l + 2}). Leads to Gate Tier.`, cost: 38, grow: 2.8, max: 3, req: ['wide'], x: 2, y: 0, fx: (s, l) => { s.gates += l; } },
     { id: 'tier', name: 'Gate Tier', icon: '✖️', desc: (l) => `All gates upgrade: x${[2, 3, 5][Math.min(l, 2)]} → x${[3, 5, 5][Math.min(l, 2)]}`, cost: 170, grow: 3.4, max: 2, req: ['gate'], x: 3, y: 0, fx: (s, l) => { s.mult = [2, 3, 5][l]; } },
     { id: 'glide', name: 'Gate Glide', icon: '〰️', desc: 'Gates sweep 25% faster across the stream', cost: 26, grow: 2, max: 4, req: ['wide'], x: 2, y: -1, fx: (s, l) => { s.gateSpeed *= 1.25 ** l; } },
     { id: 'pad', name: 'Bounce Pad', icon: '🦘', desc: (l) => `+1 trampoline that kicks pellets back up (${l + 1} → ${l + 2})`, cost: 19, grow: 2.5, max: 3, req: ['core'], x: -1, y: 0, fx: (s, l) => { s.pads += l; } },
@@ -27,24 +28,26 @@
     { id: 'aegis', name: 'Aegis Field', icon: '💠', desc: '+3 shield; the shield slowly recharges', cost: 3, grow: 2, max: 4, req: ['salvage'], x: -1, y: -2, cur: 'cores', fx: (s, l) => { s.shield += 3 * l; s.shieldRegen += 0.06 * l; } },
     // ---- turret line
     { id: 'feed', name: 'Turret Feed', icon: '⚙️', desc: '+15% fire rate, +10% damage', cost: 30, grow: 1.8, max: 8, req: ['gun'], x: 1, y: -2, fx: (s, l) => { s.rate *= 1.15 ** l; s.dmg *= 1.1 ** l; } },
-    { id: 'arc', name: 'Arc Rounds', icon: '🌩️', desc: 'Hits arc to +1 nearby alien for half damage', cost: 150, grow: 2.6, max: 3, req: ['feed'], x: 1, y: -3, fx: (s, l) => { s.arc += l; } },
-    { id: 'missile', name: 'Missile Pod', icon: '🚀', desc: 'Collected pellets build homing blast missiles', cost: 120, grow: 2.4, max: 3, req: ['feed'], x: 2, y: -3, fx: (s, l) => { s.missile = [0, 36, 26, 18][l]; } },
+    // excl 'ordnance': chain lightning for crowds, or big homing blasts for tanky targets
+    { id: 'arc', excl: 'ordnance', name: 'Arc Rounds', icon: '🌩️', desc: 'Hits arc to +1 nearby alien for half damage. Best against swarms.', cost: 150, grow: 2.6, max: 3, req: ['feed'], x: 1, y: -3, fx: (s, l) => { s.arc += l; } },
+    { id: 'missile', excl: 'ordnance', name: 'Missile Pod', icon: '🚀', desc: (l) => `Every ${[36, 26, 18][Math.min(l, 2)]} collected pellets launch a homing blast missile. Best against hives and the boss.`, cost: 120, grow: 2.4, max: 3, req: ['feed'], x: 2, y: -3, fx: (s, l) => { s.missile = [0, 36, 26, 18][l]; s.missDmg = 1 + 0.25 * (l - 1); } },
     { id: 'storm', name: 'Storm Lattice', icon: '🕸️', desc: 'Arcs jump +1 more alien, +30% arc damage', cost: 3, grow: 2, max: 3, req: ['arc'], x: 1, y: -4, cur: 'cores', fx: (s, l) => { s.arc += l; s.arcDmg += 0.3 * l; } },
     { id: 'streak', name: 'Bounty Streak', icon: '🔥', desc: '+0.3% credits per streak kill (max 60)', cost: 40, grow: 1.9, max: 5, req: ['salvage'], x: -2, y: -1, fx: (s, l) => { s.streak += 0.003 * l; } },
     // ---- gate machine (right): line the gates up
     { id: 'sync', name: 'Gate Sync', icon: '🎚️', desc: 'Lower gates drift 25% toward the top gate', cost: 110, grow: 2.3, max: 3, req: ['glide'], x: 3, y: -1, fx: (s, l) => { s.sync += 0.25 * l; } },
     { id: 'prism', name: 'Prism Gate', icon: '🔺', desc: 'Top gate is one multiplier tier higher', cost: 320, grow: 3, max: 2, req: ['tier'], x: 3, y: 1, fx: (s, l) => { s.prism += l; } },
-    { id: 'luck', name: 'Jackpot Sensor', icon: '🎰', desc: 'Golden x10 gates come 25% more often, last longer', cost: 60, grow: 2, max: 4, req: ['scan'], x: 2, y: 1, fx: (s, l) => { s.jackpot += l; } },
+    // excl 'fortune': active greed (more, longer jackpot gates to aim for) or passive income (cores over time)
+    { id: 'luck', excl: 'fortune', name: 'Jackpot Sensor', icon: '🎰', desc: 'Golden x10 gates come 30% more often and last 1.2 s longer; each jackpot pays +1 core', cost: 60, grow: 2, max: 4, req: ['scan'], x: 2, y: 1, fx: (s, l) => { s.jackpot += l; } },
     // ---- pinball machine (left): the other build direction
-    { id: 'splitter', name: 'Splitter Pegs', icon: '🟡', desc: (l) => `+2 gold pegs that split any pellet in two (now ${2 * l})`, cost: 45, grow: 2.3, max: 3, req: ['pad'], x: -2, y: 1, fx: (s, l) => { s.splitters += 2 * l; } },
+    { id: 'splitter', excl: 'machine', name: 'Splitter Pegs', icon: '🟡', desc: (l) => `Pinball: +2 gold pegs that split pellets in two (now ${2 * l}). Leads to the Portal.`, cost: 45, grow: 2.3, max: 3, req: ['pad'], x: -2, y: 1, fx: (s, l) => { s.splitters += 2 * l; } },
     { id: 'magnet', name: 'Magnet Gates', icon: '🧿', desc: 'Gates tug falling pellets toward them', cost: 80, grow: 2.2, max: 4, req: ['splitter'], x: -3, y: 1, fx: (s, l) => { s.magnet += l; } },
-    { id: 'portal', name: 'Portal Loop', icon: '🕳️', desc: (l) => `Floor portal re-drops pellets from the top (${l} → ${l + 1} loops)`, cost: 300, grow: 2.5, max: 3, req: ['magnet'], x: -4, y: 1, fx: (s, l) => { s.portal += l; } },
+    { id: 'portal', name: 'Portal Loop', icon: '🕳️', desc: (l) => `Floor portal re-drops pellets from the top, each loop doubling their worth (${l} → ${l + 1} loops)`, cost: 300, grow: 2.5, max: 3, req: ['magnet'], x: -4, y: 1, fx: (s, l) => { s.portal += l; } },
     { id: 'warp', name: 'Warp Echo', icon: '🪐', desc: '+30% chance a looped pellet comes out as two', cost: 3, grow: 2, max: 3, req: ['portal'], x: -5, y: 1, cur: 'cores', fx: (s, l) => { s.warp += 0.3 * l; } },
     // ---- defence (down)
     { id: 'supercap', name: 'Supercapacitor', icon: '🔌', desc: '+30% tank, +10% recharge', cost: 26, grow: 1.85, max: 6, req: ['burst'], x: -1, y: 2, fx: (s, l) => { s.cap *= 1.3 ** l; s.regen *= 1.1 ** l; } },
     { id: 'nova', name: 'Shield Nova', icon: '🎇', desc: 'Shield hits blast every alien near the shield', cost: 40, grow: 2, max: 4, req: ['shield'], x: 0, y: 2, fx: (s, l) => { s.nova += l; } },
     { id: 'reserve', name: 'Backup Generator', icon: '♻️', desc: 'Once per run, a broken shield reboots at half', cost: 260, grow: 2, max: 1, req: ['nova'], x: 0, y: 3, fx: (s) => { s.reserve = 1; } },
-    { id: 'refinery', name: 'Scrap Refinery', icon: '🏭', desc: '+12% credits; +1 core per 40 s survived', cost: 70, grow: 2.1, max: 3, req: ['scan'], x: 1, y: 2, fx: (s, l) => { s.salvage *= 1 + 0.12 * l; s.refine += l; } },
+    { id: 'refinery', excl: 'fortune', name: 'Scrap Refinery', icon: '🏭', desc: '+12% credits; +1 core per 40 s survived', cost: 70, grow: 2.1, max: 3, req: ['scan'], x: 1, y: 2, fx: (s, l) => { s.salvage *= 1 + 0.12 * l; s.refine += l; } },
     // ---- character nodes
     { id: 'ace', who: 'corvette', name: 'Overcharge', icon: '🛩️', desc: 'Taps release +2 pellets, +15% damage', cost: 50, grow: 2.1, max: 5, req: ['gun'], x: 1, y: -1, fx: (s, l) => { s.burst += 2 * l; s.dmg *= 1.15 ** l; } },
     { id: 'salvo', who: 'corvette', name: 'Flak Salvo', icon: '🎆', desc: '+25% of tap-released pellets are explosive', cost: 90, grow: 2.2, max: 3, req: ['ace'], x: 2, y: -2, fx: (s, l) => { s.tapEx += 0.25 * l; } },
@@ -52,7 +55,7 @@
     { id: 'wing', who: 'carrier', name: 'Wing Commander', icon: '✈️', desc: '+3 drone slots, drones hit 50% harder', cost: 90, grow: 2.2, max: 3, req: ['hangar'], x: 2, y: -2, fx: (s, l) => { s.droneMax += 3 * l; s.droneDmg += 0.5 * l; } },
     { id: 'focus', who: 'lancer', name: 'Focusing Lens', icon: '🔭', desc: 'Beam +12 px wide, +20% beam damage', cost: 50, grow: 2.1, max: 5, req: ['gun'], x: 1, y: -1, fx: (s, l) => { s.beamW += 12 * l; s.dmg *= 1.2 ** l; } },
     { id: 'twin', who: 'lancer', name: 'Split Beam', icon: '🔱', desc: 'A second beam hits another target (+35%)', cost: 90, grow: 2.2, max: 3, req: ['focus'], x: 2, y: -2, fx: (s, l) => { s.twin += 0.35 * l; } },
-    { id: 'tether', who: 'weaver', name: 'Gate Tether', icon: '🪢', desc: '+1 more gate follows your finger', cost: 60, grow: 2.6, max: 2, req: ['gun'], x: 1, y: -1, fx: (s, l) => { s.steer += l; } },
+    { id: 'tether', who: 'weaver', name: 'Gate Tether', icon: '🪢', desc: '+1 more gate follows your finger (adds a gate if you have too few)', cost: 60, grow: 2.6, max: 2, req: ['gun'], x: 1, y: -1, fx: (s, l) => { s.steer += l; s.gates = Math.max(s.gates, s.steer); } },
     { id: 'loom', who: 'weaver', name: 'Loom', icon: '🧵', desc: 'Steered gates 15% wider; reactor sweeps slower', cost: 70, grow: 2.1, max: 4, req: ['tether'], x: 2, y: -2, fx: (s, l) => { s.steerW *= 1.15 ** l; s.sweep *= 0.88 ** l; } },
     { id: 'mother', name: 'Summon the Mothership', icon: '👾', desc: 'Next run draws out the Mothership. Destroy it to win.', cost: 2400, grow: 1, max: 1, req: ['rail', 'storm', 'aegis'], reqAll: 2, extra: { cores: 10 }, x: 0, y: -5, win: true },
   ];
@@ -67,9 +70,30 @@
   const COLS = { drone: ['#2d6a4f', '#80ed99', '#b7efc5'], brute: ['#5a189a', '#c77dff', '#e0aaff'], elite: ['#b5651d', '#ffd166', '#fff3b0'],
     warded: ['#1d4e89', '#4cc9f0', '#caf0f8'], swarm: ['#9d0208', '#ff6b6b', '#ffc9c9'], hive: ['#3c096c', '#ff9ef0', '#ffd6f5'], pod: ['#6a040f', '#ff4d6d', '#ffccd5'] };
   const MULC = { 2: '#4cc9f0', 3: '#80ed99', 5: '#f72585', 8: '#ff9f1c', 12: '#e0aaff' };
+  // run modifiers (from run 7, not on boss runs): each changes how a run plays, announced on the start banner
+  const MODS = [
+    { name: 'Gold Rush', desc: 'Golden elites are 3x as common', go: (s) => { s.elite *= 3; } },
+    { name: 'Ion Storm', desc: 'Gates 30% wider, aliens 15% faster', go: (s) => { s.gateW *= 1.3; s.alienSp = 1.15; } },
+    { name: 'Overcharge', desc: 'Tank +60%, recharge +30%, shield -1', go: (s) => { s.cap *= 1.6; s.regen *= 1.3; s.shield = Math.max(1, s.shield - 1); } },
+    { name: 'Swarm Season', desc: 'Swarms twice as often; kills pay +25%', go: (s) => { s.swarmX = 2; s.salvage *= 1.25; } },
+    { name: 'Bounce House', desc: '+1 bounce pad; pellets bounce once more', go: (s) => { s.pads += 1; s.padBounce += 1; } },
+  ];
+  // what each early run introduces (per character, since each one replays the tree)
+  const NEWS = { 2: ['NEW: REPAIR BIN', 'Pellets in the cyan bin fix your shield'], 3: ['NEW: JACKPOT GATES', 'Gold x10 gates! Save plasma for them'],
+    4: ['NEW: WARDED ALIENS', 'A bubble blocks their first hit'], 5: ['NEW: SWARMS', 'Fast wasps in packs. Arcs and blasts help'], 8: ['NEW: HIVE CARRIERS', 'Big and slow. Each drops a supply crate'] };
+  let spr = () => false; // env.sprite once a run starts (the sim has none: vector art)
+  // a sprite plus an additive copy of itself for the hit flash (a white blob would hide the art)
+  function sprFlash(g, name, x, y, w, hit, o) {
+    if (!spr(g, name, x, y, w, null, o)) return false;
+    if (hit > 0) { const op = g.globalCompositeOperation; g.globalCompositeOperation = 'lighter'; spr(g, name, x, y, w, null, { ...o, alpha: 0.7 * hit }); g.globalCompositeOperation = op; }
+    return true;
+  }
 
   function createRun(env) {
     const s = env.stats, W = env.W, H = env.H, fx = env.fx, sfx = env.sfx, rnd = Math.random, runNo = env.runNo || 1;
+    spr = env.sprite || (() => false);
+    const mod = !env.boss && runNo >= 7 && !NEWS[runNo] && (runNo === 7 || rnd() < 0.7) ? MODS[Math.floor(rnd() * MODS.length)] : null;
+    if (mod) mod.go(s);
     const SP = Math.round(H * 0.4), MY = SP, MH = H - SP;
     // number pops: never inside the HUD rows (top ~100 px, which includes the pause button) or against the screen edges
     if (fx.text) { const raw = fx.text.bind(fx); fx.text = (x, y, str, c, size) => raw(Math.max(40, Math.min(W - 40, x)), Math.max(env.boss ? 128 : 112, y), str, c, size); }
@@ -92,17 +116,23 @@
       ammo: 0, ammoEx: 0, fireT: 0, turret: 0, recoil: [0, 0, 0], shots: [], aliens: [], spawnAcc: -0.3, waveT: 8, shield: s.shield, shMax: s.shield, shieldFlash: 0,
       gates, cr: 0, cores: 0, kills: 0, peak: 0, chain: 1, made: 0, beam: 0, beamT: 0, beams: [], drones: [], pulses: [], touched: false, boss: null, bossT: 0, in: null,
       freeze: 0, streak: 0, bestStreak: 0, banner: null, arcs: [], missiles: [], missAcc: 0, jack: null, jackT: 6, jackpots: 0, swarmT: 18, hiveT: 6, crates: 0, crateQ: 0,
-      rateMul: 1, surgeT: 0, floodT: 0, bountyT: 0, reserveUsed: false, loops: 0, refineT: 0, portal: s.portal ? { x: W / 2, w: 40 + 10 * s.portal, flash: 0 } : null, intro: 0, sweepT: 0, cause: '', dmgAcc: 0, dpsE: 0 };
+      rateMul: 1, surgeT: 0, floodT: 0, bountyT: 0, reserveUsed: false, loops: 0, refineT: 0, portal: s.portal ? { x: W / 2, w: 40 + 10 * s.portal, flash: 0 } : null, intro: 0, sweepT: 0, cause: '', dmgAcc: 0, dpsE: 0,
+      // the repair bin (from run 2): a slow cyan cup on the collector floor. Pellets caught in it fix the shield instead of
+      // firing, so where you pour is offence vs defence. Each repair costs 50% more pellets than the last.
+      bin: runNo >= 2 || env.boss ? { x: W * 0.3, w: 52, rep: 0, need: 22, flash: 0, ph: rnd() * TAU } : null, repairs: 0,
+      jackTell: 0, jackPh: 0, jamT: 5, jamSeen: false, drops: [], lowWarn: false, mod };
     if (env.boss) {
       const r = Math.min(W * 0.2, 80);
       R.boss = { kind: 'boss', x: W / 2, y: -r, ty: 92 + r * 0.45, r, hp: BOSS_HP, max: BOSS_HP, sp: 1.4, dmg: 999, val: 400, inc: 0, hitT: -1, wob: 0, phase: 1, immune: true };
       R.aliens.push(R.boss); R.intro = 2.8;
       banner('WARNING', 'The Mothership is coming', '#ff4d6d', 2.8);
       // music sting: a falling minor siren, a low drone and a staccato pulse
-      [[392, 0], [370, 0.18], [311, 0.36], [294, 0.54]].forEach(([f, d]) => sfx.tone(f, 0.22, 'square', 0.05, 0.98, d));
+      if (!sfx.play('siren', 0.8)) [[392, 0], [370, 0.18], [311, 0.36], [294, 0.54]].forEach(([f, d]) => sfx.tone(f, 0.22, 'square', 0.05, 0.98, d));
       sfx.tone(73.4, 2.2, 'sawtooth', 0.09, 0.9, 0.7); sfx.tone(110, 2, 'triangle', 0.07, 0.85, 0.75);
       for (let i = 0; i < 6; i++) sfx.tone(587, 0.06, 'square', 0.03, 1, 1.0 + i * 0.22);
-    } else banner('READY', runNo <= 1 ? 'Aliens incoming: fill the guns!' : `Run ${runNo}`, '#7df9ff', 1.2);
+    } else if (mod) banner(mod.name.toUpperCase(), mod.desc, '#80ed99', 2.6);
+    else if (NEWS[runNo]) banner(NEWS[runNo][0], NEWS[runNo][1], '#ffd166', 2.6);
+    else banner('READY', runNo <= 1 ? 'Aliens incoming: fill the guns!' : `Run ${runNo}`, '#7df9ff', 1.2);
 
     function banner(text, sub, col, life = 1.8) { R.banner = { text, sub, col, t: 0, life }; }
     function emit(tap) {
@@ -114,12 +144,12 @@
     }
     function tapBurst() {
       let n = 0; for (let i = 0; i < s.burst; i++) if (emit(true)) n++;
-      if (n) { sfx.zap(); fx.ring(R.rx, railY, 22, '#7df9ff'); } else { sfx.tone(160, 0.08, 'square', 0.03); fx.ring(R.rx, railY, 16, '#ff4d6d'); R.empty = 0.6; }
+      if (n) { sfx.zap(); fx.ring(R.rx, railY, 22 + n, '#7df9ff'); } else { sfx.tone(160, 0.08, 'square', 0.03); fx.ring(R.rx, railY, 16, '#ff4d6d'); R.empty = 0.6; }
     }
     function addOverflow(ex, n) { if (ex) R.overEx += n; else R.overflow += n; }
     function collect(p) {
       if (p.m > R.chain) R.chain = p.m;
-      load(p.ex, 1);
+      load(p.ex, p.w || 1); // a portal-looped pellet is worth 2^loops shots
       if (s.drone && rnd() < s.drone && R.drones.length < s.droneMax) { R.drones.push({ life: s.droneLife, a: rnd() * TAU, fireT: 0.2, x: W / 2, y: shieldY - 50 }); sfx.zap(); }
       if (R.pulses.length < 24) R.pulses.push({ side: p.x < W / 2 ? 0 : 1, t: 0, ex: p.ex });
     }
@@ -178,7 +208,7 @@
       if (a.kind === 'hive') {
         fx.shake = Math.max(fx.shake, 6); R.freeze = Math.max(R.freeze, 0.07); fx.ring(a.x, a.y, 70, '#ff9ef0'); R.cores++;
         for (let i = 0; i < 4; i++) spawn('swarm', a.x + (i - 1.5) * 14, a.y);
-        if (R.crates < 2 && env.pick) { R.crates++; R.crateQ++; }
+        if (R.crates < 2 && env.pick) { R.crates++; R.drops.push({ x: a.x, y: a.y, y0: a.y, t: 0 }); } // a crate falls to the deck, then opens
       }
       if (a.kind === 'pod') {
         fx.shake = 10; R.freeze = 0.12; sfx.boom(); fx.ring(a.x, a.y, 90, '#ff4d6d');
@@ -201,7 +231,7 @@
         else kind = rnd() < Math.min(0.28, t / 110) ? 'brute' : 'drone';
       }
       const k = ALIEN[kind], r = k[0];
-      const a = { kind, x: x ?? r + 8 + rnd() * (W - 2 * r - 16), y: y ?? 30 - r, r, hp: hp * k[1], max: hp * k[1], sp: (32 + t * 0.6 + rnd() * 8) * k[2], dmg: k[3], val: k[4], inc: 0, hitT: -1, wob: rnd() * TAU, dead: false };
+      const a = { kind, x: x ?? r + 8 + rnd() * (W - 2 * r - 16), y: y ?? 30 - r, r, hp: hp * k[1] * (runNo <= 1 ? 0.85 : 1), max: hp * k[1] * (runNo <= 1 ? 0.85 : 1), sp: (32 + t * 0.6 + rnd() * 8) * k[2] * (s.alienSp || 1), dmg: k[3], val: k[4], inc: 0, hitT: -1, wob: rnd() * TAU, dead: false };
       if (kind === 'warded') { a.bub = 1; a.bubT = -9; }
       R.aliens.push(a);
       return a;
@@ -241,28 +271,39 @@
           for (const pd of pads) if (Math.abs(p.x - pd.x) < pd.w / 2) {
             p.y = padY; p.b++; p.pass = 0;
             p.vy = -Math.sqrt(2 * G * (padY - (MY + MH * 0.1))) * (0.85 + rnd() * 0.2); p.vx = (rnd() - 0.5) * 160 + (pd.x - W / 2) * -0.3;
-            pd.sq = 1; if (rnd() < 0.2) sfx.pop(1.6);
+            pd.sq = 1; if (rnd() < 0.2) sfx.play('bounce', 0.4, 0.9 + rnd() * 0.2) || sfx.pop(1.6);
             break;
           }
         }
         const Q = R.portal;
         if (Q && p.y >= binY - 6 && p.loop < s.portal && Math.abs(p.x - Q.x) < Q.w / 2) {
-          p.loop++; R.loops++; p.pass = 0; p.b = 0; p.age = 0; p.x = W - Q.x + (rnd() - 0.5) * 10; p.y = railY + 14; p.vy = 40; p.vx = (rnd() - 0.5) * 60; Q.flash = 1;
+          p.loop++; R.loops++; p.pass = 0; p.sm = 0; p.b = 0; p.w = (p.w || 1) * 2; p.age = 0; p.x = W - Q.x + (rnd() - 0.5) * 10; p.y = railY + 14; p.vy = 40; p.vx = (rnd() - 0.5) * 60; Q.flash = 1;
           if (s.warp && rnd() < s.warp) { const c = { ...p, vx: -p.vx + (rnd() - 0.5) * 50 }; if (P.length < CAP) P.push(c); else addOverflow(c.ex, 1); }
           continue;
         }
+        if (p.y >= binY && R.bin && R.shield < R.shMax && Math.abs(p.x - R.bin.x) < R.bin.w / 2) { repair(); P[i] = P[P.length - 1]; P.pop(); continue; }
         if (p.y >= binY || p.age > 9) { collect(p); P[i] = P[P.length - 1]; P.pop(); }
       }
     }
+    function repair() {
+      const b = R.bin; b.rep++; b.flash = Math.max(b.flash, 0.5);
+      if (b.rep < b.need) return;
+      const n = Math.min(R.shMax - R.shield, Math.max(1, Math.round(R.shMax * 0.15)));
+      R.shield += n; b.rep = 0; b.need = Math.round(b.need * 1.5); b.flash = 1; R.repairs++; R.shieldFlash = 1;
+      fx.text(b.x, binY - 30, `+${Math.ceil(n)} shield`, '#7df9ff', 17); fx.ring(b.x, binY - 8, 40, '#7df9ff'); fx.ring(W / 2, shieldY, 120, '#7df9ff');
+      sfx.tone(660, 0.1, 'triangle', 0.07); sfx.tone(990, 0.16, 'triangle', 0.06, 1, 0.08);
+    }
     function multiply(p, g, bit, mult) {
       const P = R.pellets;
+      if (g.jam > 0) return; // jammed by the Mothership: no multiply
+      if (g === R.jack && s.jackpot && !g.paid) { g.paid = true; R.cores++; fx.text(g.x, g.y - 30, '+1 core', '#ff9ef0', 17); sfx.ding(); }
       p.pass |= bit; p.m = Math.min(9999, p.m * mult); g.flash = 1;
       const n = mult - 1; R.made += n;
       for (let k = 0; k < n; k++) {
         if (P.length < CAP) P.push({ ...p, vx: p.vx + (k - (n - 1) / 2 + (rnd() - 0.5)) * 70 + (k % 2 ? 30 : -30), vy: p.vy * (0.8 + rnd() * 0.2) });
         else addOverflow(p.ex, 1);
       }
-      if (rnd() < 0.15) sfx.tone(600 + Math.min(mult, 12) * 120 + rnd() * 80, 0.05, 'sine', 0.025);
+      if (rnd() < 0.15) sfx.play('gate', 0.35, 0.8 + Math.min(mult, 12) * 0.05) || sfx.tone(600 + Math.min(mult, 12) * 120 + rnd() * 80, 0.05, 'sine', 0.025);
     }
     function openCrate() {
       const all = [
@@ -274,6 +315,7 @@
       ];
       for (let i = all.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [all[i], all[j]] = [all[j], all[i]]; }
       const opts = all.slice(0, 3);
+      sfx.play('crate', 0.8);
       env.pick('Supply crate! Pick one', opts.map(({ icon, name, desc }) => ({ icon, name, desc })), (i) => {
         const o = opts[i]; if (!o) return;
         o.go(); banner(o.name, o.desc, '#80ed99', 1.6); fx.ring(W / 2, SP * 0.5, 90, '#80ed99');
@@ -314,20 +356,34 @@
           if (g.steer) { if (input.down) { const tx = Math.max(W / 2 - g.amp, Math.min(W / 2 + g.amp, input.x)); g.x += (tx - g.x) * Math.min(1, dt * 12); } }
           else { g.x = W / 2 + Math.sin(R.t * g.sp + g.ph) * g.amp; if (i && s.sync) g.x += (g0.x - g.x) * Math.min(0.9, s.sync); }
           g.flash = Math.max(0, g.flash - dt * 5);
+          if (g.tell > 0) { g.tell -= dt; if (g.tell <= 0) { g.jam = 4; sfx.crack(); fx.burst(g.x, g.y, 10, ['#ff4d6d', '#adb5bd'], 120); } }
+          if (g.jam > 0) g.jam -= dt;
         }
         for (const pd of pads) pd.sq = Math.max(0, pd.sq - dt * 6);
         for (const pg of pegs) pg.hit = Math.max(0, pg.hit - dt * 6);
         if (R.portal) { const Q = R.portal; Q.x = W / 2 + Math.sin(R.t * 0.7 + 2) * (W / 2 - Q.w / 2 - 12); Q.flash = Math.max(0, Q.flash - dt * 3); }
-        // jackpot gate: a rare golden x10 gate that sweeps through the middle of the machine (from run 3)
+        // jackpot gate: a rare golden x10 gate that sweeps through the middle of the machine (from run 3). A 1.6 s pre-tell
+        // shows where it will open, so the play is: stop pouring, let the tank fill, then dump it through the gold gate.
+        const JW = 54, JA = (W - JW) / 2 - 12;
         if (R.jack) { const J = R.jack; J.t -= dt; J.x = W / 2 + Math.sin(R.t * 1.3 + J.ph) * J.amp; J.flash = Math.max(0, J.flash - dt * 5); if (J.t <= 0) R.jack = null; }
-        else if (runNo >= 3 && !R.boss && R.t > 6) {
+        else if (R.jackTell > 0) {
+          R.jackTell -= dt;
+          if (R.jackTell <= 0) {
+            const life = 4 + 1.2 * s.jackpot; R.jack = { y: jackY, w: JW, x: W / 2, amp: JA, ph: R.jackPh, t: life, life, flash: 0, mult: 10 }; R.jackpots++;
+            sfx.ding(); sfx.tone(1568, 0.2, 'triangle', 0.06, 1, 0.12);
+          }
+        } else if (runNo >= 3 && !R.boss && R.t > 6) {
           R.jackT -= dt;
           if (R.jackT <= 0) {
-            R.jackT = (16 + rnd() * 10) / (1 + 0.25 * s.jackpot);
-            const w = 54, life = 4 + 1.2 * s.jackpot; R.jack = { y: jackY, w, x: W / 2, amp: (W - w) / 2 - 12, ph: rnd() * TAU, t: life, life, flash: 0, mult: 10 }; R.jackpots++;
-            banner('JACKPOT GATE', 'Hit the golden x10!', '#ffd166', 1.4); sfx.ding(); sfx.tone(1568, 0.2, 'triangle', 0.06, 1, 0.12);
+            R.jackT = (16 + rnd() * 10) / (1 + 0.3 * s.jackpot); R.jackTell = 1.6; R.jackPh = rnd() * TAU;
+            banner('JACKPOT INCOMING', 'Let go to save plasma, then pour on the x10', '#ffd166', 1.6);
+            [988, 1175, 1319].forEach((f, i) => sfx.tone(f, 0.09, 'triangle', 0.05, 1, i * 0.12));
           }
         }
+        R.jackX = W / 2 + Math.sin(R.t * 1.3 + R.jackPh) * JA; // where the tell is drawn
+        if (R.bin) { const b = R.bin; b.x = W / 2 + Math.sin(R.t * 0.42 + b.ph) * (W / 2 - 44); b.flash = Math.max(0, b.flash - dt * 3); }
+        for (const d of R.drops) { d.t += dt; d.y = d.y0 + (SP - 40 - d.y0) * Math.min(1, d.t / 0.8) ** 2; if (d.t >= 0.95) { d.done = true; R.crateQ++; fx.ring(d.x, d.y, 40, '#80ed99'); } }
+        R.drops = R.drops.filter((d) => !d.done);
         const sub = dt > 0.02 ? 2 : 1; for (let i = 0; i < sub; i++) stepPellets(dt / sub);
         R.peak = Math.max(R.peak, R.pellets.length);
         if (R.overflow || R.overEx) { load(false, R.overflow); load(true, R.overEx); R.overflow = R.overEx = 0; }
@@ -344,9 +400,18 @@
           R.spawnAcc += rate * dt; while (R.spawnAcc >= 1) { R.spawnAcc -= 1; spawn(); }
           R.waveT -= dt; if (R.waveT <= 0) { R.waveT = 9; const n = 5; for (let i = 0; i < n; i++) spawn('drone', W * (i + 0.5) / n); }
           // swarms (from run 6) and hive carriers (from run 9) phase in over the run
-          if (runNo >= 6 && R.t > 16) { R.swarmT -= dt; if (R.swarmT <= 0) { R.swarmT = 11 + rnd() * 5; const cx = 50 + rnd() * (W - 100); for (let i = 0; i < 6; i++) spawn('swarm', cx + (i - 2.5) * 13, 20 - Math.abs(i - 2.5) * 10); sfx.tone(300, 0.2, 'sawtooth', 0.03, 1.8); } }
-          if (runNo >= 9 && R.t > 22 && !B) { R.hiveT -= dt; if (R.hiveT <= 0) { R.hiveT = 20 + rnd() * 6; spawn('hive'); sfx.tone(90, 0.5, 'sawtooth', 0.06, 0.7); } }
+          if (runNo >= 5 && R.t > 16) { R.swarmT -= dt * (s.swarmX || 1); if (R.swarmT <= 0) { R.swarmT = 11 + rnd() * 5; const cx = 50 + rnd() * (W - 100); for (let i = 0; i < 6; i++) spawn('swarm', cx + (i - 2.5) * 13, 20 - Math.abs(i - 2.5) * 10); sfx.tone(300, 0.2, 'sawtooth', 0.03, 1.8); } }
+          if (runNo >= 8 && R.t > 22 && !B) { R.hiveT -= dt; if (R.hiveT <= 0) { R.hiveT = 20 + rnd() * 6; spawn('hive'); sfx.tone(90, 0.5, 'sawtooth', 0.06, 0.7); } }
           if (B && !B.dead) { R.bossT -= dt; if (R.bossT <= 0) { R.bossT = B.phase === 3 ? 0.7 : 1.4; spawn(B.phase === 3 ? 'swarm' : 'drone', B.x + (rnd() - 0.5) * B.r, B.y + B.r * 0.3); } }
+          // the Mothership jams a gate: it glows red for 1.3 s (the tell), then stops multiplying for 4 s. Phase 3 jams faster.
+          if (B && !B.dead && gates.length) {
+            R.jamT -= dt;
+            if (R.jamT <= 0 && !gates.some((gt) => gt.jam > 0 || gt.tell > 0)) {
+              const gt = gates[Math.floor(rnd() * gates.length)]; gt.tell = 1.3; R.jamT = B.phase === 3 ? 4.5 : 7;
+              sfx.tone(520, 0.12, 'square', 0.04); sfx.tone(390, 0.18, 'square', 0.04, 1, 0.14);
+              if (!R.jamSeen) { R.jamSeen = true; banner('GATE JAM', 'The red gate shuts off: aim elsewhere!', '#ff4d6d', 1.8); }
+            }
+          }
         }
         for (const a of R.aliens) {
           if (a.dead) continue;
@@ -365,6 +430,10 @@
           }
         }
         R.shield = Math.min(R.shMax, R.shield + s.shieldRegen * dt); R.shieldFlash = Math.max(0, R.shieldFlash - dt * 3);
+        // low-shield warning: once per dip, in words and sound (the bar colour alone is not enough)
+        const low = R.shield > 0 && R.shield <= Math.max(1, R.shMax * 0.25);
+        if (low && !R.lowWarn) { R.lowWarn = R.lowEver = true; sfx.tone(880, 0.12, 'square', 0.05); sfx.tone(660, 0.16, 'square', 0.05, 1, 0.15); fx.text(W / 2, shieldY - 30, R.bin && !s.auto ? 'LOW SHIELD: pour into the repair bin!' : 'LOW SHIELD!', '#ff4d6d', 16); }
+        else if (R.shield > R.shMax * 0.5) R.lowWarn = false;
         // turrets
         if (s.beam) {
           R.beamT += dt;
@@ -377,8 +446,10 @@
               let t2 = null; for (const a of R.aliens) if (targetable(a) && Math.abs(a.x - x) > w / 2 + a.r && (!t2 || a.y > t2.y)) t2 = a;
               if (t2) { const x2 = t2.x; for (const a of R.aliens) if (!a.dead && Math.abs(a.x - x2) < w / 2 + a.r) hitAlien(a, d * s.twin); R.beams.push({ x: x2, w: w * 0.7, t: 0, twin: true }); }
             }
+            const big = d >= tg.max * 0.5; // hit-stop and a heavier kick on a beam that deletes a big target
             R.beam = 0; R.beamT = 0; R.recoil[2] = 1;
-            sfx.zap(); sfx.tone(180, 0.18, 'sawtooth', 0.05, 2.2); fx.shake = Math.max(fx.shake, 2);
+            if (!sfx.play('beam', 0.7)) { sfx.zap(); sfx.tone(180, 0.18, 'sawtooth', 0.05, 2.2); }
+            fx.shake = Math.max(fx.shake, big && tg.r > 14 ? 5 : 2); if (big && tg.r > 14) R.freeze = Math.max(R.freeze, 0.05);
           }
         } else {
           R.fireT -= dt;
@@ -391,13 +462,13 @@
             if (!shoot(tx, SP - 30, n * s.dmg, ex, s.pierce, 0)) break;
             if (ex) R.ammoEx -= n; else R.ammo -= n;
             R.recoil[R.turret] = 1; R.turret ^= 1; R.fireT += 1 / rate;
-            if (rnd() < 0.5) sfx.tone(1200 + rnd() * 300, 0.04, 'square', 0.018, 0.5);
+            if (rnd() < 0.5) sfx.play('shot', 0.25, 0.9 + rnd() * 0.25) || sfx.tone(1200 + rnd() * 300, 0.04, 'square', 0.018, 0.5);
           }
         }
         // missiles: every s.missile collected pellets build one; it carries that batch's damage x0.8 as a wide blast
         if (s.missile && R.missAcc >= s.missile && R.missiles.length < 6 && R.aliens.some(targetable)) {
           const side = R.missiles.length % 2;
-          R.missiles.push({ x: W / 2 + (side ? 80 : -80), y: SP - 16, vx: (side ? 1 : -1) * 120, vy: -260, dmg: R.missAcc * s.dmg * 0.8 * (s.beam ? 0.5 : 1), tg: pick(), trail: [] });
+          R.missiles.push({ x: W / 2 + (side ? 80 : -80), y: SP - 16, vx: (side ? 1 : -1) * 120, vy: -260, dmg: R.missAcc * s.dmg * 0.8 * (s.missDmg || 1) * (s.beam ? 0.5 : 1), tg: pick(), trail: [] });
           R.missAcc = 0; sfx.tone(240, 0.16, 'sawtooth', 0.03, 2.5);
         }
         for (const m of R.missiles) {
@@ -457,9 +528,19 @@
       quit() { R.quit = true; },
       result() {
         const lines = [`${R.kills} aliens downed in ${Math.round(R.t)} s · best streak ${R.bestStreak}`,
-          `Peak ${R.peak} pellets · best chain x${R.chain >= 9999 ? '9999+' : R.chain}${R.jackpots ? ` · ${R.jackpots} jackpot gate${R.jackpots > 1 ? 's' : ''}` : ''}${R.loops ? ` · ${env.fmt(R.loops)} portal loops` : ''}`];
+          `Peak ${R.peak} pellets · best chain x${R.chain >= 9999 ? '9999+' : R.chain}${R.jackpots ? ` · ${R.jackpots} jackpot gate${R.jackpots > 1 ? 's' : ''}` : ''}${R.repairs ? ` · ${R.repairs} repair${R.repairs > 1 ? 's' : ''}` : ''}${R.loops ? ` · ${env.fmt(R.loops)} portal loops` : ''}`];
+        if (R.mod) lines.push(`Modifier: ${R.mod.name}`);
         const earned = { credits: R.cr, cores: R.cores };
         if (R.won) return { won: true, earned, lines, score: R.kills };
+        // a next-step hint: the first that applies
+        const L = env.levels || {}, has = (id) => (L[id] || 0) > 0;
+        const tip = [[!has('gun'), 'Next: Turret Damage makes every shot count'], [!has('wide'), 'Next: Wide Gates catch more of your stream'],
+          [!has('shield'), 'Next: Shield Cells let you take more hits'], [R.bin && !s.auto && !R.repairs && R.lowEver && runNo <= 8, 'Tip: when the shield is low, pour into the cyan repair bin'],
+          [R.cause === 'The swarm' && !has('arc') && !has('nova'), 'Swarms: Arc Rounds or Shield Nova clear packs'],
+          [R.cause === 'A hive carrier' && !has('pierce'), 'Hives: Piercing Rounds and missiles chew through them'],
+          [!has('gate') && !has('splitter'), 'Pick a build: Extra Gate (stack) or Splitter Pegs (pinball)'],
+          [!has('feed'), 'Next: Turret Feed fires faster']].find((x) => x[0]);
+        if (tip && !R.quit) lines.push(tip[1]);
         const title = R.quit ? 'Run ended' : R.boss ? 'The Mothership broke through' : `Shield down: ${(R.cause || 'an alien').toLowerCase()} got through`;
         return { won: false, title, earned, lines, score: R.kills };
       },
@@ -482,6 +563,13 @@
       g.save(); g.translate(sx, sy);
       drawSpace(g);
       for (const a of R.aliens) a.kind === 'boss' ? drawBoss(g, a, R.t) : drawAlien(g, a, R.t);
+      for (const d of R.drops) { // supply crates falling from a hive to the deck
+        const wob = Math.sin(d.t * 14) * 0.2 * (1 - d.t);
+        if (!spr(g, 'obj-crate', d.x, d.y, 32, null, { rot: wob })) {
+          g.save(); g.translate(d.x, d.y); g.rotate(wob); g.fillStyle = '#2d6a4f'; rr(g, -13, -11, 26, 22, 4); g.fill(); g.strokeStyle = '#80ed99'; g.lineWidth = 2; g.stroke();
+          g.fillStyle = '#b7efc5'; g.fillRect(-2, -7, 4, 14); g.fillRect(-7, -2, 14, 4); g.restore();
+        }
+      }
       for (const b of R.beams) {
         const q = 1 - b.t / 0.3, c = b.twin ? '199,125,255' : '247,37,133';
         g.fillStyle = `rgba(${c},${0.35 * q})`; g.fillRect(b.x - b.w / 2, 0, b.w, SP - 24);
@@ -505,6 +593,7 @@
       }
       for (const d of R.drones) {
         g.save(); g.translate(d.x, d.y); g.rotate(Math.sin(d.a) * 0.3);
+        if (spr(g, 'unit-drone', 0, 0, 22)) { g.fillStyle = '#ffb703'; g.fillRect(-1.5, 9, 3, 2 + rnd() * 3); g.restore(); continue; }
         g.fillStyle = 'rgba(128,237,153,.25)'; g.beginPath(); g.arc(0, 4, 7, 0, TAU); g.fill();
         g.fillStyle = '#80ed99'; g.beginPath(); g.moveTo(0, -9); g.lineTo(7, 5); g.lineTo(0, 2); g.lineTo(-7, 5); g.closePath(); g.fill();
         g.fillStyle = '#fff'; g.fillRect(-1, -4, 2, 4); g.fillStyle = '#ffb703'; g.fillRect(-1.5, 3, 3, 2 + rnd() * 2); g.restore();
@@ -522,6 +611,10 @@
       drawHud(g);
     }
     function drawSpace(g) {
+      // painted backdrop (top-anchored, the machine covers its lower part) under a scrim, else the vector sky
+      const bgName = R.boss && env.art && env.art('bg-boss') ? 'bg-boss' : 'bg-space', im = env.art && env.art(bgName);
+      if (im && spr(g, bgName, W / 2, W * im.naturalHeight / im.naturalWidth / 2 - 10, W + 20)) { g.fillStyle = 'rgba(4,4,26,.35)'; g.fillRect(-20, -20, W + 40, SP + 20); }
+      else {
       const bg = g.createLinearGradient(0, 0, 0, SP); bg.addColorStop(0, '#04041a'); bg.addColorStop(0.6, '#110c3a'); bg.addColorStop(1, '#1f1250');
       g.fillStyle = bg; g.fillRect(-20, -20, W + 40, SP + 20);
       const nb = (x, y, r, c) => { const q = g.createRadialGradient(x, y, 0, x, y, r); q.addColorStop(0, c); q.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = q; g.fillRect(x - r, y - r, r * 2, r * 2); };
@@ -531,6 +624,7 @@
       const pg = g.createRadialGradient(px - pr * 0.4, py - pr * 0.4, 2, px, py, pr); pg.addColorStop(0, '#ffb4a2'); pg.addColorStop(1, '#6d2e46');
       g.globalAlpha = 0.5; g.fillStyle = pg; g.beginPath(); g.arc(px, py, pr, 0, TAU); g.fill();
       g.strokeStyle = 'rgba(255,214,165,.6)'; g.lineWidth = 2; g.beginPath(); g.ellipse(px, py, pr * 1.7, pr * 0.42, -0.35, 0, TAU); g.stroke(); g.globalAlpha = 1;
+      }
       g.fillStyle = '#ffffff';
       for (const st of stars) { g.globalAlpha = (0.3 + st.s * 0.35) * (0.75 + 0.25 * Math.sin(R.t * 3 + st.tw)); g.fillRect(st.x, st.y, st.s, st.s * (1 + st.v / 14)); }
       g.globalAlpha = 1;
@@ -554,6 +648,12 @@
       g.textAlign = 'center'; g.textBaseline = 'middle';
       for (const gt of gates) drawGate(g, gt, R.surgeT > 0 ? tierUp(gt.mult) : gt.mult, false);
       if (R.jack) drawGate(g, R.jack, 10, true);
+      if (R.jackTell > 0) { // pre-tell: a dashed gold outline sweeping where the jackpot gate will open
+        const a = 0.75 + 0.25 * Math.sin(R.t * 16), x = R.jackX;
+        g.globalAlpha = a; g.strokeStyle = '#ffd166'; g.lineWidth = 2; g.setLineDash([5, 4]); rr(g, x - 27, jackY - 9, 54, 18, 4); g.stroke(); g.setLineDash([]);
+        g.font = '400 16px "Lilita One", system-ui'; g.fillStyle = '#ffd166'; g.fillText(`x10 in ${Math.ceil(R.jackTell)}`, x, jackY - 20); g.globalAlpha = 1;
+      }
+      if (R.bin) drawBin(g, R.bin);
       for (const pd of pads) {
         const q = pd.sq, y = padY + q * 4;
         g.strokeStyle = '#6c757d'; g.lineWidth = 2;
@@ -587,7 +687,8 @@
       g.fillStyle = held ? '#fff' : '#7df9ff'; g.beginPath(); g.arc(R.rx, railY, 5 + (held ? Math.sin(R.t * 30) : 0), 0, TAU); g.fill();
     }
     function drawGate(g, gt, mult, gold) {
-      const c = gold ? '#ffd166' : MULC[mult] || '#4cc9f0', l = gt.x - gt.w / 2;
+      const jam = gt.jam > 0, tell = gt.tell > 0 && Math.sin(R.t * 28) > -0.2;
+      const c = jam ? '#6c757d' : tell ? '#ff4d6d' : gold ? '#ffd166' : MULC[mult] || '#4cc9f0', l = gt.x - gt.w / 2;
       const fade = gold ? Math.max(0, Math.min(1, (gt.life - gt.t) * 3, gt.t * 2)) : 1;
       const fg = g.createLinearGradient(0, gt.y - 9, 0, gt.y + 9); fg.addColorStop(0, 'rgba(0,0,0,0)'); fg.addColorStop(0.5, c); fg.addColorStop(1, 'rgba(0,0,0,0)');
       g.globalAlpha = fade * (0.28 + gt.flash * 0.4); g.fillStyle = fg; g.fillRect(l, gt.y - 9, gt.w, 18);
@@ -597,7 +698,7 @@
       g.strokeStyle = c; g.lineWidth = 2; g.beginPath(); g.moveTo(l, gt.y); g.lineTo(l + gt.w, gt.y); g.stroke();
       for (const px of [l, l + gt.w]) { const pg = g.createLinearGradient(px - 4, 0, px + 4, 0); pg.addColorStop(0, '#2b3550'); pg.addColorStop(0.5, c); pg.addColorStop(1, '#2b3550'); g.fillStyle = pg; rr(g, px - 4, gt.y - 11, 8, 22, 3); g.fill(); }
       if (gt.steer) { g.strokeStyle = 'rgba(255,255,255,.55)'; g.lineWidth = 1.5; g.setLineDash([3, 4]); g.beginPath(); g.moveTo(gt.x, gt.y + 12); g.lineTo(gt.x, gt.y + 22); g.stroke(); g.setLineDash([]); }
-      g.font = `400 ${(gold ? 18 : 15) + gt.flash * 4}px "Lilita One", system-ui`; g.fillStyle = gt.flash > 0.3 ? '#fff' : c; g.fillText('x' + mult, gt.x, gt.y - 18);
+      g.font = `400 ${(gold ? 18 : 15) + gt.flash * 4}px "Lilita One", system-ui`; g.fillStyle = gt.flash > 0.3 ? '#fff' : c; g.fillText(jam ? 'JAMMED' : gt.tell > 0 ? `x${mult} !` : 'x' + mult, gt.x, gt.y - 18);
       g.globalAlpha = 1;
     }
     function drawHud(g) {
@@ -609,13 +710,14 @@
       g.fillStyle = 'rgba(0,0,0,.5)'; rr(g, 14, 12, bw, 12, 6); g.fill();
       g.fillStyle = `rgb(${sc})`; rr(g, 14, 12, Math.max(0, bw * sf), 12, 6); g.fill();
       g.font = '800 13px Nunito, system-ui'; g.fillStyle = '#fff'; g.fillText(`Shield ${Math.ceil(R.shield)}/${R.shMax}`, 16, 40);
+      if (R.lowWarn && R.shield > 0) { const lw = g.measureText(`Shield ${Math.ceil(R.shield)}/${R.shMax}`).width; g.fillStyle = Math.sin(R.t * 10) > 0 ? '#ff4d6d' : '#ffb3c1'; g.fillText('LOW!', 24 + lw, 40); }
       if (R.streak >= 5) { g.fillStyle = R.streak >= 25 ? '#ffb703' : '#ffd6a5'; g.fillText(`Streak ${R.streak}${s.streak ? ` · +${Math.round(Math.min(R.streak, 60) * s.streak * 100)}%` : ''}`, 16, 58); }
       const rx = W - 62;
       g.textAlign = 'right'; g.font = '800 15px Nunito, system-ui'; g.fillStyle = '#ffd166';
       g.fillText(`${env.fmt(R.cr)} credits`, rx, 24);
       g.font = '800 13px Nunito, system-ui'; g.fillStyle = R.cores ? '#ff9ef0' : '#a9b8d6'; g.fillText(`${R.cores ? R.cores + ' cores · ' : ''}${Math.floor(R.t)} s`, rx, 42);
       const buffs = [R.surgeT > 0 && `Surge ${Math.ceil(R.surgeT)}s`, R.floodT > 0 && `Flood ${Math.ceil(R.floodT)}s`, R.bountyT > 0 && `Bounty ${Math.ceil(R.bountyT)}s`].filter(Boolean);
-      if (buffs.length && !R.boss) { g.textAlign = 'right'; g.fillStyle = '#80ed99'; g.fillText(buffs.join(' · '), W - 16, 58); }
+      if (buffs.length && !R.boss) { g.textAlign = 'right'; g.fillStyle = '#80ed99'; g.fillText(buffs.join(' · '), rx, 58); }
       const B = R.boss;
       if (B && !B.dead) {
         const w = W - 32, y = 78;
@@ -650,6 +752,18 @@
         } else g.fillText(`Aim the stream through the x${gates[0].mult} gate!`, W / 2, MY + MH * 0.47);
       }
     }
+    function drawBin(g, b) {
+      // the repair bin: a cyan cup on the collector floor with a fill meter; dim when the shield is full
+      const need = R.shield < R.shMax, low = need && R.shield <= R.shMax * 0.5, x = b.x, w = b.w, top = binY - 18;
+      g.globalAlpha = need || (runNo === 2 && R.t < 5) ? 1 : 0.45; // full strength while run 2 introduces it
+      if (need) { const q = g.createRadialGradient(x, binY, 2, x, binY, w); q.addColorStop(0, `rgba(125,249,255,${0.25 + 0.35 * b.flash})`); q.addColorStop(1, 'rgba(125,249,255,0)'); g.fillStyle = q; g.fillRect(x - w, top - 20, w * 2, 40); }
+      g.fillStyle = '#0d2a3a'; g.beginPath(); g.moveTo(x - w / 2, top); g.lineTo(x + w / 2, top); g.lineTo(x + w / 2 - 5, binY); g.lineTo(x - w / 2 + 5, binY); g.closePath(); g.fill();
+      const f = need ? b.rep / b.need : 0; g.fillStyle = '#7df9ff'; g.fillRect(x - w / 2 + 5, binY - 18 * f, w - 10, 18 * f);
+      g.strokeStyle = need ? '#7df9ff' : '#6c757d'; g.lineWidth = 2; g.beginPath(); g.moveTo(x - w / 2, top); g.lineTo(x - w / 2 + 5, binY); g.lineTo(x + w / 2 - 5, binY); g.lineTo(x + w / 2, top); g.stroke();
+      g.fillStyle = need ? '#fff' : '#adb5bd'; g.fillRect(x - 1.5, top + 3, 3, 11); g.fillRect(x - 5.5, top + 7, 11, 3); // a plus: "repair"
+      if (low) { const ay = top - 14 + Math.sin(R.t * 8) * 3; g.fillStyle = '#ff8fa3'; g.beginPath(); g.moveTo(x - 7, ay - 6); g.lineTo(x + 7, ay - 6); g.lineTo(x, ay + 2); g.fill(); }
+      g.globalAlpha = 1;
+    }
     function drawPellets(g, ex) {
       const P = R.pellets;
       g.fillStyle = ex ? 'rgba(255,159,28,.28)' : 'rgba(125,249,255,.22)'; g.beginPath();
@@ -667,6 +781,10 @@
     const hit = Math.max(0, 1 - (t - a.hitT) * 9), r = a.r, col = COLS[a.kind] || COLS.drone;
     g.save(); g.translate(a.x, a.y);
     const body = g.createRadialGradient(-r * 0.3, -r * 0.4, 1, 0, 0, r * 1.2); body.addColorStop(0, hit ? '#fff' : col[1]); body.addColorStop(1, hit ? '#ddd' : col[0]);
+    const sw = 2 * r * (a.kind === 'hive' ? 1.25 : a.kind === 'pod' ? 1.15 : 1.3); // art sized to the hit circle
+    if (sprFlash(g, 'enemy-' + a.kind, 0, Math.sin(t * 3 + a.wob) * 1.2, sw, hit, { rot: a.kind === 'pod' ? t : a.kind === 'swarm' ? Math.sin(t * 9 + a.wob) * 0.18 : 0 })) {
+      if (a.kind === 'elite') { g.strokeStyle = '#fff3b0'; g.lineWidth = 1.5; g.beginPath(); g.arc(0, 0, r + 5 + Math.sin(t * 6) * 1.5, 0, TAU); g.stroke(); }
+    } else {
     g.fillStyle = body;
     if (a.kind === 'swarm') { // little wasp
       g.beginPath(); g.ellipse(0, 0, r, r * 0.8, 0, 0, TAU); g.fill();
@@ -691,6 +809,7 @@
       if (a.kind === 'brute') { g.fillStyle = col[0]; g.beginPath(); g.moveTo(-r * 0.7, -r * 0.6); g.lineTo(-r * 0.95, -r * 1.15); g.lineTo(-r * 0.35, -r * 0.85); g.moveTo(r * 0.7, -r * 0.6); g.lineTo(r * 0.95, -r * 1.15); g.lineTo(r * 0.35, -r * 0.85); g.fill(); }
       if (a.kind === 'elite') { g.strokeStyle = '#fff3b0'; g.lineWidth = 1.5; g.beginPath(); g.arc(0, 0, r + 4 + Math.sin(t * 6) * 1.5, 0, TAU); g.stroke(); }
     }
+    }
     if (a.bub) { // warded: a bubble that eats one hit, then regrows
       const bg = g.createRadialGradient(-r * 0.4, -r * 0.5, 1, 0, 0, r + 7); bg.addColorStop(0, 'rgba(202,240,248,.5)'); bg.addColorStop(0.75, 'rgba(76,201,240,.12)'); bg.addColorStop(1, 'rgba(76,201,240,.55)');
       g.fillStyle = bg; g.beginPath(); g.arc(0, 0, r + 7, 0, TAU); g.fill();
@@ -705,6 +824,9 @@
     const gl = g.createRadialGradient(0, 0, 4, 0, 0, r * 1.6); gl.addColorStop(0, B.phase === 3 ? 'rgba(255,209,102,.4)' : 'rgba(255,77,109,.35)'); gl.addColorStop(1, 'rgba(255,77,109,0)');
     g.fillStyle = gl; g.beginPath(); g.arc(0, 0, r * 1.6, 0, TAU); g.fill();
     if (B.phase === 3) { g.fillStyle = `rgba(255,209,102,${0.08 + 0.05 * Math.sin(t * 10)})`; g.beginPath(); g.moveTo(-r * 0.3, r * 0.3); g.lineTo(r * 0.3, r * 0.3); g.lineTo(r * 0.9, r * 2.2); g.lineTo(-r * 0.9, r * 2.2); g.fill(); }
+    const art = sprFlash(g, 'boss-mothership', 0, 0, r * 2.7, hit * 0.6, {});
+    if (art && B.phase === 3) { g.globalCompositeOperation = 'lighter'; spr(g, 'boss-mothership', 0, 0, r * 2.7, null, { alpha: 0.18 + 0.12 * Math.sin(t * 10) }); g.globalCompositeOperation = 'source-over'; }
+    if (!art) {
     const hull = g.createLinearGradient(0, -r * 0.3, 0, r * 0.5); hull.addColorStop(0, '#7b2cbf'); hull.addColorStop(1, '#240046');
     g.fillStyle = hull; g.beginPath(); g.ellipse(0, r * 0.1, r * 1.25, r * 0.42, 0, 0, TAU); g.fill();
     g.strokeStyle = '#c77dff'; g.lineWidth = 2; g.beginPath(); g.ellipse(0, r * 0.1, r * 1.25, r * 0.42, 0, Math.PI * 1.05, Math.PI * 1.95); g.stroke();
@@ -715,8 +837,9 @@
     for (let i = 0; i < 7; i++) { const x = -r + i * (2 * r / 6); g.fillStyle = (Math.floor(t * (B.phase === 3 ? 14 : 6)) + i) % 2 ? '#ffd166' : '#80ed99'; g.beginPath(); g.arc(x, r * 0.22, r * 0.07, 0, TAU); g.fill(); }
     g.fillStyle = '#111'; g.beginPath(); g.arc(-r * 0.2, -r * 0.2, r * 0.09, 0, TAU); g.arc(r * 0.2, -r * 0.2, r * 0.09, 0, TAU); g.fill();
     g.fillStyle = '#fff'; g.beginPath(); g.arc(-r * 0.17, -r * 0.23, r * 0.03, 0, TAU); g.arc(r * 0.23, -r * 0.23, r * 0.03, 0, TAU); g.fill();
-    if (B.immune) { g.strokeStyle = `rgba(199,125,255,${0.35 + 0.25 * Math.sin(t * 6) + (B.shimmer || 0) * 0.3})`; g.lineWidth = 3; g.beginPath(); g.ellipse(0, 0, r * 1.45, r * 0.78, 0, 0, TAU); g.stroke(); B.shimmer = Math.max(0, (B.shimmer || 0) - 0.08); }
     if (hit) { g.globalAlpha = 0.25 * hit; g.fillStyle = '#fff'; g.beginPath(); g.ellipse(0, r * 0.05, r * 1.25, r * 0.5, 0, 0, TAU); g.fill(); g.globalAlpha = 1; }
+    }
+    if (B.immune) { g.strokeStyle = `rgba(199,125,255,${0.35 + 0.25 * Math.sin(t * 6) + (B.shimmer || 0) * 0.3})`; g.lineWidth = 3; g.beginPath(); g.ellipse(0, 0, r * 1.45, r * 0.78, 0, 0, TAU); g.stroke(); B.shimmer = Math.max(0, (B.shimmer || 0) - 0.08); }
     g.restore();
   }
   function drawShip(g, who, x, y, rec, t) {
@@ -725,6 +848,12 @@
     const metal = g.createLinearGradient(-8, 0, 8, 0); metal.addColorStop(0, '#6c757d'); metal.addColorStop(0.5, '#dee2e6'); metal.addColorStop(1, '#6c757d');
     if (who === 'lancer') { g.fillStyle = metal; g.fillRect(-7, -48 + rec[2] * 8, 14, 34); g.fillStyle = '#f72585'; g.fillRect(-4, -50 + rec[2] * 8, 8, 6); }
     else for (const [i, sx] of [[0, -50], [1, 50]]) { g.save(); g.translate(sx, 0); g.fillStyle = metal; g.fillRect(-4, -38 + rec[i] * 6, 8, 22); g.fillStyle = '#7df9ff'; g.fillRect(-3, -40 + rec[i] * 6, 6, 4); g.restore(); }
+    if (spr(g, 'unit-' + who, 0, -5, 200 * wide)) { // deck art; the code keeps the barrels (and their recoil) on top
+      g.restore(); g.save(); g.translate(x, y);
+      if (who === 'lancer') { g.fillStyle = metal; g.fillRect(-7, -48 + rec[2] * 8, 14, 34); g.fillStyle = '#f72585'; g.fillRect(-4, -50 + rec[2] * 8, 8, 6); }
+      else for (const [i, sx] of [[0, -50], [1, 50]]) { g.fillStyle = metal; g.fillRect(sx - 4, -38 + rec[i] * 6, 8, 22); g.fillStyle = '#7df9ff'; g.fillRect(sx - 3, -40 + rec[i] * 6, 6, 4); g.fillStyle = '#2b3550'; g.beginPath(); g.arc(sx, -18, 10, Math.PI, 0); g.fill(); }
+      g.restore(); return;
+    }
     const hull = g.createLinearGradient(0, -22, 0, 12); hull.addColorStop(0, '#6c7fa6'); hull.addColorStop(1, '#2b3550');
     g.fillStyle = hull; g.beginPath(); g.moveTo(-95 * wide, 6); g.lineTo(-62 * wide, -22); g.lineTo(62 * wide, -22); g.lineTo(95 * wide, 6); g.lineTo(80 * wide, 12); g.lineTo(-80 * wide, 12); g.closePath(); g.fill();
     g.fillStyle = '#8fa3cc'; g.fillRect(-62 * wide, -22, 124 * wide, 3);

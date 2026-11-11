@@ -49,11 +49,11 @@
   // ?noart (with ?dev) ignores the manifest, to compare against the vector look.
   const ASSETS = (DEV && /[?&]noart\b/.test(location.search)) ? { img: {}, sfx: {} } : (window.PP_ASSETS || { img: {}, sfx: {} });
   const IMG = {}, BUF = {}; let artT = 0;
-  for (const [k, url] of Object.entries(ASSETS.img || {})) { const im = new Image(); im.decoding = 'async'; im.onload = () => { IMG[k] = im; clearTimeout(artT); artT = setTimeout(() => dispatchEvent(new Event('pp-art')), 60); }; im.src = url; }
+  for (const [k, url] of Object.entries(ASSETS.img || {})) { const im = new Image(); im.decoding = 'async'; im.onload = () => { IMG[k] = im; clearTimeout(artT); artT = setTimeout(() => dispatchEvent(new Event('pp-art')), 60); }; im.onerror = () => { if (!im.dataset.retry) { im.dataset.retry = 1; setTimeout(() => { im.src = url + '&r=1'; }, 800 + Math.random() * 800); } }; im.src = url; } // one retry
   let samplesAsked = false;
   function loadSamples() { // after the first tap (AudioContext needs a gesture on iOS); decoded once into AudioBuffers for low latency
     if (samplesAsked) return; const a = audio(); if (!a) return; samplesAsked = true;
-    for (const [k, url] of Object.entries(ASSETS.sfx || {})) fetch(url).then((r) => r.ok ? r.arrayBuffer() : Promise.reject()).then((ab) => new Promise((ok, no) => a.decodeAudioData(ab, ok, no))).then((b) => { BUF[k] = b; }).catch(() => {});
+    for (const [k, url] of Object.entries(ASSETS.sfx || {})) fetch(url).then((r) => r.ok ? r.arrayBuffer() : Promise.reject()).then((ab) => new Promise((ok, no) => a.decodeAudioData(ab, ok, no))).then((b) => { BUF[k] = b; if (k === 'music-loop') dispatchEvent(new Event('pp-music')); }).catch(() => {});
   }
   addEventListener('pointerdown', loadSamples, { once: false, passive: true });
   /** Play a sample by name. -> false when there is no such sample (yet), so the caller can fall back. */
@@ -63,9 +63,18 @@
     const s = a.createBufferSource(), g = a.createGain(); s.buffer = b; s.playbackRate.value = rate; g.gain.value = v;
     s.connect(g).connect(a.destination); s.start(); return true;
   }
-  sfx.play = (name, v, rate) => throttle('s:' + name, 35) && play(name, v, rate);
+  sfx.play = (name, v, rate) => { if (!BUF[name]) return false; if (throttle('s:' + name, 35)) play(name, v, rate); return true; }; // true when the sample exists (even if throttled), so `play(x) || tone()` never doubles up
+  sfx.has = (name) => !!BUF[name];
   for (const k of ['pop', 'crack', 'hit', 'zap', 'boom', 'ding', 'coin', 'buy', 'nope', 'end', 'win']) { // a sample with a kit sound's name wins over the synth
     const synth = sfx[k]; sfx[k] = (...a) => (BUF[k] ? throttle('s:' + k, 35) && play(k, 0.8, k === 'pop' && a[0] ? Math.min(2, Math.max(0.5, a[0])) : 0.94 + Math.random() * 0.12) : synth(...a));
+  }
+  // music: a `music-loop` sample loops softly during runs (fades in, stops on pause, the end of a run or mute)
+  let mus = null;
+  function music(on) {
+    const a = AC; if (mus) { const m = mus; mus = null; try { m.g.gain.setTargetAtTime(0, a.currentTime, 0.15); m.s.stop(a.currentTime + 0.6); } catch { /* already stopped */ } }
+    if (!on || muted || !BUF['music-loop'] || !a) return;
+    const s = a.createBufferSource(), g = a.createGain(); s.buffer = BUF['music-loop']; s.loop = true;
+    g.gain.setValueAtTime(0, a.currentTime); g.gain.setTargetAtTime(0.22, a.currentTime, 0.8); s.connect(g).connect(a.destination); s.start(); mus = { s, g };
   }
   const art = (name) => IMG[name] || null;
   /** Draw art `name` centred on (x, y), w wide (h defaults to keep the image's aspect). opts: {flip, rot, alpha, anchor: 'bottom'}.
@@ -166,7 +175,7 @@
         return `<button type="button" class="char${c.id === S.cur ? ' on' : ''}" data-c="${c.id}" ${open ? '' : 'disabled'}>
           <canvas width="168" height="168" data-face="${c.id}"></canvas><span class="cn">${open ? c.name : '???'}</span>
           <span class="cb">${open ? c.blurb : `Beat the boss ${c.unlock === 1 ? 'once' : c.unlock + ' times'} to unlock`}</span>
-          <span class="cs">${C?.won ? `<span class="badge">Won${C.best ? ` in ${C.best} runs` : ''}</span>` : C?.runs ? `<span class="badge dim">${C.runs} run${C.runs > 1 ? 's' : ''}</span>` : open ? '<span class="badge dim">New</span>' : ''}
+          <span class="cs">${C?.won ? `<span class="badge">Won${C.best ? ` in ${C.best} run${C.best > 1 ? 's' : ''}` : ''}</span>` : C?.runs ? `<span class="badge dim">${C.runs} run${C.runs > 1 ? 's' : ''}</span>` : open ? '<span class="badge dim">New</span>' : ''}
           ${open && C?.top ? `<span class="cbest">Best ${cfg.scoreName || 'score'} ${fmt(C.top)}</span>` : ''}</span></button>`;
       }).join('');
       drawFaces(un);
@@ -237,14 +246,14 @@
       const lv = C.levels[n.id] || 0, max = lv >= (n.max || 1), c = costOf(n, lv), cu = CUR.find((x) => x.id === curOf(n));
       const shut = !lv && closedBy(n, C.levels);
       if (shut) {
-        $('#k-info').innerHTML = `<div class="it"><div class="ih"><b>${n.name}</b><span class="lvl">Closed</span></div><p>You chose ${shut} instead (one per character). ${typeof n.desc === 'function' ? n.desc(lv, C.levels, statsFor(S.cur, C.levels)) : n.desc}</p></div>
+        $('#k-info').innerHTML = `<div class="it"><div class="ih"><b>${n.name}</b><span class="lvl">Closed</span></div><p>Closed: you took ${shut}. ${typeof n.desc === 'function' ? n.desc(lv, C.levels, statsFor(S.cur, C.levels)) : n.desc}</p></div>
           <button type="button" class="buy" disabled>Closed</button>`;
         return;
       }
       const rivals = n.excl && !lv ? nodesFor(S.cur).filter((m) => m !== n && m.excl === n.excl).map((m) => m.name) : [];
       const can = !max && (C.wallet[curOf(n)] || 0) >= c && extraOk(n, C);
       const extra = n.extra ? Object.entries(n.extra).map(([k, v]) => ` + ${fmt(v)} ${CUR.find((x) => x.id === k).name}`).join('') : '';
-      $('#k-info').innerHTML = `<div class="it"><div class="ih"><b>${n.name}</b>${(n.max || 1) > 1 ? `<span class="lvl">Lv ${lv}/${n.max}</span>` : ''}</div><p>${rivals.length ? `<em>Choose one:</em> closes ${rivals.join(', ')}. ` : ''}${typeof n.desc === 'function' ? n.desc(lv, C.levels, statsFor(S.cur, C.levels)) : n.desc}</p></div>
+      $('#k-info').innerHTML = `<div class="it"><div class="ih"><b>${n.name}</b>${(n.max || 1) > 1 ? `<span class="lvl">Lv ${lv}/${n.max}</span>` : ''}</div><p>${rivals.length ? `<em>Either/or</em> vs ${rivals.join(', ')}. ` : ''}${typeof n.desc === 'function' ? n.desc(lv, C.levels, statsFor(S.cur, C.levels)) : n.desc}</p></div>
         <button type="button" id="k-buy" class="buy" ${can ? '' : 'disabled'}>${max ? 'Maxed' : `<span class="bv">${can ? 'Buy' : 'Need'}</span> ${fmt(c)} ${cu.name}${extra}`}</button>`;
     }
     function buy(id) {
@@ -267,6 +276,7 @@
       const W = cv.clientWidth, H = cv.clientHeight; cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
       input.x = W / 2; input.y = H * 0.6; input.down = false; input.taps = [];
       R = cfg.createRun({ who: S.cur, stats: statsFor(S.cur, C.levels), levels: C.levels, W, H, boss: !!(winNode && C.levels[winNode.id]), sfx, fx: makeFx(), fmt, art, sprite, ui: $('#k-ui'), runNo: C.runs + 1, pick, best: C.top || 0 });
+      music(true);
       lastT = performance.now(); cancelAnimationFrame(raf); raf = requestAnimationFrame(loop);
     }
     function loop(now) {
@@ -298,7 +308,7 @@
     }
     function setPaused(on) {
       if (!R || R.over || picking) return;
-      paused = on; input.down = false;
+      paused = on; input.down = false; music(!on);
       const m = $('#k-modal'); m.hidden = !on;
       if (on) m.innerHTML = `<h2>Paused</h2><button type="button" class="big" id="k-resume">Resume</button>
         <button type="button" class="ghost" id="k-quit">End run (keep what you earned)</button>`;
@@ -307,8 +317,9 @@
     function quitRun() { paused = false; $('#k-modal').hidden = true; if (R.quit) R.quit(); try { R.over = true; } catch { /* over is a getter in some games */ } cancelAnimationFrame(raf); finish(); }
     document.addEventListener('visibilitychange', () => { if (document.hidden && !$('#k-run').hidden) setPaused(true); });
     const readyCount = (C) => nodesFor(S.cur).filter((x) => !x.win && visible(x, C.levels) && (C.levels[x.id] || 0) < (x.max || 1) && (C.wallet[curOf(x)] || 0) >= costOf(x, C.levels[x.id] || 0) && extraOk(x, C)).length;
+    addEventListener('pp-music', () => { if (R && !R.over && !paused && !$('#k-run').hidden && !mus) music(true); }); // decoded mid-run (first tap)
     function finish() {
-      const C = charSave(S.cur);
+      music(false); const C = charSave(S.cur);
       let res; try { res = R.result(); } catch (e) { console.error('[kit] result error', e); res = { earned: {}, won: false, title: 'Run over', lines: ['Something went wrong this run. Sorry!'] }; } // {earned: {cur: n}, won, lines: [str], score?}
       $('#k-pause').hidden = true; let newTop = false;
       if (res.score != null && res.score > (C.top || 0)) { newTop = C.runs > 0; C.top = Math.floor(res.score); }
@@ -325,7 +336,7 @@
       const o = $('#k-over'); o.hidden = false; o.classList.remove('in'); void o.offsetWidth; o.classList.add('in'); overAt = performance.now();
       const got = Object.entries(res.earned || {}).filter(([, v]) => v >= 1).map(([k, v]) => `<b>+${fmt(v)}</b> ${CUR.find((c) => c.id === k).name}`).join(' · ');
       o.innerHTML = res.won
-        ? `<h2>${cfg.winTitle || 'Victory!'}</h2><p>${ch().name} won in ${C.runs} runs.</p>${got ? `<p>${got}</p>` : ''}
+        ? `<h2>${cfg.winTitle || 'Victory!'}</h2><p>${ch().name} won in ${C.runs} run${C.runs > 1 ? 's' : ''}.</p>${got ? `<p>${got}</p>` : ''}
            ${newChar ? `<p class="unlock">Unlocked: <b>${newChar.name}</b></p><p class="small">${newChar.blurb}</p>` : '<p class="small">Pick another character for a fresh tree, or buy the final upgrade again.</p>'}
            <div class="obtns"><button type="button" class="big" id="k-totitle">${newChar ? 'Meet ' + newChar.name : 'Characters'}</button>
            <button type="button" class="ghost" id="k-totree">Keep playing ${ch().name}</button></div>`
@@ -347,7 +358,7 @@
       audio();
       if (b.dataset.c) { sfx.pop(); pickChar(b.dataset.c); }
       else if (b.id === 'k-go') { sel = null; $('#k-map').dataset.centred = ''; charSave(S.cur).runs ? tree() : startRun(); }
-      else if (b.id === 'k-mute') { S.muted = muted = !S.muted; save(); b.textContent = S.muted ? 'Sound: off' : 'Sound: on'; }
+      else if (b.id === 'k-mute') { S.muted = muted = !S.muted; save(); if (muted) music(false); b.textContent = S.muted ? 'Sound: off' : 'Sound: on'; }
       else if (b.id === 'k-reset') { if (b.dataset.sure) { localStorage.removeItem(KEY); location.reload(); } else { b.dataset.sure = '1'; b.textContent = 'Tap again to erase'; } }
       else if (b.dataset.n) { if (sel !== b.dataset.n) { sel = b.dataset.n; sfx.pop(1.4); tree(); } }
       else if (b.dataset.pick && picking) { const p = picking; picking = null; $('#k-modal').hidden = true; lastT = performance.now(); sfx.buy(); p.done(+b.dataset.pick); }
@@ -390,7 +401,7 @@
     // dev/test hook (?dev only): max a tree, start runs, and fast-forward a run with a random thumb to shake out crashes
     if (DEV) window.__kit = {
       S, cfg, charSave, nodesFor, startRun, tree, title, buy,
-      maxAll(who = S.cur, win = false) { const C = charSave(who); for (const n of nodesFor(who)) if (!n.win || win) C.levels[n.id] = n.max || 1; save(); },
+      maxAll(who = S.cur, win = false) { const C = charSave(who); const took = {}; for (const n of nodesFor(who)) { if (n.win && !win) continue; if (n.excl) { if (took[n.excl] && took[n.excl] !== n.id) continue; took[n.excl] = n.id; } C.levels[n.id] = n.max || 1; } save(); }, // first side of each excl group only
       run: () => R,
       fuzz(frames = 1800, seed = 1, uiRate = 0.02) { // update+draw without rAF; returns {frames, over, t, errors}
         let x = seed, errors = [];
