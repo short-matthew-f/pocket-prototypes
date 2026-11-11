@@ -1,9 +1,10 @@
 // In-page crash hunt (run through tools/shot.mjs on a ?dev URL): every character x {fresh, maxed, boss} x seeds,
-// fast-forwarding each run with a random thumb. Returns only the configurations that threw.
+// fast-forwarding each run with a random thumb. Each seed also sets a different run count (0, 3, 6, 12) so features that
+// unlock on later runs (modifiers, sectors, night conditions...) get played too. Returns only the configurations that threw.
 const K = window.__kit, out = [], seeds = [1, 2, 3, 4];
 K.S.wins = 9;
 for (const c of K.cfg.characters) for (const mode of ['fresh', 'mid', 'maxed', 'boss']) for (const seed of seeds) {
-  K.S.cur = c.id; const C = K.charSave(c.id); C.levels = {};
+  K.S.cur = c.id; const C = K.charSave(c.id); C.levels = {}; C.runs = [0, 3, 6, 12][seed - 1];
   if (mode === 'mid') { let i = 0; for (const n of K.nodesFor(c.id)) if (!n.win && (i++ % 2 === 0)) C.levels[n.id] = Math.ceil((n.max || 1) / 2); }
   if (mode === 'maxed' || mode === 'boss') K.maxAll(c.id, mode === 'boss');
   let r;
