@@ -58,7 +58,8 @@ def do_image(src, dst_dir, name):
 
 def do_sound(src, dst_dir, name):
     out = os.path.join(dst_dir, name + '.mp3')
-    subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', src, '-ac', '1', '-ar', '44100', '-af', 'silenceremove=start_periods=1:start_threshold=-50dB', '-b:a', '96k', out], check=True)
+    trim = [] if name.startswith('music') else ['-af', 'silenceremove=start_periods=1:start_threshold=-50dB']  # a loop keeps its exact length
+    subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', src, '-ac', '1', '-ar', '44100', *trim, '-b:a', '80k' if name.startswith('music') else '96k', out], check=True)
     return out
 
 def manifest(game):

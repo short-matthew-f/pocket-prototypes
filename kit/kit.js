@@ -73,7 +73,8 @@
   function music(on) {
     const a = AC; if (mus) { const m = mus; mus = null; try { m.g.gain.setTargetAtTime(0, a.currentTime, 0.15); m.s.stop(a.currentTime + 0.6); } catch { /* already stopped */ } }
     if (!on || muted || !BUF['music-loop'] || !a) return;
-    const s = a.createBufferSource(), g = a.createGain(); s.buffer = BUF['music-loop']; s.loop = true;
+    const s = a.createBufferSource(), g = a.createGain(), b = BUF['music-loop']; s.buffer = b; s.loop = true;
+    { const d = b.getChannelData(0), q = (i) => Math.abs(d[i]) > 1e-4; let i = 0, j = d.length - 1; while (i < 4096 && !q(i)) i++; while (j > d.length - 4096 && !q(j)) j--; s.loopStart = i / b.sampleRate; s.loopEnd = (j + 1) / b.sampleRate; } // skip mp3 encoder padding at the wrap
     g.gain.setValueAtTime(0, a.currentTime); g.gain.setTargetAtTime(0.22, a.currentTime, 0.8); s.connect(g).connect(a.destination); s.start(); mus = { s, g };
   }
   const art = (name) => IMG[name] || null;

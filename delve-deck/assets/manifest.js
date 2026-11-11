@@ -34,6 +34,7 @@ window.PP_ASSETS = {
   "crack": "assets/sfx/crack.mp3?h=379038ba",
   "ding": "assets/sfx/ding.mp3?h=71bb7584",
   "hit": "assets/sfx/hit.mp3?h=4489a285",
+  "music-loop": "assets/sfx/music-loop.mp3?h=2aef5418",
   "nope": "assets/sfx/nope.mp3?h=69caead9",
   "pick": "assets/sfx/pick.mp3?h=d8b8fdc7",
   "roar": "assets/sfx/roar.mp3?h=f4e53129",

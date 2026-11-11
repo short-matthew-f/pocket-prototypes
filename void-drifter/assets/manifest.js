@@ -33,6 +33,7 @@ window.PP_ASSETS = {
   "end": "assets/sfx/end.mp3?h=7ec93d96",
   "hit": "assets/sfx/hit.mp3?h=c66a5987",
   "levelup": "assets/sfx/levelup.mp3?h=ddb66e11",
+  "music-loop": "assets/sfx/music-loop.mp3?h=74e3de8e",
   "nova": "assets/sfx/nova.mp3?h=563d9682",
   "pop": "assets/sfx/pop.mp3?h=29d93349",
   "roar": "assets/sfx/roar.mp3?h=2549dbad",

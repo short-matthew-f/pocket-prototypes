@@ -32,6 +32,7 @@ window.PP_ASSETS = {
   "hit": "assets/sfx/hit.mp3?h=a681672b",
   "lastlight": "assets/sfx/lastlight.mp3?h=16954e69",
   "motherlode": "assets/sfx/motherlode.mp3?h=c0c8269f",
+  "music-loop": "assets/sfx/music-loop.mp3?h=20399a2c",
   "rush": "assets/sfx/rush.mp3?h=8e5b52fc",
   "zap": "assets/sfx/zap.mp3?h=26950428"
  }

@@ -28,6 +28,7 @@ window.PP_ASSETS = {
   "ding": "assets/sfx/ding.mp3?h=7adcaa81",
   "gate": "assets/sfx/gate.mp3?h=7e4f5184",
   "hit": "assets/sfx/hit.mp3?h=81654738",
+  "music-loop": "assets/sfx/music-loop.mp3?h=e50bd5b4",
   "pop": "assets/sfx/pop.mp3?h=e5b5b558",
   "shot": "assets/sfx/shot.mp3?h=2d72670d",
   "siren": "assets/sfx/siren.mp3?h=d4d60e62",
