@@ -3,6 +3,7 @@ window.PP_ASSETS = {
  "img": {
   "bg-storm": "assets/img/bg-storm.webp?h=96eeeea1",
   "bg-void": "assets/img/bg-void.webp?h=14b4a6f8",
+  "boss-leviathan-head": "assets/img/boss-leviathan-head.webp?h=fb8eba4a",
   "boss-leviathan-segment": "assets/img/boss-leviathan-segment.webp?h=4ba2c712",
   "enemy-crystal": "assets/img/enemy-crystal.webp?h=322d8c11",
   "enemy-drone": "assets/img/enemy-drone.webp?h=d34a1704",
