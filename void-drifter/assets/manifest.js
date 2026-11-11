@@ -24,13 +24,13 @@ window.PP_ASSETS = {
   "unit-wrecker": "assets/img/unit-wrecker.webp?h=cc03d827"
  },
  "sfx": {
-  "alarm": "assets/sfx/alarm.mp3?h=0ff0feb8",
+  "alarm": "assets/sfx/alarm.mp3?h=df970602",
   "blink": "assets/sfx/blink.mp3?h=0fddb7ca",
   "boom": "assets/sfx/boom.mp3?h=21fdaf7d",
   "coin": "assets/sfx/coin.mp3?h=b8589583",
   "crack": "assets/sfx/crack.mp3?h=b736c34f",
   "ding": "assets/sfx/ding.mp3?h=66e6f05a",
-  "end": "assets/sfx/end.mp3?h=7ec93d96",
+  "end": "assets/sfx/end.mp3?h=6c714c0d",
   "hit": "assets/sfx/hit.mp3?h=c66a5987",
   "levelup": "assets/sfx/levelup.mp3?h=ddb66e11",
   "music-loop": "assets/sfx/music-loop.mp3?h=74e3de8e",

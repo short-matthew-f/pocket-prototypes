@@ -31,7 +31,7 @@ window.PP_ASSETS = {
   "music-loop": "assets/sfx/music-loop.mp3?h=e50bd5b4",
   "pop": "assets/sfx/pop.mp3?h=e5b5b558",
   "shot": "assets/sfx/shot.mp3?h=2d72670d",
-  "siren": "assets/sfx/siren.mp3?h=d4d60e62",
+  "siren": "assets/sfx/siren.mp3?h=31d90806",
   "zap": "assets/sfx/zap.mp3?h=f1b959ae"
  }
 };

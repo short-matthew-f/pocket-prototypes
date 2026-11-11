@@ -12,7 +12,7 @@
     { id: 'thief', name: "Thieves' Guild", icon: '🗡️', desc: 'Hire Thieves mid-run: fast raiders that need no tapping', cost: 40, max: 1, req: ['legs'], x: 3, y: 0, fx: (s) => { s.has.thief = 1; } },
     { id: 'thief2', name: 'Cutpurses', icon: '🪙', desc: 'Thieves +30% haul', cost: 90, grow: 1.8, max: 6, req: ['thief'], x: 4, y: 0, fx: (s, l) => { s.thiefHaul *= 1 + 0.3 * l; } },
     { id: 'thief3', name: 'Jewel Thieves', icon: '💍', desc: 'Each Thief haul has a 2% chance to lift a gem', cost: 3, grow: 1.9, max: 3, req: ['thief2'], x: 5, y: 0, cur: 'gems', fx: (s, l) => { s.thiefGem += 0.02 * l; } },
-    { id: 'mill', name: 'Raid the Mill', icon: '🌾', desc: 'Unlocks the Mill (7 gold a haul). Treasure caravans start to pass', cost: 20, max: 1, req: ['packs'], x: 1, y: -1, fx: (s) => { s.has.mill = 1; } },
+    { id: 'mill', name: 'Raid the Mill', icon: '🌾', desc: 'Unlocks the Mill (7 gold a haul). Treasure caravans start to pass', cost: 14, max: 1, req: ['packs'], x: 1, y: -1, fx: (s) => { s.has.mill = 1; } },
     { id: 'caravan', name: 'Highwaymen', icon: '🐴', desc: 'Caravans come 25% more often and carry +50% gold', cost: 60, grow: 1.8, max: 5, req: ['mill'], x: 2, y: -1, fx: (s, l) => { s.caravanX *= 1.25 ** l; s.caravanGold *= 1 + 0.5 * l; } },
     { id: 'market', name: 'Market Day', icon: '⚖️', desc: 'The Mill and Town yield +35%', cost: 200, grow: 1.8, max: 6, req: ['caravan'], x: 3, y: -1, fx: (s, l) => { s.villX *= 1 + 0.35 * l; } },
     { id: 'town', name: 'Raid the Town', icon: '🏘️', desc: 'Unlocks the Town: far away, big hauls', cost: 140, max: 1, req: ['mill'], x: 1, y: -2, fx: (s) => { s.has.town = 1; } },
@@ -29,10 +29,13 @@
     { id: 'bed', name: 'Gilded Bed', icon: '🛏️', desc: 'Start each run with 40 gold', cost: 2, grow: 1.8, max: 5, req: ['bank'], x: 3, y: 1, cur: 'gems', fx: (s, l) => { s.startGold += 40 * l; } },
     { id: 'gild', name: 'Gilded Scales', icon: '✨', desc: '+20% renown from every run', cost: 3, grow: 1.9, max: 4, req: ['bed'], x: 4, y: 1, cur: 'gems', fx: (s, l) => { s.renownX *= 1 + 0.2 * l; } },
     { id: 'tithe', name: 'Tithes', icon: '🔔', desc: (l) => `Villages pay +1.5 gold a second (now ${1.5 * l})`, cost: 120, grow: 1.8, max: 6, req: ['haggle'], x: 2, y: 2, fx: (s, l) => { s.tithe += 1.5 * l; } },
+    // either/or: hoard your gold (hauls grow with what you hold) or spend it (every hire makes all hauls bigger)
+    { id: 'avarice', name: "Dragon's Greed", icon: '🐉', excl: 'greed', desc: (l) => `Hauls +${15 * (l + 1)}% per 100 gold you hold, up to +${60 * (l + 1)}%. Save, don't spend`, cost: 300, grow: 2, max: 3, req: ['tithe'], x: 2, y: 3, fx: (s, l) => { s.stack += 0.15 * l; s.stackCap += 0.6 * l; } },
+    { id: 'warchest', name: 'War Chest', icon: '⚔️', excl: 'greed', desc: (l) => `Every minion you hire this run: all hauls +${4 * (l + 1)}%. Spend fast`, cost: 300, grow: 2, max: 3, req: ['tithe'], x: 3, y: 3, fx: (s, l) => { s.warchest += 0.04 * l; } },
     { id: 'bank2', name: 'Royal Ledger', icon: '🏦', desc: '+15% renown from every run', cost: 400, grow: 1.9, max: 5, req: ['bank'], x: 3, y: 2, fx: (s, l) => { s.renownX *= 1 + 0.15 * l; } },
     { id: 'warren', name: 'Kobold Warren', icon: '🕳️', desc: '+3 starting kobolds', cost: 2, grow: 1.8, max: 4, req: ['haggle'], x: 1, y: 2, cur: 'gems', fx: (s, l) => { s.kobolds += 3 * l; } },
     // ---- warband (down): kobolds fight. One of two build directions for defence.
-    { id: 'spears', name: 'Kobold Spears', icon: '🔱', desc: 'Warband path: kobolds on the road stab passing knights', cost: 90, grow: 1.8, max: 6, req: ['foreman'], x: 0, y: 2, fx: (s, l) => { s.spear += 0.3 * l; } },
+    { id: 'spears', name: 'Kobold Spears', icon: '🔱', excl: 'path', desc: (l) => `Warband: kobolds on the road stab knights they pass (${(0.3 * (l + 1)).toFixed(1)}x breath each stab). Raid more, fight more`, cost: 90, grow: 1.8, max: 6, req: ['foreman'], x: 0, y: 2, fx: (s, l) => { s.spear += 0.3 * l; } },
     { id: 'snare', name: 'Snare Traps', icon: '🪤', desc: 'Stabbed knights march at half speed for a moment', cost: 160, grow: 1.9, max: 3, req: ['spears'], x: 0, y: 3, fx: (s, l) => { s.snare = 0.5 + 0.4 * l; } },
     { id: 'chief', name: 'Kobold Chieftain', icon: '🪖', desc: 'Spears +60%, and each kobold you hire brings a friend', cost: 450, grow: 2, max: 4, req: ['snare'], x: 1, y: 3, fx: (s, l) => { s.spear *= 1.6 ** l; s.twin = 1; } },
     // ---- defence (left / up)
@@ -58,7 +61,7 @@
     { id: 'scales', name: 'Ironscale Gate', icon: '🛡️', desc: '+50% cave wall', cost: 3, grow: 1.8, max: 5, req: ['moat'], x: -1, y: -3, cur: 'gems', fx: (s, l) => { s.wall *= 1 + 0.5 * l; } },
     { id: 'bulwark', name: 'Spiked Bulwark', icon: '🦔', desc: 'Knights bashing the wall deal 8% less', cost: 300, grow: 1.8, max: 5, req: ['scales', 'watch'], x: -1, y: -4, fx: (s, l) => { s.kDps *= 0.92 ** l; } },
     // ---- fury (left / down): the dragon takes wing. The other build direction for defence.
-    { id: 'fury', name: "Dragon's Fury", icon: '🪽', desc: 'Fury path: kills fill a meter; tap it to fly and burn all knights', cost: 90, max: 1, req: ['quick'], x: -2, y: 1, fx: (s) => { s.fury = 1; } },
+    { id: 'fury', name: "Dragon's Fury", icon: '🪽', excl: 'path', desc: 'Fury: every kill fills a meter; tap it to take wing and rain fire on every knight for 3s', cost: 90, max: 1, req: ['quick'], x: -2, y: 1, fx: (s) => { s.fury = 1; } },
     { id: 'fury2', name: 'Wingspan', icon: '🦅', desc: (l) => `+1s flight (now ${3 + l}s)`, cost: 150, grow: 1.8, max: 4, req: ['fury'], x: -3, y: 1, fx: (s, l) => { s.flyDur += l; } },
     { id: 'fury3', name: 'Molten Rain', icon: '🌧️', desc: 'Flight fire +40% damage', cost: 200, grow: 1.7, max: 6, req: ['fury'], x: -2, y: 2, fx: (s, l) => { s.flyDmg *= 1.4 ** l; } },
     { id: 'fury4', name: 'Hot Blood', icon: '🩸', desc: 'Fury fills 20% faster', cost: 300, grow: 1.8, max: 5, req: ['fury3'], x: -3, y: 2, fx: (s, l) => { s.furyGain *= 1.2 ** l; } },
@@ -92,7 +95,7 @@
     patch: { name: 'Patch wall', icon: '🧱', base: 20, grow: 1.7, need: 'patch' },
   };
   const SPEED = { kobold: 70, thief: 130, wagon: 40, sapper: 58 };
-  const BOSS_HP = 450000;
+  const BOSS_HP = 600000;
   const KNIGHT = { // hp multiplier, speed, wall damage per second, when they start showing up (run seconds), share of spawns
     k: { hp: 1, sp: 42, dps: 2.5 },
     lancer: { hp: 0.6, sp: 92, dps: 3.5, from: 12, p: 0.22 },
@@ -100,6 +103,7 @@
     priest: { hp: 1.2, sp: 30, dps: 1.2, from: 34, p: 0.14 },
     cap: { hp: 6, sp: 26, dps: 6 },
     acolyte: { hp: 1, sp: 0, dps: 0 },
+    slayer: { hp: 5, sp: 60, dps: 3 }, // late-run elite: stops mid-field and shoots bolts that ground your breath
     boss: { hp: 1, sp: 7, dps: 14 },
   };
   const SIEGE = { every: 2.2, flight: 1.5, first: 0.06, grow: 1.3, patch: 0.3 };
@@ -112,15 +116,25 @@
     { id: 'fog', icon: '🌫️', name: 'Morning Fog', desc: 'The siege engines get lost: they arrive 6s later', fx: (M) => { M.siegeAt += 6; } },
   ];
 
+  // a different night every run (from run 4): shown in the lead-in, in a HUD chip and on the results
+  const MODS = [
+    { id: 'harvest', icon: '🌾', name: 'Harvest Moon', desc: 'Every village yields +30%', fx: (M) => { M.s.carry *= 1.3; } },
+    { id: 'pilgrims', icon: '⛪', name: 'Pilgrimage', desc: 'Priests march early; captains (gems) twice as often', fx: (M) => { M.priestAt = 8; M.capEvery = 10; M.capT = 10; } },
+    { id: 'night', icon: '🌙', name: 'Long Night', desc: 'Dawn (the siege) comes 5s later, but knights march 12% faster', fx: (M) => { M.siegeAt += 5; M.s.kSpeed *= 1.12; } },
+    { id: 'fair', icon: '🎪', name: 'Fair Day', desc: 'Treasure caravans pass twice as often', need: 'mill', fx: (M) => { M.s.caravanX *= 2; M.carT = 4; } },
+    { id: 'crusade', icon: '⚔️', name: 'Crusade', desc: 'Knights +25% health, but bounties +60%', fx: (M) => { M.hpX = 1.25; M.s.bountyX *= 1.6; } },
+    { id: 'wind', icon: '🌬️', name: 'Dragon Wind', desc: 'Breath blasts +10px wider and 15% quicker', fx: (M) => { M.s.fireR += 10; M.s.fireCd *= 0.85; } },
+  ];
+
   function baseStats(who) {
     const s = { kobolds: 3, speed: 1, carry: 1, thiefSpeed: 1, thiefHaul: 1, thiefGem: 0, wagonHaul: 1, sapperHaul: 1, autoSpeed: 1, gemChance: 0.12, villX: 1,
-      fire: 4, fireCd: 0.4, fireR: 30, glare: 0, glareDmg: 0.5, drakeDmg: 1, drakeRate: 1, drakeStart: 0, wall: 5, kSpeed: 1, kEvery: 1.4, kDps: 1,
+      fire: 4, fireCd: 0.4, fireR: 30, glare: 0, glareDmg: 0.5, drakeDmg: 1, drakeRate: 1, drakeStart: 0, wall: 6.5, kSpeed: 1, kEvery: 1.4, kDps: 1,
       price: 1, bank: 1.2, renownX: 1, startGold: 0, foreman: 0, breed: 0, stack: 0, stackCap: 0, burn: 0, chill: 0, frostWall: 0, regen: 0, wildfire: 0,
       siegeAt: 30, tithe: 0, caravanX: 1, caravanGold: 1, bountyX: 1, capGems: 1, omens: 0, scorch: 0, spear: 0, snare: 0, twin: 0,
-      fury: 0, flyDur: 3, flyDmg: 1, furyGain: 1, flyHaul: 1, chain: 0, chainDmg: 0.6, stun: 0, has: {} };
-    if (who === 'ember') { s.fire *= 1.5; s.fireR += 6; }
+      warchest: 0, fury: 0, flyDur: 3, flyDmg: 1, furyGain: 1, flyHaul: 1, chain: 0, chainDmg: 0.6, stun: 0, has: {} };
+    if (who === 'ember') { s.fire *= 1.3; s.fireR += 6; s.scorch = 0.25; }
     if (who === 'rime') { s.kSpeed *= 0.8; s.stack = 0.25; s.stackCap = 1; }
-    if (who === 'moss') { s.breed = 4; }
+    if (who === 'moss') { s.breed = 4; s.wall *= 1.4; }
     if (who === 'volt') { s.fireR -= 6; s.chain = 2; }
     return s;
   }
@@ -133,13 +147,15 @@
   }
   const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 
-  function create(o) { // o = {who, s, W, H, boss, rnd}
+  function create(o) { // o = {who, s, W, H, boss, rnd, runNo}
     const s = o.s, G = geo(o.W, o.H);
     const M = { s, G, who: o.who, rnd: o.rnd || Math.random, t: 0, over: false, won: false, gold: s.startGold, earned: 0, gems: 0, kills: 0,
-      wall: s.wall, wallMax: s.wall, units: [], knights: [], shots: [], drakes: [], fires: [], carts: [], rocks: [], bought: {}, ev: [], spawnT: 0.8, capT: 18,
+      wall: s.wall, wallMax: s.wall, units: [], knights: [], shots: [], drakes: [], fires: [], carts: [], rocks: [], bought: {}, ev: [], spawnT: 1.2, capT: 14,
       fireCd: 0, glareT: s.glare, breedT: s.breed, foreT: s.foreman, boss: null, bossT: o.boss ? 4 : -1, dispatched: 0, breathed: 0, hauls: 0,
       siegeAt: s.siegeAt, siege: false, rockT: 0, rockN: 0, patches: 4, carT: 9 + 4 * (o.rnd || Math.random)(), carsHit: 0, carsSeen: 0,
-      fury: 0, flyT: 0, flyTick: 0, flights: 0, streak: 0, streakT: -9, bestStreak: 0, omen: null, omensGot: 0, tithe: 0 };
+      fury: 0, flyT: 0, flyTick: 0, flights: 0, streak: 0, streakT: -9, bestStreak: 0, omen: null, omensGot: 0, tithe: 0,
+      hired: 0, rares: 0, mod: null, priestAt: KNIGHT.priest.from, capEvery: 20, hpX: 1, slayerAt: 40, slayers: 0, grounded: 0 };
+    if (!o.boss && (o.runNo || 0) >= 4) { const pool = MODS.filter((m) => !m.need || s.has[m.need]); M.mod = pool[Math.floor(M.rnd() * pool.length)]; M.mod.fx(M); }
     for (let i = 0; i < s.kobolds; i++) addUnit(M, 'kobold');
     for (let i = 0; i < s.drakeStart; i++) addDrake(M);
     return M;
@@ -155,7 +171,7 @@
     M.drakes.push({ x: M.G.W / 2 + side * (78 + col * 28 + row * 10), y: M.G.wallY + 2 - row * 20 - (col % 2) * 6, cd: 0.5 + M.rnd(), aim: 0, fireT: -1 }); }
   const haulMult = (M) => (1 + Math.min(M.s.stackCap, M.s.stack * M.gold / 100)) * (M.siege ? 1.5 : 1) * (M.flyT > 0 ? M.s.flyHaul : 1);
   const speedOf = (M, type) => SPEED[type] * M.s.speed * (type === 'thief' ? M.s.thiefSpeed : type === 'wagon' || type === 'sapper' ? M.s.autoSpeed : 1);
-  function haulOf(M, type, v) { return v.yield * (v.rich ? M.s.villX : 1) * M.s.carry * (type === 'thief' ? M.s.thiefHaul : type === 'wagon' ? 6 * M.s.wagonHaul : type === 'sapper' ? M.s.sapperHaul : 1); }
+  function haulOf(M, type, v) { return v.yield * (v.rich ? M.s.villX : 1) * M.s.carry * (1 + M.s.warchest * M.hired) * (type === 'thief' ? M.s.thiefHaul : type === 'wagon' ? 6 * M.s.wagonHaul : type === 'sapper' ? M.s.sapperHaul : 1); }
   function best(M, type) {
     let b = null, bs = -1;
     for (const v of M.G.vills) {
@@ -183,30 +199,33 @@
     M.gold -= c; M.bought[k] = (M.bought[k] || 0) + 1;
     if (k === 'patch') { M.wall = Math.min(M.wallMax, M.wall + M.wallMax * SIEGE.patch); M.patches--; }
     else if (k === 'drake') addDrake(M);
-    else { addUnit(M, k); if (k === 'kobold' && M.s.twin) addUnit(M, k); }
+    else { addUnit(M, k); M.hired++; if (k === 'kobold' && M.s.twin) addUnit(M, k); }
     M.ev.push({ k: 'buy', what: k });
     return true;
   }
   const mouth = (M) => ({ x: M.G.W / 2, y: M.G.wallY + 28 });
   function breathe(M, x, y) {
-    if (M.fireCd > 0) return false;
+    if (M.fireCd > 0 || M.grounded > 0) return false;
     M.fireCd = M.s.fireCd; M.breathed++;
     const m = mouth(M);
     M.shots.push({ kind: 'breath', x0: m.x, y0: m.y, x, y, t: 0, dur: 0.16 + dist(m, { x, y }) / 2600, dmg: M.s.fire, r: M.s.fireR });
     M.ev.push({ k: 'breath', x, y });
     return true;
   }
-  const knightHp = (M, t) => 14 * 1.08 ** t * 1.06 ** Math.max(0, t - 60) * (M.bossT >= 0 ? 1.3 : 1);
+  const knightHp = (M, t) => 14 * 1.08 ** t * 1.06 ** Math.max(0, t - 60) * (M.bossT >= 0 ? 1.3 : 1) * M.hpX;
   function spawnKnight(M, kind, at) {
     const G = M.G, r = M.rnd, K = KNIGHT[kind];
     let x, y;
     if (at) { x = at.x; y = at.y; }
     else if (kind === 'boss') { x = G.W / 2; y = 175; }
+    else if (kind === 'slayer') { x = r() < 0.5 ? -14 : G.W + 14; y = 150 + r() * 60; }
     else if (r() < 0.45) { x = G.W / 2 + (r() - 0.5) * 30; y = 132; }
     else { const side = r() < 0.5 ? -1 : 1; x = G.W / 2 + side * (G.W / 2 + 12); y = 140 + r() * (G.wallY - 320); }
     const hp = kind === 'boss' ? BOSS_HP : kind === 'acolyte' ? BOSS_HP * 0.03 : knightHp(M, M.t) * K.hp;
     const sp = (K.sp + (kind === 'k' ? r() * 8 : 0)) * M.s.kSpeed;
-    const k = { kind, x, y, hp, max: hp, sp, tx: at ? x : G.W / 2 + (r() - 0.5) * (kind === 'boss' ? 0 : 120), ty: at ? y : G.wallY - 14, atWall: false, hitT: -9, burn: 0, burnD: 0, chill: 0, snareT: 0, stunT: 0, ph: r() * 6,
+    const slay = kind === 'slayer';
+    const k = { kind, x, y, hp, max: hp, sp, tx: at ? x : slay ? 70 + r() * (G.W - 140) : G.W / 2 + (r() - 0.5) * (kind === 'boss' ? 0 : 120), ty: at ? y : slay ? G.wallY - 170 - r() * 40 : G.wallY - 14,
+      aimT: slay ? 2.4 : 0, smiteT: kind === 'boss' ? 6 : 0, wind: 0, atWall: false, hitT: -9, burn: 0, burnD: 0, chill: 0, snareT: 0, stunT: 0, ph: r() * 6,
       dps: K.dps, shield: kind === 'shield' ? 1 : 0 };
     M.knights.push(k);
     return k;
@@ -230,6 +249,7 @@
     M.gold += bounty; M.earned += bounty;
     let gem = 0;
     if (k.kind === 'cap') { gem = M.s.capGems; M.gems += gem; }
+    if (k.kind === 'slayer') { gem = 2; M.gems += gem; }
     if (M.s.fury) M.fury = Math.min(1, M.fury + (k.kind === 'cap' ? 0.15 : 0.035) * M.s.furyGain);
     M.ev.push({ k: 'kill', x: k.x, y: k.y, kind: k.kind, gold: bounty, gem, streak: M.streak });
     if (k.kind === 'cap' && M.s.omens && !M.omen && (M.omensGot === 0 || M.s.omens > 1)) offerOmen(M);
@@ -288,11 +308,13 @@
     if (M.spawnT <= 0) {
       M.spawnT += s.kEvery / (1 + M.t / 15) * (M.bossT >= 0 ? 1.15 : 1);
       let kind = 'k';
-      for (const e of ['priest', 'shield', 'lancer']) if (M.t >= KNIGHT[e].from && M.rnd() < KNIGHT[e].p) { kind = e; break; }
+      for (const e of ['priest', 'shield', 'lancer']) if (M.t >= (e === 'priest' ? M.priestAt : KNIGHT[e].from) && M.rnd() < KNIGHT[e].p) { kind = e; break; }
       spawnKnight(M, kind);
     }
     M.capT -= dt;
-    if (M.capT <= 0) { M.capT += 20; spawnKnight(M, 'cap'); M.ev.push({ k: 'captain' }); }
+    if (M.capT <= 0) { M.capT += M.capEvery; spawnKnight(M, 'cap'); M.ev.push({ k: 'captain' }); }
+    if (M.bossT < 0 && M.t >= M.slayerAt) { M.slayerAt += 22; M.slayers++; spawnKnight(M, 'slayer'); M.ev.push({ k: 'slayer' }); }
+    M.grounded = Math.max(0, M.grounded - dt);
     if (M.bossT >= 0 && !M.boss) { M.bossT -= dt; if (M.bossT <= 0) { M.boss = spawnKnight(M, 'boss'); M.ev.push({ k: 'boss' }); } }
     const B = M.boss;
     if (B && B.hp > 0) {
@@ -300,6 +322,13 @@
         B.p2 = true; B.ward = true; B.hold = true;
         for (let i = 0; i < 3; i++) { const a = -Math.PI / 2 + (i - 1) * 1.9; spawnKnight(M, 'acolyte', { x: Math.max(30, Math.min(G.W - 30, B.x + Math.cos(a) * 70)), y: Math.max(110, B.y + Math.sin(a) * 50 + 30) }); }
         M.ev.push({ k: 'phase', x: B.x, y: B.y });
+      }
+      if (!B.ward) {
+        if (B.wind > 0) {
+          B.wind -= dt;
+          if (B.windHp - B.hp >= B.max * 0.02) { B.wind = 0; B.smiteT = 6; B.stunT = 1.5; M.ev.push({ k: 'stagger', x: B.x, y: B.y }); }
+          else if (B.wind <= 0) { B.smiteT = B.enraged ? 5 : 7; M.wall -= M.wallMax * 0.08; M.ev.push({ k: 'smite', x: B.x, y: B.y, dmg: M.wallMax * 0.08 }); }
+        } else if ((B.smiteT -= dt) <= 0) { B.wind = 1.5; B.windHp = B.hp; M.ev.push({ k: 'smiteTell', x: B.x, y: B.y }); }
       }
       if (B.ward) {
         const n = M.knights.filter((k) => k.kind === 'acolyte' && k.hp > 0).length;
@@ -312,6 +341,11 @@
       k.chill = Math.max(0, k.chill - dt); k.snareT = Math.max(0, k.snareT - dt); k.stunT = Math.max(0, k.stunT - dt);
       if (k.kind === 'priest') for (const o of M.knights) if (o !== k && o.hp > 0 && o.kind !== 'boss' && dist(o, k) < 70) o.hp = Math.min(o.max, o.hp + o.max * 0.12 * dt);
       if (k.stunT > 0 || k.hold) continue;
+      if (k.kind === 'slayer' && Math.hypot(k.tx - k.x, k.ty - k.y) <= 2) {
+        k.aimT -= dt;
+        if (k.aimT <= 0) { k.aimT = 3.8; M.grounded = 2.2; M.wall -= M.wallMax * 0.04; M.ev.push({ k: 'bolt', x: k.x, y: k.y }); }
+        continue;
+      }
       const d = Math.hypot(k.tx - k.x, k.ty - k.y);
       if (d > 2) { if (k.sp) { const sp = k.sp * (k.chill > 0 ? 1 - s.chill : 1) * (k.snareT > 0 ? 0.5 : 1) * dt; k.x += (k.tx - k.x) / d * Math.min(sp, d); k.y += (k.ty - k.y) / d * Math.min(sp, d); } }
       else if (k.dps) { k.atWall = true; M.wall -= k.dps * s.kDps * (k.chill > 0 ? 1 - s.frostWall : 1) * dt; if (M.rnd() < dt * 3) M.ev.push({ k: 'bash', x: k.x, y: k.y + 10 }); }
@@ -364,12 +398,13 @@
         if (u.p >= 1) {
           if (u.st === 'out') { u.st = 'loot'; u.tt = 0.4; }
           else {
-            const g = u.carry * haulMult(M);
+            let g = u.carry * haulMult(M), rare = 0;
+            if ((u.type === 'kobold' || u.type === 'thief') && !M.rares && M.t > 8 && M.rnd() < 0.008) { rare = 1; g *= 8; M.rares++; }
             M.gold += g; M.earned += g; M.hauls++;
             if (s.fury) M.fury = Math.min(1, M.fury + 0.004 * s.furyGain);
             let gem = 0;
-            if ((u.v.castle && M.rnd() < s.gemChance) || (u.type === 'thief' && M.rnd() < s.thiefGem)) { gem = 1; M.gems++; }
-            M.ev.push({ k: 'haul', gold: g, gem, type: u.type });
+            if (rare || (u.v.castle && M.rnd() < s.gemChance) || (u.type === 'thief' && M.rnd() < s.thiefGem)) { gem = 1; M.gems++; }
+            M.ev.push({ k: rare ? 'rare' : 'haul', gold: g, gem, type: u.type });
             u.carry = 0;
             if (u.type === 'kobold') { u.st = 'idle'; u.p = 0; } else send(M, u, best(M, u.type));
           }
@@ -397,7 +432,7 @@
   const renownOf = (M) => Math.floor(M.s.bank * M.s.renownX * M.earned ** 0.7);
   function earnedOf(M) { return { renown: renownOf(M), gems: M.gems }; }
   const Model = { create, step, dispatch, breathe, buy, cost, shopOpen, avail, best, earnedOf, renownOf, geo, choose, fly, canFly, lead, nearest, haulMult,
-    idle: (M) => M.units.filter((u) => u.st === 'idle').length, SHOP, VILL, BOSS_HP, KNIGHT, SIEGE, OMENS };
+    idle: (M) => M.units.filter((u) => u.st === 'idle').length, SHOP, VILL, BOSS_HP, KNIGHT, SIEGE, OMENS, MODS };
 
   if (typeof module !== 'undefined' && typeof window === 'undefined') { module.exports = { NODES, baseStats, Model }; return; }
 
@@ -420,11 +455,12 @@
     .hd-b.lock{opacity:.38;background:#221b30;border:2px dashed #ffffff22;box-shadow:none}.hd-b.lock .c{color:#a49eb8;font:800 12px Nunito,system-ui}
     .hd-b:active{transform:translateY(2px);box-shadow:0 1px 0 #120d1c}
     .hd-b.pop{animation:hdpop .25s}@keyframes hdpop{50%{transform:scale(1.06)}}.hd-b.no{animation:hdno .25s}@keyframes hdno{25%{transform:translateX(-3px)}75%{transform:translateX(3px)}}`;
-  const LEAD = 1.1, OUTRO = 1.4;
+  const OUTRO = 1.4;
 
   function createRun(env) {
     const s = env.stats, W = env.W, H = env.H, fx = env.fx, sfx = env.sfx, L = LOOK[env.who] || LOOK.ember;
-    const M = create({ who: env.who, s, W, H, boss: env.boss });
+    const M = create({ who: env.who, s, W, H, boss: env.boss, runNo: env.runNo });
+    const LEAD = M.mod ? 1.9 : 1.1; // a beat longer when there's a night to read
     const G = M.G;
     if (Kit.DEV) window.Hoard.M = M; // for automated testing
     const stars = Array.from({ length: 46 }, () => [Math.random() * W, Math.random() * 120, Math.random()]);
@@ -436,6 +472,15 @@
     const say = (text, c = '#fff') => { msg = { text, c, t: M.t }; };
     const big = (text, sub, c = '#ffe08a', dur = 2.4) => { banner = { text, sub, c, t: 0, dur }; };
     const sting = (notes, type = 'triangle', v = 0.09, gap = 0.13) => notes.forEach((f, i) => sfx.tone(f, gap * 1.7, type, v, 1, i * gap));
+    const play = (name, synth, v) => (sfx.play && sfx.play(name, v)) || synth(); // a sample from assets/sfx if present, else the synth
+    const sprite = (...a) => !!(env.sprite && env.sprite(...a));
+    /** sprite + a brightening flash (0..1) for hits; -> false when the art is absent (caller draws the vector). */
+    const spr = (g, name, x, y, w, o = {}, flash = 0) => {
+      if (!sprite(g, name, x, y, w, null, o)) return false;
+      if (flash > 0) { g.globalCompositeOperation = 'lighter'; sprite(g, name, x, y, w, null, { ...o, alpha: flash * 0.7 }); g.globalCompositeOperation = 'source-over'; }
+      return true;
+    };
+    const KART = { k: ['enemy-knight', 32], lancer: ['enemy-lancer', 40], shield: ['enemy-shield', 32], priest: ['enemy-priest', 30], cap: ['enemy-captain', 32], acolyte: ['enemy-acolyte', 28], slayer: ['enemy-slayer', 32], boss: ['boss-paladin', 34] };
 
     // DOM shop
     env.ui.innerHTML = `<style>${CSS}</style><div class="hd-shop">${SHOP_ORDER.map((k) => `<button type="button" class="hd-b" data-shop="${k}"><span class="n"><i>${SHOP[k].icon}</i>${VERB[k]}</span><span class="r"><span class="c"></span><small></small></span></button>`).join('')}</div>`;
@@ -470,6 +515,12 @@
           if (e.kind === 'breath') { sfx.tone(90 + Math.random() * 40, 0.18, 'sawtooth', 0.06, 0.4); sfx.crack(); fx.burst(e.x, e.y, 14, L.fire, 180, 4); fx.ring(e.x, e.y, e.r * 1.6, L.fire[1]); fx.shake = Math.max(fx.shake, 2.5 + e.n); if (e.n && agg.dmg <= 0) { agg.dmg = 0.3; fx.text(e.x + 14, e.y - 22, env.fmt(e.dmg * e.n), '#fff', 13); } }
           else { sfx.zap(); fx.burst(e.x, e.y, 5, L.fire, 100, 2.5); }
         }
+        else if (e.k === 'rare') { sfx.win(); pileBump = 1; fx.burst(G.gate.x, G.wallY - 30, 30, ['#ffd166', '#fff3b0', '#9bf6ff'], 220, 4); fx.text(G.gate.x, G.wallY - 70, 'RARE FIND! +' + env.fmt(e.gold) + ' +1 gem', '#9bf6ff', 18); say('A kobold dragged home a golden relic!', '#9bf6ff'); stop = Math.max(stop, 0.06); }
+        else if (e.k === 'slayer') { play('horn', () => sting([98, 131], 'sawtooth', 0.07, 0.2)); say('A DRAGONSLAYER! Burn him before he aims', '#ff8f8f'); }
+        else if (e.k === 'bolt') { sfx.hit(); play('clang', () => sfx.tone(700, 0.1, 'square', 0.05, 0.4)); fx.shake = 7; fx.text(G.gate.x, G.wallY + 20, 'GROUNDED!', '#ff8f8f', 18); wallHitT = M.t; cause = 'slayer'; arcs.push({ x0: e.x, y0: e.y - 20, x1: G.gate.x, y1: G.wallY + 28, t: 0, bolt: 1 }); }
+        else if (e.k === 'smiteTell') { sfx.tone(523, 0.5, 'sine', 0.06, 1.6); say('He raises his sword: burn him NOW to stagger him!', '#fff3b0'); }
+        else if (e.k === 'smite') { play('boom', () => sfx.boom()); fx.shake = 12; stop = Math.max(stop, 0.08); fx.text(G.gate.x, G.wallY - 40, 'JUDGEMENT -8% wall', '#ff8f8f', 16); wallHitT = M.t; cause = 'smite'; arcs.push({ x0: e.x, y0: e.y - 60, x1: G.gate.x, y1: G.wallY - 6, t: 0, holy: 1 }); }
+        else if (e.k === 'stagger') { sfx.crack(); sfx.ding(); fx.ring(e.x, e.y - 20, 70, '#fff3b0'); fx.text(e.x, e.y - 80, 'STAGGERED!', '#ffe08a', 20); stop = Math.max(stop, 0.12); fx.shake = 8; }
         else if (e.k === 'kill') {
           sfx.pop(0.8 + Math.min(10, e.streak) * 0.08);
           fx.burst(e.x, e.y, e.kind === 'boss' ? 70 : 14, ['#ced4da', '#adb5bd', '#ffd166', '#e63946'], e.kind === 'boss' ? 340 : 170, 3.5);
@@ -477,23 +528,24 @@
           if (e.gem) { sfx.ding(); fx.text(e.x, e.y - 38, `+${e.gem} gem${e.gem > 1 ? 's' : ''}`, '#9bf6ff', 18); }
           if (e.streak >= 3) { streakShow = { n: e.streak, t: M.t, x: e.x, y: e.y }; if (e.streak % 5 === 0) { sfx.ding(); stop = Math.max(stop, 0.05); } }
           if (e.kind === 'cap' || e.kind === 'acolyte') { fx.shake = 10; sfx.boom(); stop = Math.max(stop, 0.09); }
-          if (e.kind === 'boss') { fx.shake = 18; sfx.boom(); stop = 0.35; }
+          if (e.kind === 'boss') { fx.shake = 18; sfx.boom(); stop = 0.35; for (let i = 0; i < 6; i++) fx.burst(W * (0.1 + 0.16 * i), 60 + Math.random() * 80, 16, ['#ffd166', '#fff3b0', '#e09f3e'], 200, 4.5); fx.text(e.x, e.y - 90, '+' + env.fmt(e.gold), '#ffe08a', 26); }
+          if (e.kind === 'slayer') { fx.shake = 8; sfx.boom(); stop = Math.max(stop, 0.08); say('Dragonslayer burned! +2 gems', '#9bf6ff'); }
         }
         else if (e.k === 'bash') { sfx.hit(); fx.burst(e.x, e.y, 3, ['#8d7b68', '#c2b280'], 80, 2.5); fx.shake = Math.max(fx.shake, 1.5); wallHitT = M.t; cause = 'knights'; }
         else if (e.k === 'captain') say('A knight captain approaches! (drops a gem)', '#9bf6ff');
         else if (e.k === 'boss') { sfx.boom(); fx.shake = 12; sting([110, 98, 82], 'sawtooth', 0.07, 0.22); }
         else if (e.k === 'hatch') { sfx.pop(1.6); fx.burst(W / 2 - 70, G.wallY + 52, 6, ['#fff3d6', L.body], 90, 2.5); }
         else if (e.k === 'breach') { sfx.boom(); fx.shake = 18; fx.burst(G.gate.x, G.wallY, 46, ['#8d7b68', '#c2b280', '#6c584c'], 280, 4.5); }
-        else if (e.k === 'siege') { big('THE SIEGE!', 'Dawn: boulders hit the wall. Hauls +50% till it falls', '#ffb4a2', 2.6); sting([147, 147, 196], 'sawtooth', 0.08, 0.3); fx.shake = 6; }
+        else if (e.k === 'siege') { big('THE SIEGE!', 'Dawn: boulders hit the wall. Hauls +50% till it falls', '#ffb4a2', 2.6); play('horn', () => sting([147, 147, 196], 'sawtooth', 0.08, 0.3)); fx.shake = 6; }
         else if (e.k === 'launch') { trebArm[e.side > 0 ? 1 : 0] = M.t; sfx.tone(70, 0.25, 'square', 0.04, 0.6); }
         else if (e.k === 'rock') { sfx.boom(); fx.shake = 9; fx.burst(e.x, e.y, 22, ['#8d7b68', '#6c584c', '#c2b280'], 220, 4); fx.text(e.x, e.y - 30, '-' + Math.round(e.dmg / M.wallMax * 100) + '% wall', '#ff8f8f', 15); wallHitT = M.t; cause = 'siege'; stop = Math.max(stop, 0.05); }
         else if (e.k === 'caravan') { if (M.carsSeen <= 2) say('A treasure caravan! Burn it before it escapes', '#ffe08a'); sfx.tone(660, 0.1, 'triangle', 0.06); sfx.tone(880, 0.12, 'triangle', 0.06, 1, 0.08); }
         else if (e.k === 'cart') { sfx.win(); fx.burst(e.x, e.y, 40, ['#ffd166', '#fff3b0', '#e09f3e'], 260, 4); fx.text(e.x, e.y - 20, '+' + env.fmt(e.gold), '#ffe08a', 22); if (e.gem) fx.text(e.x, e.y - 44, '+1 gem', '#9bf6ff', 18); fx.shake = 8; stop = Math.max(stop, 0.08); }
-        else if (e.k === 'block') { sfx.tone(1200, 0.08, 'square', 0.05, 0.5); fx.burst(e.x, e.y - 10, 8, ['#e9ecef', '#adb5bd'], 140, 2.5); fx.text(e.x, e.y - 30, 'BLOCKED', '#e9ecef', 13); }
+        else if (e.k === 'block') { play('clang', () => sfx.tone(1200, 0.08, 'square', 0.05, 0.5)); fx.burst(e.x, e.y - 10, 8, ['#e9ecef', '#adb5bd'], 140, 2.5); fx.text(e.x, e.y - 30, 'BLOCKED', '#e9ecef', 13); }
         else if (e.k === 'warded') { if (Math.random() < 0.3) { sfx.tone(1600, 0.06, 'sine', 0.04); fx.text(e.x, e.y - 70, 'WARDED', '#fff3b0', 13); } }
-        else if (e.k === 'phase') { big('THE LIGHT SHIELDS HIM', 'Burn his three acolytes to break the ward', '#fff3b0', 2.6); sting([523, 659, 784, 659], 'sine', 0.08, 0.12); stop = 0.3; fx.shake = 10; fx.ring(e.x, e.y, 90, '#fff3b0'); }
+        else if (e.k === 'phase') { big('THE LIGHT SHIELDS HIM', 'Burn his three acolytes to break the ward', '#fff3b0', 2.6); play('ward', () => sting([523, 659, 784, 659], 'sine', 0.08, 0.12)); stop = 0.3; fx.shake = 10; fx.ring(e.x, e.y, 90, '#fff3b0'); }
         else if (e.k === 'enrage') { big('THE PALADIN CHARGES!', 'Hold the wall. Burn him!', '#ff8f8f', 2.2); sting([196, 185, 175, 165], 'sawtooth', 0.08, 0.1); stop = 0.25; fx.shake = 14; fx.ring(e.x, e.y, 110, '#ff8f8f'); }
-        else if (e.k === 'fly') { big('TAKE WING!', '', L.fire[0], 1.2); sting([392, 523, 659, 784], 'sawtooth', 0.05, 0.07); fx.shake = 8; flyX = -60; }
+        else if (e.k === 'fly') { big('TAKE WING!', '', L.fire[0], 1.2); play('roar', () => sting([392, 523, 659, 784], 'sawtooth', 0.05, 0.07)); fx.shake = 8; flyX = -60; }
         else if (e.k === 'rain') { sfx.crack(); for (const k of M.knights) fx.burst(k.x, k.y - 8, 4, L.fire, 90, 3); }
         else if (e.k === 'arc') { arcs.push({ ...e, t: 0 }); sfx.zap(); }
         else if (e.k === 'stab') { sfx.hit(); fx.burst(e.x, e.y - 6, 3, ['#ced4da', '#d1793a'], 70, 2); }
@@ -521,7 +573,8 @@
         else { sfx.nope(); say(why === 'locked' ? `The ${v.name} unlocks in the upgrade tree` : why === 'guarded' ? 'Only Sappers can raid the Castle' : 'All kobolds are out raiding!', '#ffb4a2'); }
         return;
       }
-      if (breathe(M, x, y)) { breathT = M.t; headAim = Math.atan2(y - (G.wallY + 28), x - W / 2); sfx.tone(240, 0.14, 'sawtooth', 0.05, 0.5); }
+      if (breathe(M, x, y)) { breathT = M.t; headAim = Math.atan2(y - (G.wallY + 28), x - W / 2); play('breath', () => sfx.tone(240, 0.14, 'sawtooth', 0.05, 0.5), 0.5); }
+      else if (M.grounded > 0) { sfx.nope(); say(`Grounded by a bolt: ${M.grounded.toFixed(1)}s`, '#ffb4a2'); }
       else sfx.tone(200, 0.04, 'sine', 0.03); // still catching breath
     }
 
@@ -534,7 +587,7 @@
         if (lead < LEAD) { // lead-in: a beat to read the field before the first knight moves
           const was = lead; lead += dt;
           if (was === 0) { if (env.boss) sting([196, 262, 330, 392, 523], 'sawtooth', 0.06, 0.16); else sfx.tone(392, 0.12, 'triangle', 0.06); }
-          if (was < LEAD && lead >= LEAD && !env.boss) sfx.tone(587, 0.16, 'triangle', 0.07);
+          if (was < LEAD && lead >= LEAD && !env.boss) { sfx.tone(587, 0.16, 'triangle', 0.07); if (M.mod) say(`Tonight: ${M.mod.name}. ${M.mod.desc}`, '#e0c3fc'); }
         }
         for (const tp of input.taps) tapAt(tp.x, tp.y);
         let mdt = dt;
@@ -561,10 +614,16 @@
       result() {
         const e = earnedOf(M), score = Math.floor(M.earned);
         const l1 = `Raided ${env.fmt(M.earned)} gold in ${Math.round(M.t)}s · ${M.kills} knights burned · best streak x${M.bestStreak}`;
-        const l2 = [M.carsSeen ? `caravans ${M.carsHit}/${M.carsSeen}` : '', M.flights ? `${M.flights} flight${M.flights > 1 ? 's' : ''}` : '', M.siege ? `held the siege ${Math.round(M.t - M.siegeAt)}s` : `siege was ${Math.ceil(M.siegeAt - M.t)}s away`].filter(Boolean).join(' · ');
+        const l2 = [M.mod ? `${M.mod.icon} ${M.mod.name}` : '', M.rares ? `${M.rares} rare find${M.rares > 1 ? 's' : ''}` : '', M.carsSeen ? `caravans ${M.carsHit}/${M.carsSeen}` : '', M.flights ? `${M.flights} flight${M.flights > 1 ? 's' : ''}` : '', M.siege ? `held the siege ${Math.round(M.t - M.siegeAt)}s` : `siege was ${Math.ceil(M.siegeAt - M.t)}s away`].filter(Boolean).join(' · ');
         if (M.won) return { won: true, earned: e, score, lines: [l1] };
-        const title = cause === 'quit' ? 'You called the kobolds home' : M.bossT >= 0 ? 'The Paladin breached your cave' : cause === 'siege' ? 'The siege engines smashed the wall' : 'The knights broke in!';
-        return { won: false, title, earned: e, score, lines: [l1, l2] };
+        const title = cause === 'quit' ? 'You called the kobolds home' : M.bossT >= 0 ? 'The Paladin breached your cave' : cause === 'siege' ? 'The siege engines smashed the wall' : cause === 'slayer' ? 'A Dragonslayer cracked the wall' : 'The knights broke in!';
+        // one hint at what to buy next, matched to what ended the run
+        const has = (id) => (env.levels[id] || 0) > 0;
+        const tip = M.bossT >= 0 ? (M.boss && M.boss.p2 ? 'Tip: burn the acolytes fast, then stagger his sword-raises' : 'Tip: burn him while he raises his sword to stagger him')
+          : cause === 'siege' ? (has('watch') ? 'Tip: more wall (Thick Walls, Ironscale Gate) outlasts the boulders' : 'Tip: Watchtowers (top of the tree) delay the siege')
+          : cause === 'quit' ? '' : !has('wall') || (env.levels.wall || 0) < 3 ? 'Tip: Thick Walls hold the knights off longer'
+          : !has('glare') ? 'Tip: Smouldering Glare spits at knights for you' : !has('spears') && !has('fury') ? "Tip: pick a path: Kobold Spears or Dragon's Fury" : 'Tip: Hotter Breath and drakelings burn knights faster';
+        return { won: false, title, earned: e, score, lines: [l1, l2, tip].filter(Boolean) };
       },
     };
 
@@ -574,6 +633,13 @@
       g.save(); g.translate(sx, sy);
       // sky: night that slides to a red dawn as the siege nears
       const dawn = Math.min(1, M.t / M.siegeAt) ** 2, top = mix('#141230', '#3a2a5c', dawn), hor = mix('#2c3e50', '#f4a259', dawn);
+      const bgArt = env.art && env.art('bg-meadow');
+      if (bgArt) { // cover-fit, then the dawn tint (it is the siege telegraph) and a scrim so pieces read
+        const sc = Math.max(W / bgArt.naturalWidth, H / bgArt.naturalHeight), iw = bgArt.naturalWidth * sc, ih = bgArt.naturalHeight * sc;
+        g.drawImage(bgArt, (W - iw) / 2, (H - ih) / 2, iw, ih);
+        const dg = g.createLinearGradient(0, 0, 0, G.wallY); dg.addColorStop(0, `rgba(244,162,89,${0.45 * dawn})`); dg.addColorStop(1, `rgba(201,123,90,${0.12 * dawn})`);
+        g.fillStyle = dg; g.fillRect(-20, -20, W + 40, G.wallY + 20); g.fillStyle = 'rgba(10,8,20,.25)'; g.fillRect(-20, -20, W + 40, H + 40);
+      } else {
       const sky = g.createLinearGradient(0, 0, 0, 160); sky.addColorStop(0, top); sky.addColorStop(0.75, hor); sky.addColorStop(1, mix('#3c5a48', '#c97b5a', dawn));
       g.fillStyle = sky; g.fillRect(-20, -20, W + 40, 190);
       for (const [x, y, a] of stars) { if (y > 100) continue; g.fillStyle = `rgba(255,255,255,${(0.3 + 0.5 * Math.abs(Math.sin(rt + a * 9))) * (1 - dawn)})`; g.fillRect(x, y, 2, 2); }
@@ -585,6 +651,7 @@
       const mead = g.createLinearGradient(0, 140, 0, G.wallY); mead.addColorStop(0, mix('#3c6e47', '#6f7f4a', dawn * 0.6)); mead.addColorStop(1, '#2b5135');
       g.fillStyle = mead; g.beginPath(); g.moveTo(0, 150); for (let x = 0; x <= W; x += 30) g.lineTo(x, 142 + Math.sin(x * 0.03) * 10); g.lineTo(W, G.wallY + 20); g.lineTo(0, G.wallY + 20); g.fill();
       g.strokeStyle = '#4f8a5b'; g.lineWidth = 2; for (const [x, y] of tufts) { const sw = Math.sin(rt * 2 + x) * 1.5; g.beginPath(); g.moveTo(x, y); g.lineTo(x - 3 + sw, y - 6); g.moveTo(x, y); g.lineTo(x + 3 + sw, y - 6); g.stroke(); }
+      }
       // roads
       g.lineCap = 'round';
       for (const v of G.vills) { if (!avail(M, v) && !v.castle) continue; g.strokeStyle = avail(M, v) ? '#8a6f4d' : '#5a5040'; g.lineWidth = 14; g.beginPath(); g.moveTo(G.gate.x, G.gate.y); g.lineTo(v.x, v.y); g.stroke(); }
@@ -594,6 +661,7 @@
       if (M.siege) drawTrebuchets(g, t);
       for (const c of M.carts) drawCart(g, c, rt);
       for (const u of M.units) if (u.st !== 'idle') drawUnit(g, u, rt);
+      for (const v of G.vills) drawLabel(g, v);
       for (const k of M.knights.slice().sort((a, b) => a.y - b.y)) drawKnight(g, k, rt);
       drawCave(g, rt);
       for (const sh of M.shots) drawShot(g, sh);
@@ -616,7 +684,8 @@
       const on = avail(M, v), fl = Math.max(0, 1 - (t - (flash[v.id] ?? -9)) * 4), bob = fl * 3, dawn = Math.min(1, M.t / M.siegeAt);
       g.save(); g.translate(v.x, v.y - bob); g.globalAlpha = on || v.castle ? 1 : 0.42;
       g.fillStyle = 'rgba(0,0,0,.22)'; g.beginPath(); g.ellipse(0, 6, v.castle ? 52 : 40, 8, 0, 0, 6.283); g.fill();
-      if (v.castle) {
+      if (spr(g, 'obj-' + v.id, 0, v.castle ? 12 : 9, v.castle ? 96 : 80, { anchor: 'bottom' }, fl * 0.6)) { /* art */ }
+      else if (v.castle) {
         g.scale(0.85, 0.85);
         const st = g.createLinearGradient(0, -58, 0, 12); st.addColorStop(0, '#adb5bd'); st.addColorStop(1, '#5c636a');
         g.fillStyle = st; g.fillRect(-46, -28, 92, 40);
@@ -643,18 +712,21 @@
         if (fl > 0) { g.globalAlpha = fl; for (let i = 0; i < 4; i++) { g.fillStyle = L.fire[i % 3]; g.beginPath(); g.arc((i - 1.5) * 12, -18 - Math.random() * 8, 3 + Math.random() * 3, 0, 6.283); g.fill(); } g.globalAlpha = 1; }
       }
       g.globalAlpha = 1;
-      const label = v.castle ? (on ? `Castle +${env.fmt(haulOf(M, 'sapper', v))}` : 'Castle 🔒') : on ? `${v.name} +${env.fmt(haulOf(M, 'kobold', v))}` : `${v.name} 🔒`;
-      g.font = '800 12px Nunito, system-ui'; g.textAlign = 'center'; const tw = g.measureText(label).width + 12, ly = v.castle ? 30 : 20;
-      g.fillStyle = 'rgba(0,0,0,.58)'; rr(g, -tw / 2, ly - 11, tw, 17, 8); g.fill();
-      g.fillStyle = on ? '#ffe8a3' : '#ccc'; g.fillText(label, 0, ly + 2);
       if (fl > 0) { g.strokeStyle = `rgba(255,209,102,${fl})`; g.lineWidth = 3; g.beginPath(); g.arc(0, -6, 30 + (1 - fl) * 14, 0, 6.283); g.stroke(); }
       g.restore();
     }
 
+    function drawLabel(g, v) {
+      const on = avail(M, v), label = v.castle ? (on ? `Castle +${env.fmt(haulOf(M, 'sapper', v))}` : 'Castle 🔒') : on ? `${v.name} +${env.fmt(haulOf(M, 'kobold', v))}` : `${v.name} 🔒`;
+      g.font = '800 12px Nunito, system-ui'; g.textAlign = 'center'; const tw = g.measureText(label).width + 12, ly = v.y + (v.castle ? 30 : 20);
+      g.fillStyle = 'rgba(0,0,0,.66)'; rr(g, v.x - tw / 2, ly - 11, tw, 17, 8); g.fill();
+      g.fillStyle = on ? '#ffe8a3' : '#ccc'; g.fillText(label, v.x, ly + 2);
+    }
     function drawTrebuchets(g, t) {
       for (const sd of [0, 1]) {
         const x = sd ? W - 30 : 30, y = 150, a = Math.min(1, (t - trebArm[sd]) * 3), sw = a < 1 ? -1.2 + 2.2 * a : 1;
         g.save(); g.translate(x, y); g.scale(sd ? -1 : 1, 1);
+        if (spr(g, 'obj-trebuchet', 0, 16, 50, { anchor: 'bottom', rot: a < 1 ? -0.12 * Math.sin(a * Math.PI) : 0 })) { g.restore(); continue; }
         g.fillStyle = '#5c3d2e'; g.beginPath(); g.moveTo(-14, 12); g.lineTo(0, -16); g.lineTo(14, 12); g.lineTo(9, 12); g.lineTo(0, -6); g.lineTo(-9, 12); g.fill();
         g.fillStyle = '#7f5539'; g.fillRect(-18, 10, 36, 5);
         g.save(); g.translate(0, -14); g.rotate(sw); g.fillStyle = '#9c6644'; g.fillRect(-4, -26, 3, 34); g.fillStyle = '#3d2b1f'; g.fillRect(-7, 6, 10, 9); g.restore();
@@ -676,6 +748,7 @@
       const gl = g.createRadialGradient(0, -10, 2, 0, -10, 40); gl.addColorStop(0, 'rgba(255,214,102,.35)'); gl.addColorStop(1, 'rgba(255,214,102,0)'); g.fillStyle = gl; g.beginPath(); g.arc(0, -10, 40, 0, 6.283); g.fill();
       g.fillStyle = 'rgba(0,0,0,.25)'; g.beginPath(); g.ellipse(0, 6, 26, 5, 0, 0, 6.283); g.fill();
       g.scale(dir, 1);
+      if (!spr(g, 'obj-caravan', 6, 7, 78, { anchor: 'bottom' }, hit)) {
       // horse
       g.fillStyle = '#8d5524'; g.beginPath(); g.ellipse(26, -10 - bob, 10, 6, 0, 0, 6.283); g.fill(); g.beginPath(); g.ellipse(36, -18 - bob, 4, 6, 0.5, 0, 6.283); g.fill();
       g.strokeStyle = '#5c3d2e'; g.lineWidth = 2.5; for (const lx of [20, 31]) { g.beginPath(); g.moveTo(lx, -6 - bob); g.lineTo(lx + Math.sin(rt * 12 + lx) * 3, 4); g.stroke(); }
@@ -684,6 +757,7 @@
       g.fillStyle = hit ? '#fff' : '#f1e3c6'; g.beginPath(); g.moveTo(-18, -14); g.quadraticCurveTo(-1, -40, 16, -14); g.fill();
       g.fillStyle = '#e9c46a'; rr(g, -8, -22, 14, 9, 2); g.fill(); g.fillStyle = '#fff3b0'; g.fillRect(-2, -20, 2, 4);
       g.fillStyle = '#222'; for (const wx of [-11, 9]) { g.beginPath(); g.arc(wx, 0, 5, 0, 6.283); g.fill(); g.strokeStyle = '#999'; g.lineWidth = 1; g.beginPath(); g.moveTo(wx - 4 * Math.cos(rt * 8), -4 * Math.sin(rt * 8)); g.lineTo(wx + 4 * Math.cos(rt * 8), 4 * Math.sin(rt * 8)); g.stroke(); }
+      }
       g.restore();
       const w = 40; g.fillStyle = 'rgba(0,0,0,.6)'; g.fillRect(c.x - w / 2, c.y - 46, w, 5); g.fillStyle = '#ffd166'; g.fillRect(c.x - w / 2, c.y - 46, w * Math.max(0, c.hp / c.max), 5);
     }
@@ -693,7 +767,9 @@
       const hop = Math.abs(Math.sin(t * 14 + u.ph)) * 2.5;
       g.save(); g.translate(u.x, u.y - hop); g.scale(dir * 1.5, 1.5);
       g.fillStyle = 'rgba(0,0,0,.2)'; g.beginPath(); g.ellipse(0, 1 + hop / 1.5, 7, 2, 0, 0, 6.283); g.fill();
-      if (u.type === 'wagon') {
+      if (spr(g, 'unit-' + u.type, u.type === 'wagon' ? 5 : 0, 2, u.type === 'wagon' ? 36 : 19, { anchor: 'bottom' })) {
+        if (back && u.type !== 'wagon') { g.fillStyle = '#ffd166'; g.beginPath(); g.arc(-6, -10, u.type === 'sapper' ? 6 : 4.5, 0, 6.283); g.fill(); g.fillStyle = '#e09f3e'; g.fillRect(-7, -15, 2, 3); }
+      } else if (u.type === 'wagon') {
         g.fillStyle = '#7f5539'; rr(g, -14, -12, 28, 12, 3); g.fill(); g.fillStyle = '#9c6644'; g.fillRect(-14, -12, 28, 3);
         if (back) { g.fillStyle = '#ffd166'; g.beginPath(); g.ellipse(0, -12, 12, 6, 0, Math.PI, 0); g.fill(); g.fillStyle = '#fff3b0'; g.beginPath(); g.arc(-3, -15, 2, 0, 6.283); g.fill(); }
         g.fillStyle = '#222'; g.beginPath(); g.arc(-8, 1, 4.5, 0, 6.283); g.arc(8, 1, 4.5, 0, 6.283); g.fill();
@@ -713,14 +789,18 @@
     }
 
     function drawKnight(g, k, t) {
-      const boss = k.kind === 'boss', cap = k.kind === 'cap', sc = boss ? 2.6 : cap ? 1.6 : k.kind === 'shield' ? 1.35 : 1.25, hit = boss ? 0 : Math.max(0, 1 - (M.t - k.hitT) * 8);
+      const boss = k.kind === 'boss', cap = k.kind === 'cap', slay = k.kind === 'slayer', sc = boss ? 2.6 : cap ? 1.6 : slay ? 1.55 : k.kind === 'shield' ? 1.35 : 1.25, hit = boss ? 0 : Math.max(0, 1 - (M.t - k.hitT) * 8);
       const moving = !k.atWall && !k.hold && k.stunT <= 0 && k.sp > 0, step = k.atWall ? Math.sin(t * 10 + k.ph) * 3 : moving ? Math.abs(Math.sin(t * 8 + k.ph)) * 2 : 0;
       g.save(); g.translate(k.x, k.y);
       if (boss) { const gl = g.createRadialGradient(0, -14, 4, 0, -14, 60); gl.addColorStop(0, k.enraged ? 'rgba(255,120,120,.5)' : 'rgba(255,240,170,.45)'); gl.addColorStop(1, 'rgba(255,240,170,0)'); g.fillStyle = gl; g.beginPath(); g.arc(0, -14, 60, 0, 6.283); g.fill(); }
+      if (slay) { const gl = g.createRadialGradient(0, -10, 2, 0, -10, 36); gl.addColorStop(0, 'rgba(255,40,40,.45)'); gl.addColorStop(1, 'rgba(255,40,40,0)'); g.fillStyle = gl; g.beginPath(); g.arc(0, -10, 36, 0, 6.283); g.fill(); }
       if (k.kind === 'priest') { g.strokeStyle = `rgba(180,255,190,${0.25 + 0.15 * Math.sin(t * 4)})`; g.lineWidth = 2; g.beginPath(); g.arc(0, -8, 70, 0, 6.283); g.stroke(); }
       g.fillStyle = 'rgba(0,0,0,.25)'; g.beginPath(); g.ellipse(0, 4, (k.kind === 'lancer' ? 14 : 9) * sc, 3 * sc, 0, 0, 6.283); g.fill();
       g.scale(sc, sc); g.translate(0, -step);
-      const metal = hit ? '#ffffff' : boss ? '#f1e3a8' : k.kind === 'priest' || k.kind === 'acolyte' ? '#f1faee' : '#ced4da', dark = boss ? '#c9a227' : '#868e96';
+      const [an, aw] = KART[k.kind] || KART.k;
+      if (spr(g, an, 0, 4, aw, { alpha: k.kind === 'shield' && !k.shield ? 0.75 : 1 }, boss ? (M.t - k.hitT < 0.1 ? 0.5 : 0) : hit)) { if (k.kind === 'acolyte') { g.restore(); hpBar(g, k, sc); return; } }
+      else {
+      const metal = hit ? '#ffffff' : boss ? '#f1e3a8' : k.kind === 'priest' || k.kind === 'acolyte' ? '#f1faee' : slay ? '#5c636a' : '#ced4da', dark = boss ? '#c9a227' : slay ? '#212529' : '#868e96';
       if (k.kind === 'lancer') { // on a horse
         g.fillStyle = hit ? '#fff' : '#6f4e37'; g.beginPath(); g.ellipse(0, -4, 12, 6, 0, 0, 6.283); g.fill(); g.beginPath(); g.ellipse(0, -12, 4, 6, 0, 0, 6.283); g.fill();
         g.strokeStyle = '#4a3426'; g.lineWidth = 2; for (const lx of [-8, -3, 4, 9]) { g.beginPath(); g.moveTo(lx, -1); g.lineTo(lx + Math.sin(t * 16 + lx + k.ph) * 3, 5); g.stroke(); }
@@ -733,11 +813,13 @@
       g.fillStyle = metal; g.beginPath(); g.arc(0, -19, 6, 0, 6.283); g.fill();
       g.fillStyle = '#212529'; g.fillRect(-4, -20, 8, 2);
       if (k.kind === 'priest') { g.strokeStyle = '#ffe8a3'; g.lineWidth = 1.2; g.beginPath(); g.ellipse(0, -27, 6, 2, 0, 0, 6.283); g.stroke(); }
-      else { g.fillStyle = boss ? '#ffd166' : cap ? '#4cc9f0' : k.kind === 'shield' ? '#f4a261' : '#e63946'; g.beginPath(); g.moveTo(-1, -25); g.quadraticCurveTo(-8 - Math.sin(t * 6 + k.ph), -33, -10, -22); g.lineTo(1, -24); g.fill(); }
+      else { g.fillStyle = boss ? '#ffd166' : cap ? '#4cc9f0' : slay ? '#3d0a0a' : k.kind === 'shield' ? '#f4a261' : '#e63946'; g.beginPath(); g.moveTo(-1, -25); g.quadraticCurveTo(-8 - Math.sin(t * 6 + k.ph), -33, -10, -22); g.lineTo(1, -24); g.fill(); }
       if (k.kind === 'shield' && k.shield) { const sg = g.createLinearGradient(3, -20, 13, 4); sg.addColorStop(0, '#e9ecef'); sg.addColorStop(1, '#6c757d'); g.fillStyle = sg; rr(g, 2, -20, 12, 22, 4); g.fill(); g.fillStyle = '#e63946'; g.fillRect(7, -16, 2, 14); g.fillRect(4, -10, 8, 2); }
       else if (k.kind !== 'priest') { g.fillStyle = boss ? '#fff' : '#457b9d'; rr(g, 3, -13, 8, 11, 3); g.fill(); g.fillStyle = boss ? '#c9a227' : '#f1faee'; g.fillRect(6.2, -11, 1.6, 7); g.fillRect(4.5, -8.5, 5, 1.6); }
-      if (k.kind === 'lancer') { g.strokeStyle = '#adb5bd'; g.lineWidth = 1.8; g.beginPath(); g.moveTo(-10, -12); g.lineTo(18, -6); g.stroke(); g.fillStyle = '#e63946'; g.beginPath(); g.moveTo(-2, -11); g.lineTo(-8, -16); g.lineTo(-6, -10); g.fill(); }
+      if (slay) { g.fillStyle = '#6f4e37'; g.fillRect(-12, -12, 18, 3); g.strokeStyle = '#3d2b1f'; g.lineWidth = 1.6; g.beginPath(); g.arc(-12, -10.5, 7, -1.3, 1.3); g.stroke(); } // crossbow
+      else if (k.kind === 'lancer') { g.strokeStyle = '#adb5bd'; g.lineWidth = 1.8; g.beginPath(); g.moveTo(-10, -12); g.lineTo(18, -6); g.stroke(); g.fillStyle = '#e63946'; g.beginPath(); g.moveTo(-2, -11); g.lineTo(-8, -16); g.lineTo(-6, -10); g.fill(); }
       else if (k.kind !== 'priest') { g.strokeStyle = boss ? '#fff3b0' : '#adb5bd'; g.lineWidth = boss ? 2.2 : 1.6; g.beginPath(); const sw = k.atWall ? Math.sin(t * 10 + k.ph) * 0.8 : 0; g.moveTo(-7, -9); g.lineTo(-7 - (boss ? 13 : 9) * Math.sin(0.4 + sw), -9 - (boss ? 13 : 9) * Math.cos(0.4 + sw)); g.stroke(); }
+      }
       if (k.chill > 0) { g.fillStyle = 'rgba(160,220,255,.35)'; rr(g, -9, -27, 18, 30, 6); g.fill(); }
       if (k.snareT > 0) { g.strokeStyle = '#a3865f'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(-6, 2); g.lineTo(6, -2); g.moveTo(-6, -2); g.lineTo(6, 2); g.stroke(); }
       if (k.stunT > 0) { g.fillStyle = '#fff275'; for (let i = 0; i < 3; i++) { const a = t * 8 + i * 2.1; g.beginPath(); g.arc(Math.cos(a) * 8, -30 + Math.sin(a) * 2, 1.6, 0, 6.283); g.fill(); } }
@@ -745,15 +827,28 @@
       if (boss && k.ward) { g.strokeStyle = `rgba(255,243,176,${0.7 + 0.3 * Math.sin(t * 6)})`; g.fillStyle = 'rgba(255,243,176,.18)'; g.lineWidth = 1.5; g.beginPath(); g.arc(0, -12, 20, 0, 6.283); g.fill(); g.stroke(); }
       g.restore();
       if (boss && k.ward) for (const a of M.knights) if (a.kind === 'acolyte') { g.strokeStyle = `rgba(255,243,176,${0.4 + 0.3 * Math.sin(t * 8)})`; g.lineWidth = 2; g.beginPath(); g.moveTo(a.x, a.y - 20); g.lineTo(k.x, k.y - 30); g.stroke(); }
+      if (slay && k.aimT < 1.6 && Math.hypot(k.tx - k.x, k.ty - k.y) <= 2) { // the tell: a red sightline that firms up as he aims
+        const q = 1 - k.aimT / 1.6, m = { x: W / 2, y: G.wallY + 28 };
+        g.strokeStyle = 'rgba(0,0,0,.5)'; g.lineWidth = 5 + 2 * q; g.beginPath(); g.moveTo(k.x, k.y - 20); g.lineTo(m.x, m.y); g.stroke();
+        g.strokeStyle = `rgba(255,70,70,${0.55 + 0.45 * q})`; g.lineWidth = 2 + 2 * q; g.setLineDash([10, 6]); g.lineDashOffset = -t * 40; g.beginPath(); g.moveTo(k.x, k.y - 20); g.lineTo(m.x, m.y); g.stroke(); g.setLineDash([]);
+        g.font = "400 22px 'Lilita One', system-ui"; g.textAlign = 'center'; g.fillStyle = Math.sin(t * 20) > 0 ? '#ff6b6b' : '#fff'; g.fillText('!', k.x, k.y - 58);
+      }
+      if (boss && k.wind > 0) { // sword raised: a golden ring closes on the wall; burn him to stagger him
+        const q = 1 - k.wind / 1.5;
+        g.strokeStyle = `rgba(255,243,176,${0.4 + 0.5 * q})`; g.lineWidth = 3; g.beginPath(); g.arc(G.gate.x, G.wallY - 6, 70 - 50 * q, 0, 6.283); g.stroke();
+        g.fillStyle = `rgba(255,243,176,${0.3 + 0.5 * Math.abs(Math.sin(t * 12))})`; g.beginPath(); g.arc(k.x - 22, k.y - 80, 10 + 8 * q, 0, 6.283); g.fill();
+      }
       if (!boss) hpBar(g, k, sc);
+      if (slay) { g.font = '800 12px Nunito, system-ui'; g.textAlign = 'center'; const ty = k.y - 34 * sc - 6; g.lineWidth = 3; g.strokeStyle = '#2a0000'; g.strokeText('SLAYER', k.x, ty); g.fillStyle = '#ff8f8f'; g.fillText('SLAYER', k.x, ty); }
     }
-    function hpBar(g, k, sc) { if (k.hp >= k.max) return; const w = 22 * sc; g.fillStyle = 'rgba(0,0,0,.6)'; g.fillRect(k.x - w / 2, k.y - 34 * sc, w, 4); g.fillStyle = k.kind === 'acolyte' ? '#fff3b0' : '#ff6b6b'; g.fillRect(k.x - w / 2, k.y - 34 * sc, w * Math.max(0, k.hp / k.max), 4); }
+    function hpBar(g, k, sc) { if (k.hp >= k.max) return; const w = 22 * sc; g.fillStyle = 'rgba(0,0,0,.6)'; g.fillRect(k.x - w / 2, k.y - 34 * sc, w, 4); g.fillStyle = k.kind === 'acolyte' ? '#fff3b0' : k.kind === 'slayer' ? '#c77dff' : '#ff6b6b'; g.fillRect(k.x - w / 2, k.y - 34 * sc, w * Math.max(0, k.hp / k.max), 4); }
 
     function drawCave(g, t) {
       const y = G.wallY, cx = W / 2;
       const rock = g.createLinearGradient(0, y - 40, 0, H); rock.addColorStop(0, '#6b5d52'); rock.addColorStop(1, '#2a221d');
+      if (env.art && env.art('bg-meadow')) g.globalAlpha = 0.6;
       g.fillStyle = rock; g.beginPath(); g.moveTo(-20, H + 20); g.lineTo(-20, y - 30); g.lineTo(40, y - 54); g.lineTo(90, y - 22); g.lineTo(cx - 70, y - 30); g.lineTo(cx - 52, y - 4);
-      g.lineTo(cx + 52, y - 4); g.lineTo(cx + 70, y - 30); g.lineTo(W - 90, y - 22); g.lineTo(W - 40, y - 56); g.lineTo(W + 20, y - 28); g.lineTo(W + 20, H + 20); g.fill();
+      g.lineTo(cx + 52, y - 4); g.lineTo(cx + 70, y - 30); g.lineTo(W - 90, y - 22); g.lineTo(W - 40, y - 56); g.lineTo(W + 20, y - 28); g.lineTo(W + 20, H + 20); g.fill(); g.globalAlpha = 1;
       g.fillStyle = 'rgba(255,255,255,.06)'; g.beginPath(); g.moveTo(40, y - 54); g.lineTo(90, y - 22); g.lineTo(70, y - 20); g.fill(); g.beginPath(); g.moveTo(W - 40, y - 56); g.lineTo(W - 90, y - 22); g.lineTo(W - 70, y - 20); g.fill();
       g.strokeStyle = 'rgba(255,255,255,.07)'; g.lineWidth = 2; for (let i = 0; i < 6; i++) { g.beginPath(); g.moveTo(i * 70 + 10, y + 10 + (i % 3) * 30); g.lineTo(i * 70 + 40, y + 24 + (i % 3) * 30); g.stroke(); }
       const ch = { x: cx, y: y + 104, rx: W * 0.43, ry: 86 };
@@ -770,6 +865,7 @@
       for (let i = 0; i < 3; i++) { const a = (t * 0.7 + i * 0.33) % 1; g.fillStyle = `rgba(255,255,255,${Math.sin(a * Math.PI)})`; const px = cx + Math.sin(i * 7 + Math.floor(t * 0.7 + i * 0.33) * 3) * pw * 0.6; g.beginPath(); g.arc(px, py - ph * 0.6, 1.6 + 1.5 * Math.sin(a * Math.PI), 0, 6.283); g.fill(); }
       for (const c of coinsFly) { const q = c.t, x = c.x + (cx - c.x) * q, yy = y + 10 + (py - ph - y - 10) * q - Math.sin(q * Math.PI) * 30; g.fillStyle = '#ffd166'; g.beginPath(); g.arc(x, yy, 3.5, 0, 6.283); g.fill(); }
       if (M.flyT <= 0) drawDragon(g, cx, py - ph - 4, t);
+      if (M.grounded > 0) { g.font = '800 12px Nunito, system-ui'; g.textAlign = 'center'; const gt = `GROUNDED ${M.grounded.toFixed(1)}s`, gw2 = g.measureText('GROUNDED 0.0s').width + 16; g.fillStyle = 'rgba(157,2,8,.85)'; rr(g, cx - gw2 / 2, y + 30, gw2, 18, 9); g.fill(); g.fillStyle = '#ffd6c9'; g.fillText(gt, cx, y + 43); }
       // idle kobolds by the gate (fixed spot, fixed-width label)
       const nIdle = idle(M);
       for (let i = 0; i < Math.min(nIdle, 8); i++) { const kx = cx - 70 - (i % 4) * 12, ky = y + 52 + Math.floor(i / 4) * 12 - Math.abs(Math.sin(t * 3 + i)) * 1.5; g.fillStyle = '#d1793a'; g.beginPath(); g.ellipse(kx, ky, 5, 4, 0, 0, 6.283); g.arc(kx + 4, ky - 5, 3.5, 0, 6.283); g.fill(); g.fillStyle = '#ffec99'; g.fillRect(kx + 5, ky - 6, 1.5, 1.5); }
@@ -838,7 +934,7 @@
       g.restore();
     }
     function drawArc(g, a) {
-      g.strokeStyle = L.fire[1]; g.lineWidth = 3; g.globalAlpha = 1 - a.t / 0.18; g.beginPath(); g.moveTo(a.x0, a.y0);
+      g.strokeStyle = a.bolt ? '#ff6b6b' : a.holy ? '#fff3b0' : L.fire[1]; g.lineWidth = a.holy ? 7 : 3; g.globalAlpha = 1 - a.t / 0.18; g.beginPath(); g.moveTo(a.x0, a.y0);
       for (let i = 1; i < 6; i++) { const q = i / 6; g.lineTo(a.x0 + (a.x1 - a.x0) * q + (Math.random() - 0.5) * 14, a.y0 + (a.y1 - a.y0) * q + (Math.random() - 0.5) * 14); }
       g.lineTo(a.x1, a.y1); g.stroke(); g.strokeStyle = '#fff'; g.lineWidth = 1; g.stroke(); g.globalAlpha = 1;
     }
@@ -872,7 +968,7 @@
       const hm = haulMult(M); g.font = '800 12px Nunito, system-ui';
       if (hm > 1.01) { g.fillStyle = M.siege ? '#ffb4a2' : '#bde0fe'; g.fillText(`hauls x${hm.toFixed(2)}`, 126, 27); }
       g.textAlign = 'right'; g.font = "400 18px 'Lilita One', system-ui";
-      g.fillStyle = '#9bf6ff'; g.fillText(`${M.gems}`, W - 134, 30); g.textAlign = 'left'; g.font = '800 12px Nunito, system-ui'; g.fillText('gems', W - 130, 30); g.textAlign = 'right';
+      g.fillStyle = '#9bf6ff'; g.fillText(`${M.gems}`, W - 134, 30); g.textAlign = 'left'; g.font = '800 12px Nunito, system-ui'; g.fillText(M.gems === 1 ? 'gem' : 'gems', W - 130, 30); g.textAlign = 'right';
       g.font = "400 18px 'Lilita One', system-ui"; g.fillStyle = '#fff'; g.fillText(`${Math.floor(M.t)}s`, W - 62, 30);
       // siege clock
       const left = M.siegeAt - M.t;
@@ -881,6 +977,7 @@
       g.fillStyle = M.siege ? 'rgba(157,2,8,.75)' : left < 8 ? 'rgba(120,60,20,.75)' : 'rgba(0,0,0,.45)'; rr(g, 8, 50, sw, 20, 10); g.fill();
       g.fillStyle = M.siege || left < 8 ? '#ffd6c9' : '#d8d2e8'; g.fillText((M.siege ? '🪨 ' : '🌅 ') + sTxt, 16, 64);
       if (!M.siege) { g.fillStyle = 'rgba(255,180,120,.6)'; g.fillRect(16, 66, (sw - 16) * Math.max(0, 1 - left / M.siegeAt), 2); }
+      if (M.mod) { const mx = 144, mw = W - mx - 62; g.fillStyle = 'rgba(60,30,90,.6)'; rr(g, mx, 50, mw, 20, 10); g.fill(); g.textAlign = 'left'; g.fillStyle = '#e0c3fc'; g.fillText(`${M.mod.icon} ${M.mod.name}`, mx + 8, 64, mw - 14); }
       if (M.boss && M.boss.hp > 0) {
         const bx = 144, bw = W - bx - 62; g.fillStyle = 'rgba(0,0,0,.6)'; rr(g, bx, 50, bw, 20, 10); g.fill();
         g.fillStyle = M.boss.ward ? '#fff3b0' : M.boss.enraged ? '#ff6b6b' : '#ffd166'; rr(g, bx, 50, bw * Math.max(0, M.boss.hp / M.boss.max), 20, 10); g.fill();
@@ -897,7 +994,7 @@
       if (msg && M.t - msg.t < 2.2) { g.globalAlpha = Math.min(1, (2.2 - (M.t - msg.t)) * 2); g.font = '800 13px Nunito, system-ui'; g.textAlign = 'center'; const tw = Math.min(W - 16, g.measureText(msg.text).width + 24); g.fillStyle = 'rgba(0,0,0,.78)'; rr(g, W / 2 - tw / 2, 98, tw, 24, 12); g.fill(); g.fillStyle = msg.c; g.fillText(msg.text, W / 2, 114, W - 32); g.globalAlpha = 1; }
       // big banner band (reserved, centred on the meadow)
       const by = Math.round(G.wallY * 0.46);
-      if (lead < LEAD && !env.boss) bannerAt(g, lead < LEAD * 0.55 ? 'Ready…' : 'Raid!', env.runNo === 1 ? 'Tap a village to send a kobold' : `Run ${env.runNo}`, '#ffe08a', by, Math.min(1, lead * 5));
+      if (lead < LEAD && !env.boss) bannerAt(g, lead < LEAD * 0.55 ? (M.mod ? `${M.mod.icon} ${M.mod.name}` : 'Ready…') : 'Raid!', env.runNo === 1 ? 'Tap a village to send a kobold' : M.mod ? M.mod.desc : `Run ${env.runNo}`, '#ffe08a', by, Math.min(1, lead * 5));
       else if (banner) bannerAt(g, banner.text, banner.sub, banner.c, by, Math.min(1, banner.t * 5, (banner.dur - banner.t) * 3));
       if (M.over) { const a = Math.min(1, outro * 3); g.fillStyle = `rgba(10,6,16,${0.45 * a})`; g.fillRect(0, 0, W, H); bannerAt(g, M.won ? 'THE PALADIN FALLS!' : cause === 'siege' ? 'THE WALL CRUMBLES' : cause === 'quit' ? 'KOBOLDS, HOME!' : 'BREACHED!', M.won ? 'You are the Elder Wyrm' : cause === 'siege' ? 'The siege engines smashed it' : 'The knights broke in', M.won ? '#ffe08a' : '#ff8f8f', by, a); }
       // one hint at a time, at the point of need, gone once done
@@ -912,7 +1009,7 @@
           bubble(g, 'Knights! Tap them to breathe fire!', W / 2, Math.max(160, Math.min(G.wallY - 60, k.y - 50))); }
       } else if (env.runNo <= 2 && M.t < 40 && M.gold >= cost(M, 'kobold') && M.bought.kobold == null) bubble(g, 'Spend gold: Hire kobold below ↓', W / 2, G.wallY - 54);
       else if (canFly(M) && !M.flights) { g.font = '800 14px Nunito, system-ui'; const tw = g.measureText('Fury full! Tap to fly →').width + 26; bubble(g, 'Fury full! Tap to fly →', FURY.x - FURY.r - 16 - tw / 2, FURY.y); }
-      else if (M.carts.length && !M.carsHit && M.carsSeen <= 2) { const c = M.carts[0]; bubble(g, 'Breathe on the caravan for loot!', W / 2, Math.max(160, c.y - 56)); }
+      else if (M.carts.length && !M.carsHit && M.carsSeen <= 2 && !M.knights.some((k) => k.kind === 'slayer')) { const c = M.carts[0]; bubble(g, 'Breathe on the caravan for loot!', W / 2, Math.max(160, c.y - 56)); }
     }
     function bannerAt(g, text, sub, c, y, a) {
       if (a <= 0) return; g.globalAlpha = a;
@@ -963,9 +1060,9 @@
     colors: { accent: '#ffb703', bg: '#1a1320', card: '#2d2236' },
     currencies: [{ id: 'renown', name: 'renown', color: '#ffb703' }, { id: 'gems', name: 'gems', color: '#9bf6ff' }],
     characters: [
-      { id: 'ember', name: 'Ember', blurb: 'Red dragon. Hotter, wider fire.', unlock: 0, icon: '🔥' },
+      { id: 'ember', name: 'Ember', blurb: 'Red dragon. Wide fire that leaves the road burning.', unlock: 0, icon: '🔥' },
       { id: 'rime', name: 'Rime', blurb: 'Frost dragon. Knights march slower; a big unspent hoard boosts every haul.', unlock: 1, icon: '❄️' },
-      { id: 'moss', name: 'Moss', blurb: 'Forest dragon. Kobolds hatch for free every few seconds.', unlock: 2, icon: '🌿' },
+      { id: 'moss', name: 'Moss', blurb: 'Forest dragon. Kobolds hatch for free every few seconds; a mossy, sturdier wall.', unlock: 2, icon: '🌿' },
       { id: 'volt', name: 'Volt', blurb: 'Storm dragon. Breath is lightning that jumps to 2 more knights.', unlock: 3, icon: '⚡' },
     ],
     drawFace, nodes: NODES, touchOffset: 0,
