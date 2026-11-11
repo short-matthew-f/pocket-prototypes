@@ -42,6 +42,41 @@
     win: () => [523, 659, 784, 1046, 1318].forEach((f, i) => tone(f, 0.22, 'triangle', 0.11, 1, i * 0.11)),
   };
 
+  // ---------------------------------------------------------------- art + sound assets (optional, per game)
+  // <game>/assets/manifest.js (written by tools/assets.mjs) sets window.PP_ASSETS = {img: {name: url}, sfx: {name: url}}.
+  // Every asset is optional: art(name) is null and sprite() returns false until the file has loaded, so a game keeps its
+  // vector drawing as the fallback. A sample named like a kit sound (hit, boom, coin...) replaces that synth sound.
+  // ?noart (with ?dev) ignores the manifest, to compare against the vector look.
+  const ASSETS = (DEV && /[?&]noart\b/.test(location.search)) ? { img: {}, sfx: {} } : (window.PP_ASSETS || { img: {}, sfx: {} });
+  const IMG = {}, BUF = {}; let artT = 0;
+  for (const [k, url] of Object.entries(ASSETS.img || {})) { const im = new Image(); im.decoding = 'async'; im.onload = () => { IMG[k] = im; clearTimeout(artT); artT = setTimeout(() => dispatchEvent(new Event('pp-art')), 60); }; im.src = url; }
+  let samplesAsked = false;
+  function loadSamples() { // after the first tap (AudioContext needs a gesture on iOS); decoded once into AudioBuffers for low latency
+    if (samplesAsked) return; const a = audio(); if (!a) return; samplesAsked = true;
+    for (const [k, url] of Object.entries(ASSETS.sfx || {})) fetch(url).then((r) => r.ok ? r.arrayBuffer() : Promise.reject()).then((ab) => new Promise((ok, no) => a.decodeAudioData(ab, ok, no))).then((b) => { BUF[k] = b; }).catch(() => {});
+  }
+  addEventListener('pointerdown', loadSamples, { once: false, passive: true });
+  /** Play a sample by name. -> false when there is no such sample (yet), so the caller can fall back. */
+  function play(name, v = 0.8, rate = 1) {
+    const b = BUF[name]; if (!b) return false;
+    const a = audio(); if (!a) return false; if (muted) return true;
+    const s = a.createBufferSource(), g = a.createGain(); s.buffer = b; s.playbackRate.value = rate; g.gain.value = v;
+    s.connect(g).connect(a.destination); s.start(); return true;
+  }
+  sfx.play = (name, v, rate) => throttle('s:' + name, 35) && play(name, v, rate);
+  for (const k of ['pop', 'crack', 'hit', 'zap', 'boom', 'ding', 'coin', 'buy', 'nope', 'end', 'win']) { // a sample with a kit sound's name wins over the synth
+    const synth = sfx[k]; sfx[k] = (...a) => (BUF[k] ? throttle('s:' + k, 35) && play(k, 0.8, k === 'pop' && a[0] ? Math.min(2, Math.max(0.5, a[0])) : 0.94 + Math.random() * 0.12) : synth(...a));
+  }
+  const art = (name) => IMG[name] || null;
+  /** Draw art `name` centred on (x, y), w wide (h defaults to keep the image's aspect). opts: {flip, rot, alpha, anchor: 'bottom'}.
+   *  -> false (nothing drawn) when the image is missing, so `sprite(...) || drawVector(...)` keeps the old look. */
+  function sprite(g, name, x, y, w, h, o = {}) {
+    const im = IMG[name]; if (!im) return false;
+    h = h || w * im.naturalHeight / im.naturalWidth;
+    g.save(); g.translate(x, y); if (o.rot) g.rotate(o.rot); if (o.flip) g.scale(-1, 1); if (o.alpha != null) g.globalAlpha *= o.alpha;
+    g.drawImage(im, -w / 2, o.anchor === 'bottom' ? -h : -h / 2, w, h); g.restore(); return true;
+  }
+
   // ---------------------------------------------------------------- juice helpers (games may use these)
   /** Particle/floater bag a game owns: fx.burst(x,y,n,colors), fx.text(x,y,str,color), fx.ring(x,y,r,color); fx.update(dt); fx.draw(ctx). */
   function makeFx() {
@@ -84,6 +119,8 @@
     const costOf = (n, lv) => Math.ceil(n.cost * (n.grow || 1.6) ** lv);
     const curOf = (n) => n.cur || cur0;
     const visible = (n, lv) => !n.req || !n.req.length || n.req.filter((r) => (lv[r] || 0) > 0).length >= (n.reqAll || 1);
+    /** Either/or branches: nodes sharing `excl: '<group>'` close each other once one is bought (per character). -> the taken node's name, or null. */
+    const closedBy = (n, lv) => { if (!n.excl) return null; const t = nodesFor(S.cur).find((m) => m !== n && m.excl === n.excl && (lv[m.id] || 0) > 0); return t ? t.name : null; };
     const extraOk = (n, C) => !n.extra || Object.entries(n.extra).every(([k, v]) => (C.wallet[k] || 0) >= v);
     function statsFor(who, levels) {
       const s = cfg.baseStats(who);
@@ -132,14 +169,19 @@
           <span class="cs">${C?.won ? `<span class="badge">Won${C.best ? ` in ${C.best} runs` : ''}</span>` : C?.runs ? `<span class="badge dim">${C.runs} run${C.runs > 1 ? 's' : ''}</span>` : open ? '<span class="badge dim">New</span>' : ''}
           ${open && C?.top ? `<span class="cbest">Best ${cfg.scoreName || 'score'} ${fmt(C.top)}</span>` : ''}</span></button>`;
       }).join('');
-      document.querySelectorAll('[data-face]').forEach((cv) => {
-        const g = cv.getContext('2d'); g.scale(2, 2); const locked = !un.includes(cv.dataset.face);
-        if (locked || !cfg.drawFace) { g.fillStyle = '#ffffff14'; g.beginPath(); g.arc(42, 42, 32, 0, 6.283); g.fill(); g.font = '900 30px system-ui'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#ffffff66'; g.fillText(locked ? '?' : (cfg.characters.find((c) => c.id === cv.dataset.face).icon || '★'), 42, 44); }
-        else cfg.drawFace(g, cv.dataset.face, 42, 44, 30);
-      });
+      drawFaces(un);
       $('#k-mute').textContent = S.muted ? 'Sound: off' : 'Sound: on';
       playLabel();
     }
+    function drawFaces(un) { // again when art finishes loading (pp-art)
+      document.querySelectorAll('[data-face]').forEach((cv) => {
+        const g = cv.getContext('2d'); g.setTransform(2, 0, 0, 2, 0, 0); g.clearRect(0, 0, 84, 84); const locked = !un.includes(cv.dataset.face);
+        if (locked || !cfg.drawFace) { g.fillStyle = '#ffffff14'; g.beginPath(); g.arc(42, 42, 32, 0, 6.283); g.fill(); g.font = '900 30px system-ui'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#ffffff66'; g.fillText(locked ? '?' : (cfg.characters.find((c) => c.id === cv.dataset.face).icon || '★'), 42, 44); }
+        else if (!sprite(g, 'hero-' + cv.dataset.face, 42, 42, 80, 80)) cfg.drawFace(g, cv.dataset.face, 42, 44, 30);
+        if (locked && IMG['hero-' + cv.dataset.face]) { g.clearRect(0, 0, 84, 84); sprite(g, 'hero-' + cv.dataset.face, 42, 42, 80, 80); g.globalCompositeOperation = 'source-atop'; g.fillStyle = '#1b1828'; g.fillRect(0, 0, 84, 84); g.globalCompositeOperation = 'source-over'; } // locked: a silhouette teaser
+      });
+    }
+    addEventListener('pp-art', () => { if (!$('#k-title').hidden) drawFaces(unlocked()); });
     function playLabel() {
       const C = S.chars[S.cur];
       $('#k-go').textContent = `${C?.runs ? 'Continue' : 'Play'} as ${ch().name}`;
@@ -166,10 +208,10 @@
         const [a, b] = pos(n), [c, d] = pos(m); return `<line x1="${a}" y1="${b}" x2="${c}" y2="${d}" class="${(C.levels[m.id] || 0) ? 'on' : ''}"/>`;
       })).join('');
       const btn = (n) => {
-        const lv = C.levels[n.id] || 0, shown = visible(n, C.levels), max = lv >= (n.max || 1);
-        const can = shown && !max && (C.wallet[curOf(n)] || 0) >= costOf(n, lv) && extraOk(n, C);
+        const lv = C.levels[n.id] || 0, shown = visible(n, C.levels), max = lv >= (n.max || 1), shut = !lv && closedBy(n, C.levels);
+        const can = shown && !shut && !max && (C.wallet[curOf(n)] || 0) >= costOf(n, lv) && extraOk(n, C);
         const [x, y] = pos(n);
-        return `<button type="button" class="node${max ? ' max' : can ? ' can' : ''}${shown ? '' : ' fog'}${n.win ? ' win' : ''}${sel === n.id ? ' sel' : ''}${justBought === n.id ? ' just' : ''}" style="left:${x}px;top:${y}px" data-n="${n.id}" aria-label="${n.name}">
+        return `<button type="button" class="node${max ? ' max' : can ? ' can' : ''}${shown ? '' : ' fog'}${shut ? ' shut' : ''}${n.excl ? ' ex' : ''}${n.win ? ' win' : ''}${sel === n.id ? ' sel' : ''}${justBought === n.id ? ' just' : ''}" style="left:${x}px;top:${y}px" data-n="${n.id}" aria-label="${n.name}">
           <span class="ni">${n.icon || '•'}</span>${(n.max || 1) > 1 ? `<span class="nl">${lv}/${n.max}</span>` : ''}</button>`;
       };
       $('#k-map').innerHTML = `<div class="plane" style="width:${w}px;height:${h}px"><svg width="${w}" height="${h}">${lines}</svg>${vis.map(btn).join('')}</div>`;
@@ -180,7 +222,7 @@
     function info() {
       const C = charSave(S.cur), n = nodesFor(S.cur).find((x) => x.id === sel);
       if (!n) {
-        const ready = nodesFor(S.cur).filter((x) => visible(x, C.levels) && (C.levels[x.id] || 0) < (x.max || 1) && (C.wallet[curOf(x)] || 0) >= costOf(x, C.levels[x.id] || 0) && extraOk(x, C)).length;
+        const ready = nodesFor(S.cur).filter((x) => visible(x, C.levels) && !(!(C.levels[x.id] || 0) && closedBy(x, C.levels)) && (C.levels[x.id] || 0) < (x.max || 1) && (C.wallet[curOf(x)] || 0) >= costOf(x, C.levels[x.id] || 0) && extraOk(x, C)).length;
         $('#k-info').innerHTML = `<div class="it"><div class="ih"><b>${ready ? `${ready} upgrade${ready > 1 ? 's' : ''} ready` : 'Upgrades'}</b></div><p>${ready ? 'Glowing ones are affordable. Tap one to see it.' : `Nothing affordable yet. Run again to earn more ${CUR[0].name}.`}</p></div>
           <button type="button" class="buy" disabled>${ready ? 'Tap one' : 'Earn more'}</button>`;
         return;
@@ -193,14 +235,21 @@
         return;
       }
       const lv = C.levels[n.id] || 0, max = lv >= (n.max || 1), c = costOf(n, lv), cu = CUR.find((x) => x.id === curOf(n));
+      const shut = !lv && closedBy(n, C.levels);
+      if (shut) {
+        $('#k-info').innerHTML = `<div class="it"><div class="ih"><b>${n.name}</b><span class="lvl">Closed</span></div><p>You chose ${shut} instead (one per character). ${typeof n.desc === 'function' ? n.desc(lv, C.levels, statsFor(S.cur, C.levels)) : n.desc}</p></div>
+          <button type="button" class="buy" disabled>Closed</button>`;
+        return;
+      }
+      const rivals = n.excl && !lv ? nodesFor(S.cur).filter((m) => m !== n && m.excl === n.excl).map((m) => m.name) : [];
       const can = !max && (C.wallet[curOf(n)] || 0) >= c && extraOk(n, C);
       const extra = n.extra ? Object.entries(n.extra).map(([k, v]) => ` + ${fmt(v)} ${CUR.find((x) => x.id === k).name}`).join('') : '';
-      $('#k-info').innerHTML = `<div class="it"><div class="ih"><b>${n.name}</b>${(n.max || 1) > 1 ? `<span class="lvl">Lv ${lv}/${n.max}</span>` : ''}</div><p>${typeof n.desc === 'function' ? n.desc(lv, C.levels, statsFor(S.cur, C.levels)) : n.desc}</p></div>
+      $('#k-info').innerHTML = `<div class="it"><div class="ih"><b>${n.name}</b>${(n.max || 1) > 1 ? `<span class="lvl">Lv ${lv}/${n.max}</span>` : ''}</div><p>${rivals.length ? `<em>Choose one:</em> closes ${rivals.join(', ')}. ` : ''}${typeof n.desc === 'function' ? n.desc(lv, C.levels, statsFor(S.cur, C.levels)) : n.desc}</p></div>
         <button type="button" id="k-buy" class="buy" ${can ? '' : 'disabled'}>${max ? 'Maxed' : `<span class="bv">${can ? 'Buy' : 'Need'}</span> ${fmt(c)} ${cu.name}${extra}`}</button>`;
     }
     function buy(id) {
       const C = charSave(S.cur), n = nodesFor(S.cur).find((x) => x.id === id);
-      if (!n || !visible(n, C.levels)) return false;
+      if (!n || !visible(n, C.levels) || (!(C.levels[id] || 0) && closedBy(n, C.levels))) return false;
       const lv = C.levels[id] || 0; if (lv >= (n.max || 1)) return false;
       const c = costOf(n, lv), k = curOf(n);
       if ((C.wallet[k] || 0) < c || !extraOk(n, C)) return false;
@@ -217,7 +266,7 @@
       cv = $('#k-field'); g = cv.getContext('2d'); DPR = Math.min(2, window.devicePixelRatio || 1);
       const W = cv.clientWidth, H = cv.clientHeight; cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
       input.x = W / 2; input.y = H * 0.6; input.down = false; input.taps = [];
-      R = cfg.createRun({ who: S.cur, stats: statsFor(S.cur, C.levels), levels: C.levels, W, H, boss: !!(winNode && C.levels[winNode.id]), sfx, fx: makeFx(), fmt, ui: $('#k-ui'), runNo: C.runs + 1, pick, best: C.top || 0 });
+      R = cfg.createRun({ who: S.cur, stats: statsFor(S.cur, C.levels), levels: C.levels, W, H, boss: !!(winNode && C.levels[winNode.id]), sfx, fx: makeFx(), fmt, art, sprite, ui: $('#k-ui'), runNo: C.runs + 1, pick, best: C.top || 0 });
       lastT = performance.now(); cancelAnimationFrame(raf); raf = requestAnimationFrame(loop);
     }
     function loop(now) {
@@ -366,5 +415,5 @@
     return { S, statsFor, buy, charSave };
   }
 
-  window.Kit = { game, sfx, makeFx, fmt, DEV };
+  window.Kit = { game, sfx, makeFx, fmt, DEV, art, sprite };
 })();

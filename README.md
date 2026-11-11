@@ -1,6 +1,6 @@
 # Pocket Prototypes
 
-Six phone game MVPs to feel the loop of each idea. Vector art only. Site: GitHub Pages (`/<game>/`).
+Six phone game MVPs to feel the loop of each idea. Vector art, with optional raster art + sound per game (assets below). Site: GitHub Pages (`/<game>/`).
 
 ## Kit contract (`kit/kit.js` + `kit/kit.css`)
 Each game is `<game>/index.html` (loads Google Fonts Lilita One + Nunito, `../kit/kit.css`, `../kit/kit.js`, then `game.js`)
@@ -28,3 +28,15 @@ and `game.js`, which calls `Kit.game(config)`:
 - `?dev` in the URL adds a "+lots" currency button on the tree screen.
 
 Balance target: runs start ~8-15 s and grow to ~45-60 s; a first win in ~25-40 runs (~15-25 min); each character replays the tree.
+
+## Art + sound assets (optional, per game)
+- `<game>/assets/img/<name>.webp`, `<game>/assets/sfx/<name>.mp3`, listed in `<game>/assets/manifest.js` (generated; loaded before the kit).
+- Import from the Media Helper's drop: `.venv/bin/python tools/assets.py import <game>` (keys out a plain backdrop, trims, resizes: hero-* 256, bg-* 780 wide, others 384; sounds to mono mp3). `tools/assets.py manifest` rebuilds manifests. Each URL carries a content hash.
+- `<game>/assets/SPEC.md`: the asset list the helper works from (names are the contract).
+- `env.sprite(ctx, name, x, y, w, h?, {flip, rot, alpha, anchor:'bottom'})` draws centred and returns false when the image is absent (not loaded yet / not made), so write `env.sprite(...) || drawVector(...)`. `env.art(name)` -> Image or null.
+- `hero-<characterId>` is used automatically for the character cards (locked characters show its silhouette).
+- Sounds: a sample named like a kit sound (`pop crack hit zap boom ding coin buy nope end win`) replaces that synth sound everywhere. Other names: `env.sfx.play(name, vol?, rate?)` -> false when absent, so `env.sfx.play('roar') || env.sfx.tone(...)`.
+- `?dev&noart` ignores the manifest (A/B against the vector look).
+
+## Either/or upgrades
+- Nodes sharing `excl: '<group>'` are a choice: buying one closes the others in that group for this character (dashed border; closed nodes show ✕ and "You chose X instead"). Make sure the win node stays reachable whichever is chosen.
