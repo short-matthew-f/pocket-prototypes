@@ -1,6 +1,6 @@
 # Pocket Prototypes
 
-Six phone game MVPs to feel the loop of each idea. Vector art, with optional raster art + sound per game (assets below). Site: GitHub Pages (`/<game>/`).
+Seven phone game MVPs to feel the loop of each idea. Vector art, with optional raster art + sound per game (assets below). Site: GitHub Pages (`/<game>/`).
 
 ## Kit contract (`kit/kit.js` + `kit/kit.css`)
 Each game is `<game>/index.html` (loads Google Fonts Lilita One + Nunito, `../kit/kit.css`, `../kit/kit.js`, then `game.js`)

@@ -146,7 +146,7 @@
       lives: st.lives, maxLives: st.lives, brass: st.brass, wave: 0, cleared: 0, state: 'build', marbles: [], towers: {}, chains: new Set(),
       steam: st.steam, steamMax: st.steam, holdOn: false, holding: false, speed: 1, sel: null, pops: 0, jam: false, boons: {}, freeChains: st.freeChain,
       spawnQ: [], waveT: 0, pass: {}, tracers: [], hint: env.runNo <= 1 ? 1 : 0, flash: 0, nextId: 1, latchBonus: st.latch, bountyMul: st.bounty,
-      boss: null, D, plates, SLOTS, C, msg: '', msgT: 0, lastLeak: '',
+      boss: null, jumpTold: 0, D, plates, SLOTS, C, msg: '', msgT: 0, lastLeak: '',
     };
     const run = { over: false, t: 0, R };
 
@@ -215,7 +215,7 @@
     function nearestEnd(q, pt) { let best = null, bd = 1e9; q.grooves.forEach((gr, g) => [0, 1].forEach((e) => { const w = groovePt(q, g, e), d = Math.hypot(w[0] - pt[0], w[1] - pt[1]); if (d < bd) { bd = d; best = { g, e }; } })); return best; }
     function jumpGap(m) { // a marble that has spent too long in one row hops a gap: down if it can, else toward the exit
       const p = m.p, d = junction(p, 1) ? 1 : p.c < EXIT.c ? 0 : 2, J = junction(p, d);
-      if (d === 1) m.rowT = 0; say('A marble jumped a gap!', 1.2);
+      if (d === 1) m.rowT = 0; if (R.jumpTold++ < 3) say('A marble jumped a gap!', 1.2);
       if (J === 'exit') return toExit(m, true);
       const gp = [(p.x + J.x) / 2, (p.y + J.y) / 2], end = nearestEnd(J, gp);
       toPlate(m, J, end.g, end.e, true);
@@ -237,7 +237,7 @@
             if (open) m.wait += dt;
             const key = 'entry', rcv = open && !(R.pass[key] > 0) && receiving(ENTRY, 3);
             if (rcv) { R.pass[key] = 0.3; toPlate(m, ENTRY, rcv.g, rcv.e, false); }
-            else if (m.wait > latchOf(m)) { m.wait = 0; const end = nearestEnd(ENTRY, entryPt); say('A marble jumped in!', 1.2); toPlate(m, ENTRY, end.g, end.e, true); }
+            else if (m.wait > latchOf(m)) { m.wait = 0; const end = nearestEnd(ENTRY, entryPt); if (R.jumpTold++ < 3) say('A marble jumped a gap!', 1.2); toPlate(m, ENTRY, end.g, end.e, true); }
           }
           railN++;
         } else if (m.st === 'groove') {
@@ -458,7 +458,7 @@
       const on = (e) => { e.preventDefault(); act.hold(true); hb.classList.add('on'); };
       const off = () => { act.hold(false); hb.classList.remove('on'); };
       hb.addEventListener('pointerdown', on); for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) hb.addEventListener(ev, off);
-      hb.addEventListener('click', () => { if (!R.holdOn) { act.hold(true); setTimeout(off, 600); } }); // a quick tap holds briefly (and lets the fuzzer reach it)
+      hb.addEventListener('click', (e) => { if (e.detail === 0 && !R.holdOn) { act.hold(true); setTimeout(off, 600); } }); // keyboard/scripted clicks hold briefly (the fuzzer reaches it); real presses use pointer events
       root.addEventListener('click', (e) => {
         const b = e.target.closest('button[data-a]'); if (!b) return;
         const [a, x, y] = b.dataset.a.split(':'); const sel = R.sel;
@@ -481,7 +481,9 @@
       const goTxt = R.state === 'build' ? `Send wave ${R.wave + 1} ▶` : R.speed === 1 ? '▶▶ Go faster' : '▶ Normal speed';
       const hold = root.querySelector('#cm-hold');
       hold.style.setProperty('--steam', `${Math.round(100 * R.steam / R.steamMax)}%`);
-      const key = JSON.stringify([s, t && t.lvl, b, R.state, R.wave, R.speed, R.jam, R.freeChains, s && s.kind === 'plate' && plates.map((p) => p.gear + p.rot).join(''), [...R.chains].join()]);
+      const afford = [...Object.keys(TOWERS).map((k) => b >= buildCost(k)), t && t.lvl < 2 && b >= upCost(t), b >= st.chainCost]; // not the brass itself: a rebuild mid-press would swallow the tap
+      const left = root.querySelector('#cm-left'); if (left) left.textContent = R.spawnQ.length + R.marbles.length;
+      const key = JSON.stringify([s, t && t.lvl, afford, R.state, R.wave, R.speed, R.jam, R.freeChains, s && s.kind === 'plate' && plates.map((p) => p.gear + p.rot).join(''), [...R.chains].join()]);
       if (key === panelKey) return; panelKey = key;
       const go = root.querySelector('#cm-go'); go.textContent = goTxt; go.classList.toggle('fast', R.state !== 'build');
       hold.textContent = R.state === 'build' ? 'HOLD (in waves)' : 'HOLD';
@@ -489,7 +491,7 @@
       if (!s) {
         msg = R.jam ? '<b>Jammed!</b> Two gears are chained the wrong way round, so nothing turns. Tap a plate to fix its chain.'
           : R.state === 'build' ? (R.wave === 0 ? 'Marbles drop in at the top and roll along the grooves. They cross only where two grooves <b>line up</b>. Tap a ◯ spot to build.' : 'Build, change gears or turn plates.') + ` Next: <b>${nextWave()}</b>.`
-            : `Wave ${R.wave}: <b>${R.spawnQ.length + R.marbles.length}</b> marbles left. Press and hold <b>HOLD</b> to stop the machine.`;
+            : `Wave ${R.wave}: <b id="cm-left">${R.spawnQ.length + R.marbles.length}</b> marbles left. Press and hold <b>HOLD</b> to stop the machine.`;
       } else if (s.kind === 'slot' && !t) {
         msg = 'Build a tower here.' + (slotById[s.id].board ? '' : ' It rides the plate round as it turns.');
         row = Object.entries(TOWERS).map(([k, T]) => unlockedT(k) ? `<button type="button" data-a="build:${k}" ${b >= buildCost(k) ? '' : 'disabled'}>${T.icon} ${T.name}<small>${buildCost(k)} brass</small></button>`
@@ -591,11 +593,13 @@
       g.beginPath(); g.moveTo(entryPt[0], 0); g.lineTo(...entryPt); g.stroke();
       g.beginPath(); g.moveTo(...exitPt); g.lineTo(exitPt[0], baseY); g.stroke();
       const vw = 120 * K, vh = 26 * K;
-      if (!env.sprite(g, 'obj-vault', W / 2, baseY + vh * 0.5, vw * 1.2)) {
+      const art = env.sprite(g, 'obj-vault', W / 2, baseY + 8 * K, 84 * K, 84 * K); // the importer squares sprites; the box fills about half the height
+      if (!art) {
         g.fillStyle = R.flash > 0 ? '#c0392b' : '#4a5560'; g.fillRect(W / 2 - vw / 2, baseY - 4, vw, vh); g.strokeStyle = '#c9d1d9'; g.lineWidth = 2; g.strokeRect(W / 2 - vw / 2, baseY - 4, vw, vh);
       }
       g.fillStyle = '#fff'; g.font = `800 ${Math.round(14 * K + 2)}px "Lilita One", system-ui`; g.textAlign = 'center'; g.textBaseline = 'middle';
-      g.fillText(`VAULT ♥ ${R.lives}`, W / 2, baseY + vh * 0.5 - 4);
+      if (art) { g.textAlign = 'left'; g.fillStyle = '#000000a0'; g.fillRect(W / 2 + 44 * K, baseY - 6 * K, 92 * K, 26 * K); g.fillStyle = R.flash > 0 ? '#ff6b6b' : '#fff'; g.fillText(`VAULT ♥ ${R.lives}`, W / 2 + 50 * K, baseY + 7 * K); }
+      else g.fillText(`VAULT ♥ ${R.lives}`, W / 2, baseY + vh * 0.5 - 4);
       // gears, chains, plates
       for (const p of plates) drawGear(g, p);
       for (const k of R.chains) { const [a, b] = k.split('-').map((i) => plates[+i]); drawChain(g, a, b); }
