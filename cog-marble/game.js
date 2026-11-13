@@ -714,7 +714,7 @@
             + `, ${turning}${G0 ? ', ' + G0.speed : ''}. ` + (lock ? 'Gears are locked during a wave.' : 'Touching gears must fit: S+L or M+M.');
           row = ['S', 'M', 'L'].map((g) => `<button type="button" class="${p.gear === g ? 'on' : ''}" data-a="gear:${g}" ${lock || !gearOk(p, g) ? 'disabled' : ''}>${g}<small>${GEARS[g].n} teeth</small></button>`).join('')
             + (p.motor ? '' : `<button type="button" class="${p.gear ? '' : 'on'}" data-a="gear:-" ${lock ? 'disabled' : ''}>✕<small>none</small></button>`)
-            + (p.plate ? `<button type="button" data-a="turn" ${lock ? 'disabled' : ''}>↻<small>turn</small></button>` : '')
+            + (p.plate && (!p.gear || ['elbow', 'twin'].includes(p.plate.pat)) ? `<button type="button" data-a="turn" ${lock ? 'disabled' : ''}>↻<small>turn</small></button>` : '')
             + `<button type="button" data-a="chains">⛓<small>chain</small></button>`;
         }
       }
