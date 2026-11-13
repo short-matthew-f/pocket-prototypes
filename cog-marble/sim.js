@@ -1,7 +1,8 @@
 // Cog & Marble balance sim: node cog-marble/sim.js [who|all] [runsCap] [-v]
-// Drives the real createRun() model headlessly with a simple builder bot: fills the busiest tower spots first (the board
-// gaps along the middle column, then plate spots), rotates tower types, upgrades when it can't build, HOLDs while marbles
-// queue near the vault. Leaves the gears at their defaults. Buys a build between runs (each `excl` path is tested).
+// Drives the real createRun() model headlessly with a simple builder bot: fills the pads that see the most track first,
+// rotates tower types, upgrades when it can't build, HOLDs while marbles queue near the vault, and on the Sorting Office
+// flips the switch like an attentive player (steel left, everything else right). Leaves the gears at their defaults.
+// Buys a build between runs (each `excl` path is tested).
 const { NODES, CONFIG, createRun, baseStats } = require('./game.js');
 const args = process.argv.slice(2), V = args.includes('-v');
 const pos = args.filter((a) => a[0] !== '-');
@@ -25,23 +26,27 @@ function playRun(who, levels, boss, runNo) {
   const s = baseStats(who); for (const n of NODES) { const l = levels[n.id] || 0; if (l && n.fx) n.fx(s, l); }
   const env = { who, stats: s, levels, W, H, boss, sfx, fx: mkfx(), fmt: String, ui: null, runNo, best: 0, sprite: () => false, art: () => null,
     pick: (h, opts, done) => done(Math.floor(Math.random() * opts.length)) };
-  const run = createRun(env), R = run.R, D = R.D;
-  const cx = W / 2, mid = R.plates[4].y + D / 2;
-  const order = R.SLOTS.slice().sort((a, b) => { const p = (q) => { const [x, y] = run.slotPos(q.id); return Math.abs(x - cx) * 1.2 + Math.abs(y - mid) * 0.5 + (q.board ? 0 : 30); }; return p(a) - p(b); }).map((q) => q.id);
+  const run = createRun(env), R = run.R;
   const types = ['pin', 'pin', 'hammer', 'magnet', 'pin', 'hammer', 'pin', 'magnet'].filter((t) => t === 'pin' || s[t]);
-  let built = 0, holdT = 0;
+  let built = 0, holdT = 0, G = null;
   const inp = { x: 0, y: 0, down: false, taps: [], released: false };
-  for (let i = 0; !run.over && i < 30 * 1500; i++) {
+  for (let i = 0; !run.over && i < 30 * 3000; i++) {
+    if (R.G !== G) { G = R.G; built = 0; }
     for (let guard = 0; guard < 6; guard++) { // spend
-      const want = types[built % types.length], slot = order.find((id) => !R.towers[id]);
-      if (slot && built < 4 + R.wave && R.brass >= run.buildCost(want)) { run.act.build(slot, want); built++; continue; }
+      const want = types[built % types.length], pad = G.pads.find((p) => !R.towers[p.id]);
+      if (pad && built < 4 + R.wave && R.brass >= run.buildCost(want)) { run.act.build(pad.id, want); built++; continue; }
       const up = Object.keys(R.towers).filter((id) => R.towers[id].lvl < 2).sort((a, b) => run.upCost(R.towers[a]) - run.upCost(R.towers[b]))[0];
       if (up && R.brass >= run.upCost(R.towers[up]) + 20) { run.act.upgrade(up); continue; }
-      if (slot && R.brass >= run.buildCost(want)) { run.act.build(slot, want); built++; continue; }
+      if (pad && R.brass >= run.buildCost(want)) { run.act.build(pad.id, want); built++; continue; }
       break;
     }
     if (R.state === 'build') run.act.send();
-    const danger = R.marbles.some((m) => m.st === 'exit' || ((m.st === 'held' || m.st === 'groove') && m.p.r === 3));
+    const sw = G.N.S1;
+    if (sw && R.G.N.F) { // sorting: look at the next marble coming down to the switch
+      const inE = G.N.in.outs[0], next = R.marbles.filter((m) => m.st === 'track' && m.e === inE).sort((a, b) => b.s - a.s)[0];
+      if (next) run.act.flip('S1', next.T.steel ? 0 : 1);
+    }
+    const V0 = G.N.V, danger = R.marbles.some((m) => { const p = run.marblePos(m); return p[1] > V0.y - 160; });
     if (danger && R.steam > R.steamMax * 0.5) holdT = 1.2; holdT -= DT;
     run.act.hold(holdT > 0);
     run.update(DT, inp);
@@ -60,7 +65,7 @@ function campaign(who, path) {
     const { res, t, R } = playRun(who, levels, boss, run);
     for (const [k, v] of Object.entries(res.earned || {})) wallet[k] = (wallet[k] || 0) + Math.floor(v);
     lens.push(Math.round(t)); waves.push(res.score); mins += (t + 8) / 60;
-    if (V) log.push(`#${run}${boss ? ' BOSS' : ''} ${t.toFixed(0)}s waves ${res.score} lives ${R.lives} +${res.earned.cogs} cogs ${res.won ? 'WON' : ''} | ${res.lines.join(' | ')}`);
+    if (V) log.push(`#${run}${boss ? ' BOSS' : ''} ${t.toFixed(0)}s waves ${res.score} lives ${R.lives} lives/board ${R.stageLives.join(',')} sorted ${R.sortAll} clogs ${R.clogs}${R.bossLeftHp ? ' bossHP ' + R.bossLeftHp : ''} +${res.earned.cogs} cogs ${res.won ? 'WON' : ''} | ${res.lines.join(' | ')}`);
     if (res.won) { wonAt = run; break; }
     for (let guard = 0; guard < 100; guard++) {
       const opts = nodes.filter((n) => visible(n, levels) && (levels[n.id] || 0) < (n.max || 1)).map((n) => ({ n, c: costOf(n, levels[n.id] || 0) })).filter(({ c }) => (wallet.cogs || 0) >= c);

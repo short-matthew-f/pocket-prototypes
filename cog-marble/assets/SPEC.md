@@ -21,6 +21,10 @@ Everything except bg-* and hero-* is seen **from directly above** (top-down), ce
 | mar-rubber | sprite | Top-down: a glossy hot-pink rubber bouncy ball with a thin darker stripe | 1 |
 | mar-steel | sprite | Top-down: a polished chrome ball bearing reflecting a dim workshop | 1 |
 | mar-cannon | sprite | Top-down: a huge black iron cannonball, pitted, with a riveted band and a glowing orange crack (the boss) | 1 |
+| obj-switch | sprite | v2 track piece. Top-down: a round brass switch housing the size of a coin, with a pivoting flap/paddle across the middle and two worn grooves leaving it; reads as a toy marble-run switch. Plain middle (the game draws an arrow on top) | 1 |
+| obj-cannon | sprite | v2 track piece. Top-down: a short marble-run magnetic cannon block, purple-enamel housing with a brass track slot running through it lengthwise (north-south) and a small red magnet at one end | 1 |
+| obj-furnace | sprite | v2 track piece. Top-down: a round little cast-iron furnace mouth glowing orange-yellow inside, riveted rim, a few embers; the centre stays darkish (a counter is drawn over it) | 1 |
+| obj-bin | sprite | v2 track piece. Top-down: a small round brass catch cup / marble tray, empty, dark inside | 2 |
 | hero-tilly | hero bust | Tilly the Tinker: young woman, freckles, ginger bob under a brown cap, brass goggles pushed up, a pencil behind her ear, cheerful | 1 |
 | hero-gus | hero bust | Gus the Gearwright: big grey-bearded older man, leather apron, a gear-shaped monocle, grease on his cheek, kindly | 1 |
 | hero-marla | hero bust | Marla Magnet: woman with dark curly hair, a long purple coat, a horseshoe-magnet brooch, faint sparks in her hair, mischievous smile | 1 |
@@ -28,6 +32,10 @@ Everything except bg-* and hero-* is seen **from directly above** (top-down), ce
 ## Sounds (mono, short, no leading silence)
 | name | what it sounds like | length |
 |---|---|---|
+| flip | v2: a small wooden-brass switch flap clacking over | 0.15 s |
+| boost | v2: a magnetic cannon: a sharp metallic clack then a short whoosh | 0.4 s |
+| sizzle | v2: a steel marble dropping into a furnace: soft clunk then a short hiss | 0.5 s |
+| drop | v2: a marble plopping into a brass catch cup, a hollow little rattle | 0.3 s |
 | tick | one soft clockwork escapement click (the machine plays it every ~0.6 s, so very quiet and pleasant) | 0.05 |
 | clunk | a heavy gear being slotted onto a peg | 0.25 |
 | jump | a marble hopping a gap: a quick light "tok" on wood | 0.15 |
