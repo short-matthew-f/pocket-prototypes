@@ -803,7 +803,7 @@
         g.fillStyle = '#fff'; g.strokeStyle = '#2b1f14'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(9, 0); g.lineTo(-4, -6); g.lineTo(-4, 6); g.closePath(); g.stroke(); g.fill(); g.restore();
         if (n.mode !== 'alt') { g.fillStyle = '#ffe08a'; g.font = '800 9px Nunito, system-ui'; g.textAlign = 'center'; g.fillText('LOCK', n.x, n.y - 18); }
       } else if (n.t === 'cannon') {
-        if (!env.sprite(g, 'obj-cannon', n.x, n.y, 34, 34, { rot: Math.PI / 2 })) { g.fillStyle = '#6b3d8f'; g.fillRect(n.x - 13, n.y - 9, 26, 18); g.strokeStyle = '#f5dfb0'; g.lineWidth = 2; g.strokeRect(n.x - 13, n.y - 9, 26, 18);
+        if (!env.sprite(g, 'obj-cannon', n.x, n.y, 34, 34)) { g.fillStyle = '#6b3d8f'; g.fillRect(n.x - 13, n.y - 9, 26, 18); g.strokeStyle = '#f5dfb0'; g.lineWidth = 2; g.strokeRect(n.x - 13, n.y - 9, 26, 18);
           g.fillStyle = '#fff'; g.font = '800 12px Nunito, system-ui'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('»', n.x, n.y + 1); }
         if (n.flick) { g.fillStyle = '#9fe7ff66'; g.beginPath(); g.arc(n.x, n.y, 18, 0, TAU); g.fill(); }
         g.textAlign = 'center'; g.textBaseline = 'middle';
