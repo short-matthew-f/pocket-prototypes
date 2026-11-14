@@ -244,11 +244,11 @@
       return Object.entries(c).map(([t, k]) => `${k} ${MARBLES[t].name}${k > 1 && !MARBLES[t].boss ? 's' : ''}`).join(', ');
     }
     const newIn = (n) => [...new Set((WAVES[n - 1] || { items: [] }).items)].filter((t) => !(env.seen && env.seen[t]));
-    // Anything bought since the last wave was sent comes back in full (an undo); the rest at 70%.
-    const refund = (t) => t.fresh + Math.floor((t.spent - t.fresh) * 0.7);
+    // Steps bought since the last wave was sent can be undone one at a time for a full refund; selling refunds 70%.
+    const refund = (t) => Math.floor(t.spent * 0.7);
     function sendWave() {
       if (R.state !== 'build' || run.over || R.wave >= WAVES.length) return;
-      R.wave++; R.state = 'wave'; R.waveT = 0; for (const t of Object.values(R.towers)) t.fresh = 0;
+      R.wave++; R.state = 'wave'; R.waveT = 0; for (const t of Object.values(R.towers)) t.undo = [];
       const w = WAVES[R.wave - 1]; R.spawnQ = w.items.map((type, i) => ({ type, at: i * w.gap }));
       say(R.wave === WAVES.length ? 'Last wave!' : `Wave ${R.wave}`, 1.2); sfx.ding();
     }
@@ -264,8 +264,9 @@
     const nextTier = (t, p) => { const n = t.up[p]; if (n >= 3 || (n >= 1 && t.up[1 - p] >= 2)) return null; return TOWERS[t.type].paths[p].tiers[n]; };
     const freeCell = (c, r) => c >= 0 && r >= 0 && c < COLS && r < ROWS && !G.track.has(key(c, r));
     const act = {
-      build(c, r, type) { const k = key(c, r); if (!freeCell(c, r) || R.towers[k] || !L.towers.includes(type) || R.brass < buildCost(type)) return false; R.brass -= buildCost(type); R.towers[k] = { type, c, r, x: c + 0.5, y: r + 0.5, up: [0, 0], cd: 0.2, spent: buildCost(type), fresh: R.state === 'build' ? buildCost(type) : 0, aim: 'first' }; sfx.buy(); return true; },
-      upgrade(k, p) { const t = R.towers[k]; if (!t) return false; const nt = nextTier(t, p); if (!nt || R.brass < price(nt[1])) return false; R.brass -= price(nt[1]); t.spent += price(nt[1]); if (R.state === 'build') t.fresh += price(nt[1]); t.up[p]++; sfx.buy(); fx.ring(t.x, t.y, 0.6, '#ffd166'); return true; },
+      build(c, r, type) { const k = key(c, r); if (!freeCell(c, r) || R.towers[k] || !L.towers.includes(type) || R.brass < buildCost(type)) return false; R.brass -= buildCost(type); R.towers[k] = { type, c, r, x: c + 0.5, y: r + 0.5, up: [0, 0], cd: 0.2, spent: buildCost(type), undo: R.state === 'build' ? [{ cost: buildCost(type), name: TOWERS[type].name }] : [], aim: 'first' }; sfx.buy(); return true; },
+      upgrade(k, p) { const t = R.towers[k]; if (!t) return false; const nt = nextTier(t, p); if (!nt || R.brass < price(nt[1])) return false; R.brass -= price(nt[1]); t.spent += price(nt[1]); if (R.state === 'build') t.undo.push({ cost: price(nt[1]), p, name: nt[0] }); t.up[p]++; sfx.buy(); fx.ring(t.x, t.y, 0.6, '#ffd166'); return true; },
+      undo(k) { const t = R.towers[k], u = t && t.undo.pop(); if (!u) return false; R.brass += u.cost; t.spent -= u.cost; if (u.p === undefined) delete R.towers[k]; else t.up[u.p]--; sfx.coin(); return true; },
       sell(k) { const t = R.towers[k]; if (!t) return false; R.brass += refund(t); delete R.towers[k]; sfx.coin(); return true; },
       aim(k) { const t = R.towers[k]; if (!t) return false; t.aim = { first: 'last', last: 'strong', strong: 'first' }[t.aim]; return true; },
       send: sendWave,
@@ -519,7 +520,8 @@
         return nt ? `<button type="button" data-a="up:${p}" ${b >= run.price(nt[1]) ? '' : 'disabled'}>${p ? '🔷' : '🔶'} ${nt[0]}<small>${nt[2]} · ${run.price(nt[1])}</small></button>`
           : `<button type="button" disabled>${t.up[p] >= 3 ? 'Path maxed' : 'Path closed'}<small>${TT.paths[p].name}</small></button>`; }).join('')
         + (t.type !== 'magnet' || t.up[1] ? `<button type="button" data-a="aim" style="flex:.7">Aim<small>${t.aim}</small></button>` : '')
-        + `<button type="button" data-a="sell" style="flex:.7">${t.fresh === t.spent ? 'Undo' : 'Sell'}<small>+${run.refund(t)}</small></button>`;
+        + (t.undo.length ? `<button type="button" data-a="undo" style="flex:.7">↶ Undo<small>${t.undo.at(-1).name} +${t.undo.at(-1).cost}</small></button>`
+          : `<button type="button" data-a="sell" style="flex:.7">Sell<small>+${run.refund(t)}</small></button>`);
     }
     $('#msg').innerHTML = msg; $('#prow').innerHTML = row;
   }
@@ -581,6 +583,7 @@
       if (a === 'build' && s && s.kind === 'cell') { if (!run.act.build(s.c, s.r, x)) sfx.nope(); else R.sel = { kind: 'tower', k: key(s.c, s.r) }; }
       else if (a === 'up' && s && s.kind === 'tower') { if (!run.act.upgrade(s.k, +x)) sfx.nope(); }
       else if (a === 'sell' && s && s.kind === 'tower') { run.act.sell(s.k); R.sel = null; }
+      else if (a === 'undo' && s && s.kind === 'tower') { run.act.undo(s.k); if (!R.towers[s.k]) R.sel = { kind: 'cell', c: s.k.split(',')[0] | 0, r: s.k.split(',')[1] | 0 }; }
       else if (a === 'aim' && s && s.kind === 'tower') run.act.aim(s.k);
       else if (a === 'close') R.sel = null;
       panelKey = '';
