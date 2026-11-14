@@ -6,6 +6,7 @@ window.PP_ASSETS = {
   "hero-marla": "assets/img/hero-marla.webp?h=4c18a877",
   "hero-tilly": "assets/img/hero-tilly.webp?h=ca26b63a",
   "mar-cannon": "assets/img/mar-cannon.webp?h=3f693789",
+  "mar-cat": "assets/img/mar-cat.webp?h=adb81089",
   "mar-clay": "assets/img/mar-clay.webp?h=a9ded8a8",
   "mar-glass": "assets/img/mar-glass.webp?h=7581f556",
   "mar-rubber": "assets/img/mar-rubber.webp?h=f0961d7b",
