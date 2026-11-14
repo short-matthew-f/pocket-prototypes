@@ -2,6 +2,9 @@
 window.PP_ASSETS = {
  "img": {
   "bg-board": "assets/img/bg-board.webp?h=8218528e",
+  "bg-deco": "assets/img/bg-deco.webp?h=87c1c505",
+  "deco-switch": "assets/img/deco-switch.webp?h=9f1b9cfe",
+  "deco-vault": "assets/img/deco-vault.webp?h=e052521f",
   "hero-gus": "assets/img/hero-gus.webp?h=be8e0d77",
   "hero-marla": "assets/img/hero-marla.webp?h=4c18a877",
   "hero-tilly": "assets/img/hero-tilly.webp?h=ca26b63a",
@@ -18,9 +21,9 @@ window.PP_ASSETS = {
   "obj-plate": "assets/img/obj-plate.webp?h=d60351b1",
   "obj-switch": "assets/img/obj-switch.webp?h=d7d55187",
   "obj-vault": "assets/img/obj-vault.webp?h=8a29c845",
-  "tower-hammer": "assets/img/tower-hammer.webp?h=91f3eec6",
-  "tower-magnet": "assets/img/tower-magnet.webp?h=26bd28be",
-  "tower-pin": "assets/img/tower-pin.webp?h=131bfa4f"
+  "tower-hammer": "assets/img/tower-hammer.webp?h=dc2a1259",
+  "tower-magnet": "assets/img/tower-magnet.webp?h=5702d312",
+  "tower-pin": "assets/img/tower-pin.webp?h=fbdb0731"
  },
  "sfx": {
   "boom": "assets/sfx/boom.mp3?h=bdc069e2",
