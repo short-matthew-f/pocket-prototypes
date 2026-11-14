@@ -25,6 +25,7 @@ Everything except bg-* and hero-* is seen **from directly above** (top-down), ce
 | obj-cannon | sprite | v2 track piece. Top-down: a short marble-run magnetic cannon block, purple-enamel housing with a brass track slot running through it lengthwise (north-south) and a small red magnet at one end | 1 |
 | obj-furnace | sprite | v2 track piece. Top-down: a round little cast-iron furnace mouth glowing orange-yellow inside, riveted rim, a few embers; the centre stays darkish (a counter is drawn over it) | 1 |
 | obj-bin | sprite | v2 track piece. Top-down: a small round brass catch cup / marble tray, empty, dark inside | 2 |
+| mar-cat | sprite | Campaign: Top-down: a classic green glass cat's-eye marble with a yellow-and-green twisted vane inside and a bright glint; simple, readable at 20 px (the game draws a face on top, so keep the centre fairly plain) | 1 |
 | hero-tilly | hero bust | Tilly the Tinker: young woman, freckles, ginger bob under a brown cap, brass goggles pushed up, a pencil behind her ear, cheerful | 1 |
 | hero-gus | hero bust | Gus the Gearwright: big grey-bearded older man, leather apron, a gear-shaped monocle, grease on his cheek, kindly | 1 |
 | hero-marla | hero bust | Marla Magnet: woman with dark curly hair, a long purple coat, a horseshoe-magnet brooch, faint sparks in her hair, mischievous smile | 1 |

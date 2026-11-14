@@ -1,221 +1,97 @@
-// Cog & Marble v2: a clockwork tower defence on a GraviTrax-style marble run. Marbles roll down pre-laid track:
-// turntables (grooved plates sitting on gears), switches, spirals, cannons, tunnels and loop-the-loops. The gear train is
-// its own layer: pegs on the board hold small, medium or large gears; meshed gears turn opposite ways, chains keep the
-// same way, and a turntable turns with whatever gear is on its peg (one tooth per click, so small gears spin fast). A
-// marble boards a turntable when a groove lines up with its track and leaves by whichever exit the groove's far end
-// meets, so gear choices decide where marbles go. Speed matters: slow marbles fall off loops. A run is three boards
-// (one screen, then two tall ones that scroll), each with its own objective.
-// Plugs into the Pocket Prototypes kit (see ../README.md). createRun() is DOM-free apart from draw() and the env.ui panel,
-// so sim.js drives the real model in node (exports at the bottom).
+// Cog & Marble: a marble-run tower defence campaign, Bloons-style. Hand-made levels on a square tile grid: marbles roll
+// down the track from the funnel to the vault; build towers on any empty square to pop them first. Levels come in packs,
+// and each pack adds one new piece to the machine (Portal-style: you meet it fixed first, then get to control it). Each
+// level has Easy / Medium / Hard medals. Marbles have faces and personalities; the first time one shows up it's introduced.
+// Standalone page: ../kit/kit.js is only used for sound, sprites and particles. createRun() is DOM-free apart from draw()
+// and the optional env.ui panel, so sim.js drives the real model in node (exports at the bottom).
 (function () {
   'use strict';
-  const TAU = Math.PI * 2, U = Math.PI / 24; // angle unit 7.5°: every gear step and every port direction is a whole number of these
-  const WW = 360, PITCH = 48, STEP = 3; // world width; neighbouring pegs are PITCH apart (gear radius = teeth * PITCH / 24); track sample spacing
-  const GEARS = { S: { n: 8, stepU: 6, name: 'Small', speed: 'fast: 45° a click' }, M: { n: 12, stepU: 4, name: 'Medium', speed: '30° a click' }, L: { n: 16, stepU: 3, name: 'Large', speed: 'slow: 22.5° a click' } };
-  const DWELL = 0.3, MOVE = 0.3, PERIOD = DWELL + MOVE; // a click: the machine rests (grooves can line up), then turns
-  // grooves join two rim ports, by local direction (0 E, 1 S, 2 W, 3 N; canvas y is down)
-  const PATTERNS = { bar: [[0, 2]], cross: [[0, 2], [1, 3]], elbow: [[0, 1]], twin: [[0, 1], [2, 3]] };
-  const SPD = { slow: 48, flat: 72, fast: 125, plate: 62 }; // terminal track speeds (world units / s) before a marble's pace
+  const TAU = Math.PI * 2, STEP = 0.05; // world units are tiles; track sample spacing
 
+  // ---------------------------------------------------------------- marbles (speed in tiles / s, radius in tiles)
   const MARBLES = {
-    clay: { hp: 2, pace: 1, r: 7, brass: 2, dmg: 1, latch: 4.5, col: '#d9774b', hi: '#ffb08a', name: 'Clay' },
-    glass: { hp: 3, pace: 1.05, r: 7, brass: 2, dmg: 1, latch: 4.5, col: '#5fc8e8', hi: '#e0fbff', name: 'Glass', glass: true },
-    shard: { hp: 1, pace: 1.2, r: 5, brass: 1, dmg: 1, latch: 4, col: '#9be3f5', hi: '#ffffff', name: 'Shard' },
-    rubber: { hp: 4, pace: 1.35, r: 7, brass: 3, dmg: 1, latch: 2.5, col: '#e84a8a', hi: '#ffa6c9', name: 'Rubber' },
-    steel: { hp: 9, pace: 0.8, r: 8, brass: 5, dmg: 3, latch: 5.5, armor: 1, col: '#8c96a3', hi: '#eef3f8', name: 'Steel', steel: true },
-    cannon: { hp: 300, pace: 0.55, r: 15, brass: 120, dmg: 99, latch: 6, armor: 1, col: '#33363d', hi: '#9aa3b0', name: 'The Cannonball', boss: true, steel: true },
+    plodder: { name: 'Plodder', hp: 2, spd: 1.1, r: 0.22, brass: 2, dmg: 1, cost: 1, sprite: 'mar-clay', col: '#d9774b', hi: '#ffb08a',
+      blurb: 'Slow, soft and half asleep. It just keeps rolling.' },
+    bouncer: { name: 'Bouncer', hp: 3, spd: 1.8, r: 0.2, brass: 3, dmg: 1, cost: 1.4, startle: true, sprite: 'mar-rubber', col: '#e84a8a', hi: '#ffa6c9',
+      blurb: 'Fast and jumpy. Every time it gets hit, it panics and speeds up for a moment.' },
+    shatterer: { name: 'Shatterer', hp: 3, spd: 1.25, r: 0.22, brass: 2, dmg: 1, cost: 1.6, shards: 3, sprite: 'mar-glass', col: '#5fc8e8', hi: '#e0fbff',
+      blurb: 'A nervous glass marble. Pop it and it cracks into three little Shardlings.' },
+    shard: { name: 'Shardling', hp: 1, spd: 2.1, r: 0.12, brass: 1, dmg: 1, cost: 0.5, sprite: 'mar-shard', col: '#9be3f5', hi: '#ffffff', blurb: '' },
+    bruiser: { name: 'Bruiser', hp: 8, spd: 0.8, r: 0.26, brass: 6, dmg: 3, armor: 1, cost: 3.2, sprite: 'mar-steel', col: '#8c96a3', hi: '#eef3f8',
+      blurb: 'A grumpy steel ball. Plain pins bounce off its armour; Hammers and Steel Tips get through. Costs 3 ♥ at the vault.' },
+    clever: { name: 'Cat\'s-eye', hp: 4, spd: 1.35, r: 0.21, brass: 4, dmg: 1, cost: 2, clever: true, sprite: 'mar-cat', col: '#3f9e4d', hi: '#d9ffb0',
+      blurb: 'The clever one. At every splitter it peeks ahead and takes the path with fewer towers.' },
+    boss: { name: 'The Cannonball', hp: 170, spd: 0.38, r: 0.42, brass: 120, dmg: 99, armor: 1, cost: 0, boss: true, sprite: 'mar-cannon', col: '#33363d', hi: '#9aa3b0',
+      blurb: 'The boss. A huge iron cannonball that sheds Bruisers as it cracks. If it reaches the vault, it\'s over.' },
   };
-  // waves are numbered across the whole run; each board plays a slice. a wave: groups of [type, count] interleaved evenly
-  const WAVES = [
-    { g: [['clay', 10]], gap: 1.1 },
-    { g: [['clay', 16]], gap: 0.8 },
-    { g: [['clay', 12], ['glass', 8]], gap: 0.7 },
-    { g: [['clay', 8], ['steel', 6]], gap: 1.0 },
-    { g: [['glass', 10], ['steel', 8]], gap: 0.85 },
-    { g: [['rubber', 8], ['steel', 8], ['clay', 6]], gap: 0.75 },
-    { g: [['glass', 12], ['steel', 10], ['rubber', 6]], gap: 0.7 },
-    { g: [['rubber', 12], ['clay', 12]], gap: 0.6 },
-    { g: [['glass', 16], ['steel', 6]], gap: 0.56 },
-    { g: [['rubber', 14], ['glass', 12], ['steel', 8]], gap: 0.5 },
-    { g: [['clay', 14], ['glass', 14], ['rubber', 10], ['steel', 12]], gap: 0.42 },
-  ];
-  const LAST = WAVES.length;
-  const BOSS_WAVE = { g: [['steel', 6], ['cannon', 1], ['rubber', 10]], gap: 0.72 };
-  const DRAFT_AFTER = [3, 7, 9];
 
+  // ---------------------------------------------------------------- towers: two upgrade paths, 3 tiers; only one path past tier 1
   const TOWERS = {
-    pin: { name: 'Pin Gun', icon: '📍', cost: 50, up: [60, 110], blurb: 'Fires at the marble furthest along. Pins can\'t dent steel until level 2.',
-      lv: ['Fires pins: 1 damage', '2 damage per pin', 'Twice as fast, hits 2 marbles'] },
-    hammer: { name: 'Hammer', icon: '🔨', cost: 85, up: [80, 140], blurb: 'Smashes every marble next to it. Ignores armour. Great beside a turntable where marbles queue.',
-      lv: ['Smash: 3 damage nearby', 'Reaches further', '6 damage, faster'] },
-    magnet: { name: 'Magnet', icon: '🧲', cost: 70, up: [70, 120], blurb: 'Slows marbles and drains their speed, steel most of all. A slow marble falls off a loop.',
-      lv: ['Slows and drains speed', 'Wider and stronger', 'Also zaps a marble'] },
+    pin: { name: 'Pin Gun', icon: '📍', cost: 60, base: 'Fires pins at one marble: 1 damage. Pins can\'t dent steel.',
+      paths: [{ name: 'Sharper', tiers: [['Sharp Pins', 50, '2 damage per pin'], ['Steel Tips', 120, 'Pins pierce armour'], ['Nail Storm', 320, 'Fires 3 pins at once']] },
+        { name: 'Quicker', tiers: [['Oiled Spring', 45, 'Fires faster'], ['Long Barrel', 90, 'More range'], ['Gatling', 280, 'Fires very fast']] }] },
+    hammer: { name: 'Hammer', icon: '🔨', cost: 110, base: 'Smashes every marble right next to it: 3 damage, armour and all.',
+      paths: [{ name: 'Heavier', tiers: [['Iron Head', 90, '5 damage'], ['Ringing Blow', 170, 'Stuns what it hits'], ['Pile Driver', 420, '14 damage']] },
+        { name: 'Wider', tiers: [['Long Handle', 70, 'Reaches further'], ['Quick Swing', 140, 'Swings faster'], ['Sweeper', 330, 'Huge, fast swings']] }] },
+    magnet: { name: 'Magnet', icon: '🧲', cost: 90, base: 'Slows marbles near it, steel most of all.',
+      paths: [{ name: 'Stronger', tiers: [['Strong Field', 70, 'Slows more'], ['Wide Field', 130, 'More range'], ['Lodestone', 300, 'Marbles nearly stop']] },
+        { name: 'Zappy', tiers: [['Spark', 80, 'Zaps a marble: 1 damage'], ['Arc', 160, 'Zaps jump to 3 marbles'], ['Storm Coil', 340, 'Big, fast zaps']] }] },
   };
-  const BOONS = [
-    { id: 'sharp', icon: '📍', name: 'Sharp Pins', desc: 'Pins +1 damage' },
-    { id: 'reach', icon: '🔨', name: 'Long Handles', desc: 'Hammers reach 35% further' },
-    { id: 'latch', icon: '🔒', name: 'Stiff Latches', desc: 'Marbles wait 2 s longer at a turntable before jumping it' },
-    { id: 'boiler', icon: '♨️', name: 'Spare Boiler', desc: '+60% steam for HOLD' },
-    { id: 'bounty', icon: '🪙', name: 'Brass Bounty', desc: '+30% brass from marbles' },
-    { id: 'parts', icon: '📦', name: 'Spare Parts', desc: '+120 brass now' },
-    { id: 'patch', icon: '🩹', name: 'Patch the Vault', desc: '+5 vault health' },
-    { id: 'blower', icon: '🫧', name: 'Glassblower', desc: 'Glass marbles no longer shatter into shards' },
-    { id: 'lodestone', icon: '🧲', name: 'Lodestones', desc: 'Magnets drain 50% more speed' },
-    { id: 'chain', icon: '⛓️', name: 'Spare Chain', desc: 'Your next 2 chains are free' },
-  ];
+  const DIFFS = {
+    easy: { name: 'Easy', medal: '🥉', waves: 8, lives: 40, hp: 0.8, cost: 0.9 },
+    medium: { name: 'Medium', medal: '🥈', waves: 10, lives: 25, hp: 1, cost: 1 },
+    hard: { name: 'Hard', medal: '🥇', waves: 12, lives: 10, hp: 1.2, cost: 1.08 },
+  };
+  const START_BRASS = 250;
 
-  // ---------------------------------------------------------------- tree (currency: cogs). ids match v1 so saves carry over
-  const NODES = [
-    { id: 'bench', name: 'Workbench', icon: '🧰', desc: (l) => `+30 brass at the start of each run (${30 * l} → ${30 * (l + 1)})`, cost: 6, grow: 1.6, max: 4, req: [], x: 0, y: 0, fx: (s, l) => { s.brass += 30 * l; } },
-    { id: 'hammer', name: 'Hammer Plans', icon: '🔨', desc: 'Unlocks the Hammer tower: smashes every marble next to it, armour and all', cost: 12, max: 1, req: ['bench'], x: 1, y: 0, fx: (s) => { s.hammer = true; } },
-    { id: 'magnet', name: 'Magnet Plans', icon: '🧲', desc: 'Unlocks the Magnet tower: slows marbles and drains their speed, so they fall off loops', cost: 16, max: 1, req: ['bench'], x: -1, y: 0, fx: (s) => { s.magnet = true; } },
-    { id: 'vault', name: 'Thick Vault', icon: '🛡️', desc: '+4 vault health', cost: 8, grow: 1.7, max: 3, req: ['bench'], x: 0, y: 1, fx: (s, l) => { s.lives += 4 * l; } },
-    { id: 'boiler', name: 'Bigger Boiler', icon: '♨️', desc: '+40% steam for HOLD', cost: 10, grow: 1.8, max: 3, req: ['bench'], x: 0, y: -1, fx: (s, l) => { s.steam *= 1 + 0.4 * l; } },
-    { id: 'latch', name: 'Stiff Latches', icon: '🔒', desc: 'Marbles wait 1 s longer at a turntable before jumping it', cost: 14, grow: 1.9, max: 3, req: ['boiler'], x: -1, y: -1, fx: (s, l) => { s.latch += l; } },
-    { id: 'bounty', name: 'Brass Bounty', icon: '🪙', desc: '+15% brass from marbles', cost: 10, grow: 1.7, max: 4, req: ['vault'], x: 1, y: 1, fx: (s, l) => { s.bounty *= 1 + 0.15 * l; } },
-    { id: 'tools', name: 'Fine Tools', icon: '🔧', desc: 'Tower upgrades cost 15% less', cost: 18, grow: 1.8, max: 3, req: ['hammer'], x: 2, y: 0, fx: (s, l) => { s.upgDisc *= 0.85 ** l; } },
-    { id: 'chainworks', name: 'Chainworks', icon: '⛓️', desc: 'Chains cost half, and each board starts with a free one', cost: 14, max: 1, req: ['magnet'], x: -2, y: 0, fx: (s) => { s.chainCost = 20; s.freeChain += 1; } },
-    { id: 'blueprint', name: 'Blueprints', icon: '📜', desc: 'Workshop picks show 4 cards instead of 3', cost: 20, max: 1, req: ['bounty'], x: 2, y: 1, fx: (s) => { s.drafts = 4; } },
-    // excl 'pins': chain hits for swarms, or armour-piercing for steel
-    { id: 'ricochet', excl: 'pins', name: 'Ricochet Pins', icon: '↪️', desc: 'Every pin bounces into a second marble for full damage. Best against swarms.', cost: 30, max: 1, req: ['hammer'], x: 1, y: -1, fx: (s) => { s.ricochet = 1; } },
-    { id: 'heavy', excl: 'pins', name: 'Heavy Pins', icon: '🔩', desc: 'Pins +1 damage and punch through steel armour. Best against steel.', cost: 30, max: 1, req: ['hammer'], x: 2, y: -1, fx: (s) => { s.pinDmg += 1; s.pierceArmor = 1; } },
-    // excl 'lever': what HOLD does besides stopping the machine
-    { id: 'overdrive', excl: 'lever', name: 'Overdrive', icon: '⚡', desc: 'While you HOLD, every tower fires twice as fast', cost: 30, max: 1, req: ['boiler'], x: 0, y: -2, fx: (s) => { s.overdrive = 1; } },
-    { id: 'freeze', excl: 'lever', name: 'Cold Brake', icon: '❄️', desc: 'While you HOLD, every marble crawls at a quarter speed', cost: 30, max: 1, req: ['boiler'], x: -1, y: -2, fx: (s) => { s.freeze = 1; } },
-    { id: 'cannon', win: true, name: 'Ring the Cannon Bell', icon: '🔔', desc: 'Next run, the last wave on the Long Drop brings the Cannonball: a huge iron marble with steel escorts. Smash it to win.', cost: 90, max: 1, req: ['ricochet', 'heavy', 'overdrive', 'freeze', 'tools'], reqAll: 2, x: 0, y: -3 },
+  // ---------------------------------------------------------------- levels: 8 x 12 tiles. lanes: [from, to, corner cells between]
+  const PACKS = [
+    { id: 'rails', name: 'Pack 1 · Rails', blurb: 'Track, splitters and the vault.', levels: [
+      { id: 'r1', name: 'Rolling Start', towers: ['pin'], roster: [['plodder', 1], ['bouncer', 6]],
+        tip: 'Marbles roll from the funnel to the vault. Tap an empty square to build a <b>Pin Gun</b>, then send the first wave.',
+        nodes: { in: { t: 'in', c: 1, r: 0 }, V: { t: 'goal', c: 3, r: 11 } },
+        lanes: [['in', 'V', [[1, 2], [6, 2], [6, 4], [1, 4], [1, 6], [6, 6], [6, 8], [3, 8]]]] },
+      { id: 'r2', name: 'The Fork', towers: ['pin', 'hammer'], roster: [['plodder', 1], ['shatterer', 3], ['bouncer', 5]],
+        tip: 'A <b>splitter</b> sends marbles left and right in turn. The <b>Hammer</b> is new: it smashes everything next to it.',
+        nodes: { in: { t: 'in', c: 3, r: 0 }, S: { t: 'split', c: 3, r: 2 }, M: { t: 'merge', c: 3, r: 9 }, V: { t: 'goal', c: 3, r: 11 } },
+        lanes: [['in', 'S', []], ['S', 'M', [[1, 2], [1, 4], [2, 4], [2, 6], [1, 6], [1, 9]]], ['S', 'M', [[5, 2], [5, 4], [6, 4], [6, 6], [5, 6], [5, 9]]], ['M', 'V', []]] },
+      { id: 'r3', name: 'Switchback', towers: ['pin', 'hammer', 'magnet'], roster: [['plodder', 1], ['bouncer', 2], ['bruiser', 4], ['shatterer', 6]],
+        tip: 'The <b>Bruiser</b> is coming: steel, armoured, 3 ♥ if it gets through. The <b>Magnet</b> is new: it slows marbles, steel most of all.',
+        nodes: { in: { t: 'in', c: 0, r: 0 }, V: { t: 'goal', c: 7, r: 11 } },
+        lanes: [['in', 'V', [[0, 9], [2, 9], [2, 1], [4, 1], [4, 9], [6, 9], [6, 1], [7, 1]]]] },
+      { id: 'r4', name: 'Crossroads', towers: ['pin', 'hammer', 'magnet'], roster: [['plodder', 1], ['clever', 3], ['shatterer', 4], ['bruiser', 6], ['bouncer', 7]],
+        tip: 'The tracks cross on a bridge. Watch the <b>Cat\'s-eye</b>: it takes whichever branch has fewer towers.',
+        nodes: { in: { t: 'in', c: 3, r: 0 }, S: { t: 'split', c: 3, r: 1 }, M: { t: 'merge', c: 3, r: 9 }, V: { t: 'goal', c: 3, r: 11 } },
+        lanes: [['in', 'S', []], ['S', 'M', [[1, 1], [1, 5], [5, 5], [5, 9]]], ['S', 'M', [[6, 1], [6, 3], [3, 3]]], ['M', 'V', []]] },
+      { id: 'r5', name: 'Grand Rail', towers: ['pin', 'hammer', 'magnet'], roster: [['plodder', 1], ['bouncer', 2], ['shatterer', 3], ['clever', 4], ['bruiser', 5]], boss: true,
+        tip: 'Two splitters, three ways down, and something big on the last wave.',
+        nodes: { in: { t: 'in', c: 4, r: 0 }, S1: { t: 'split', c: 4, r: 1 }, S2: { t: 'split', c: 6, r: 5 }, M: { t: 'merge', c: 4, r: 9 }, V: { t: 'goal', c: 4, r: 11 } },
+        lanes: [['in', 'S1', []], ['S1', 'M', [[1, 1], [1, 4], [3, 4], [3, 6], [1, 6], [1, 9]]], ['S1', 'S2', [[6, 1]]], ['S2', 'M', [[6, 9]]], ['S2', 'M', [[4, 5]]], ['M', 'V', []]] },
+    ] },
+    { id: 'switch', name: 'Pack 2 · Switches', blurb: 'Splitters you flip yourself, mid-wave.' },
+    { id: 'bounce', name: 'Pack 3 · Bounce', blurb: 'Trampolines that throw marbles from one track to another.' },
+    { id: 'lift', name: 'Pack 4 · Lifts', blurb: 'Lifts carry marbles back up for a second pass.' },
+    { id: 'slide', name: 'Pack 5 · Slides & Funnels', blurb: 'Fast slides and swirling funnels.' },
+    { id: 'turn', name: 'Pack 6 · Turntables', blurb: 'Track that rotates. Then gears you set yourself.' },
+    { id: 'build', name: 'Pack 7 · Build', blurb: 'Lay your own track before each wave.' },
   ];
-
-  function baseStats(who) {
-    const s = { lives: 15, brass: 120, steam: 3, latch: 0, bounty: 1, upgDisc: 1, hammer: false, magnet: false, chainCost: 40, freeChain: 0,
-      drafts: 3, pinCost: 50, pinDmg: 0, pierceArmor: 0, ricochet: 0, overdrive: 0, freeze: 0, gearsInWave: false, magZap: 0 };
-    if (who === 'tilly') s.pinCost = 40;
-    if (who === 'gus') { s.gearsInWave = true; s.freeChain += 1; }
-    if (who === 'marla') { s.magnet = true; s.magZap = 1; }
-    return s;
-  }
-
-  // ---------------------------------------------------------------- track shapes (world units; the board is WW wide)
-  function spiral(cx, cy, r0, r1, a0, turns) { // clockwise on screen, winding in from r0 to r1
-    const out = [], n = Math.ceil(turns * 40);
-    for (let i = 0; i <= n; i++) { const t = i / n, a = a0 + TAU * turns * t, r = r0 + (r1 - r0) * t; out.push([cx + Math.cos(a) * r, cy + Math.sin(a) * r]); }
-    return out;
-  }
-  function curl(x, y, r, side) { // a loop-the-loop seen from above: a ring beside the track, entered and left heading down
-    const out = [], cx = x + side * r;
-    for (let i = 0; i <= 36; i++) { const a = (side > 0 ? Math.PI : 0) - side * TAU * i / 36; out.push([cx + Math.cos(a) * r, y + Math.sin(a) * r]); }
-    return out;
-  }
-  // ---------------------------------------------------------------- the boards
-  // nodes: entry, pass (a merge), sw (switch), cannon, loop (fast marbles go round, slow ones fall to `fail`), tt (turntable),
-  // bin (catches a marble), furnace, vault. edges: [from, to, waypoints, opts]; from/to are node ids or 'plate.dir' ports.
-  // pegs: [id, x, y, gear, motor]. A turntable sits on a peg; its ports say which tracks are 'in' and name the exits.
-  const STAGES = [
-    {
-      id: 'bench', name: 'The Workbench', H: 580, fit: true, obj: 'guard', waves: [1, 3],
-      intro: 'Marbles roll down the track. The <b>turntable</b> takes one when a groove lines up, and lets it out wherever the far end points. Its <b>gear</b> sets the timing. Tap a ◯ to build.',
-      pegs: [['m1', 84, 150, 'S', true], ['i1', 132, 150, 'L'], ['tp', 180, 150, 'S']],
-      nodes: {
-        in: { t: 'entry', x: 180, y: -20 },
-        T: { t: 'tt', x: 180, y: 150, R: 44, peg: 'tp', pat: 'cross', rot: 0, spill: 1, ports: { 3: 'in', 1: 'chute', 0: 'spiral', 2: 'zigzag' } },
-        sx: { t: 'pass', x: 268, y: 298, tunnel: true },
-        M: { t: 'pass', x: 180, y: 410 },
-        L: { t: 'loop', x: 180, y: 470, need: 100, side: 1 },
-        B: { t: 'bin', x: 96, y: 500 },
-        V: { t: 'vault', x: 180, y: 556 },
-      },
-      edges: [
-        ['in', 'T.3', [], { vt: 'flat' }],
-        ['T.1', 'M', [], { vt: 'fast' }],
-        ['T.0', 'sx', [[300, 150], [338, 200], ...spiral(282, 298, 56, 14, 0, 1.5)], { vt: 'slow' }],
-        ['sx', 'M', [[236, 340], [196, 384]], { vt: 'fast', hidden: true }],
-        ['T.2', 'M', [[40, 150], [40, 218], [118, 250], [40, 290], [118, 326], [112, 384]], { vt: 'flat' }],
-        ['M', 'L', [], { vt: 'fast' }],
-        ['L', 'V', [], { vt: 'fast', ok: true }],
-        ['L', 'B', [[140, 482]], { vt: 'flat', fail: true }],
-      ],
-    },
-    {
-      id: 'sort', name: 'The Sorting Office', H: 980, obj: 'sort', goal: 14, waves: [4, 7],
-      intro: '<b>Sort the steel.</b> Steel must reach the furnace, and only the <b>slow lane</b> (left) is slow enough to drop it there. Anything else in the furnace costs 1 ♥. Flip the <b>switch</b> as marbles come.',
-      pegs: [['tp', 80, 220, null], ['i1', 128, 220, 'S'], ['m1', 176, 220, 'L', true]],
-      nodes: {
-        in: { t: 'entry', x: 180, y: -20 },
-        S1: { t: 'sw', x: 180, y: 84 },
-        T: { t: 'tt', x: 80, y: 220, R: 44, peg: 'tp', pat: 'bar', rot: 1, spill: 1, ports: { 3: 'in', 0: 'fast lane', 1: 'slow lane' } },
-        M1: { t: 'pass', x: 290, y: 340 },
-        LA: { t: 'loop', x: 80, y: 620, need: 105, side: -1 },
-        LB: { t: 'loop', x: 290, y: 620, need: 92, side: 1 },
-        F: { t: 'furnace', x: 180, y: 712 },
-        M2: { t: 'pass', x: 180, y: 900 },
-        V: { t: 'vault', x: 180, y: 956 },
-      },
-      edges: [
-        ['in', 'S1', [], { vt: 'flat' }],
-        ['S1', 'T.3', [[110, 104], [80, 140]], { vt: 'flat' }],
-        ['S1', 'M1', [[255, 104], [290, 160]], { vt: 'fast' }],
-        ['T.0', 'M1', [[200, 262]], { vt: 'fast' }],
-        ['T.1', 'LA', [[80, 330], [30, 380], [112, 430], [30, 480], [112, 530], [80, 580]], { vt: 'slow' }],
-        ['M1', 'LB', [], { vt: 'fast' }],
-        ['LA', 'M2', [[80, 720], [36, 780], [112, 840]], { vt: 'flat', ok: true }],
-        ['LA', 'F', [[132, 660]], { vt: 'flat', fail: true }],
-        ['LB', 'M2', [[290, 720], [330, 780], [250, 840]], { vt: 'flat', ok: true }],
-        ['LB', 'F', [[232, 660]], { vt: 'flat', fail: true }],
-        ['M2', 'V', [], { vt: 'fast' }],
-      ],
-    },
-    {
-      id: 'drop', name: 'The Long Drop', H: 1420, obj: 'guard', waves: [8, 11],
-      intro: 'A long way down: two turntables, a <b>cannon</b> that fires marbles fast, <b>tunnels</b> towers can\'t see into, and a loop. Drag to look around.',
-      pegs: [['ta', 90, 150, 'S'], ['m1', 138, 150, 'L', true], ['m2', 84, 770, 'S', true], ['i2', 132, 770, 'L'], ['tb', 180, 770, 'S']],
-      nodes: {
-        in: { t: 'entry', x: 90, y: -20 },
-        TA: { t: 'tt', x: 90, y: 150, R: 44, peg: 'ta', pat: 'cross', rot: 0, spill: 1, ports: { 3: 'in', 1: 'left', 0: 'cannon' } },
-        C: { t: 'cannon', x: 300, y: 262, boost: 210 },
-        X: { t: 'pass', x: 300, y: 430, tunnel: true },
-        S2: { t: 'sw', x: 60, y: 460 },
-        M4: { t: 'pass', x: 230, y: 660 },
-        TB: { t: 'tt', x: 180, y: 770, R: 50, peg: 'tb', pat: 'twin', rot: 0, spill: 1, ports: { 2: 'in', 3: 'in', 0: 'spiral', 1: 'loop' } },
-        sx: { t: 'pass', x: 266, y: 920, tunnel: true },
-        L: { t: 'loop', x: 180, y: 930, need: 96, side: -1 },
-        B: { t: 'bin', x: 84, y: 980 },
-        M5: { t: 'pass', x: 180, y: 1110 },
-        S3: { t: 'sw', x: 180, y: 1160 },
-        V: { t: 'vault', x: 180, y: 1392 },
-      },
-      edges: [
-        ['in', 'TA.3', [], { vt: 'flat' }],
-        ['TA.1', 'S2', [[90, 270], [40, 330], [40, 420]], { vt: 'flat' }],
-        ['TA.0', 'C', [[250, 150], [300, 200]], { vt: 'flat' }],
-        ['C', 'X', [], { vt: 'fast' }],
-        ['X', 'M4', [[300, 560]], { vt: 'fast', hidden: true }],
-        ['S2', 'TB.2', [[36, 520], [36, 720], [80, 770]], { vt: 'flat' }],
-        ['S2', 'M4', [[140, 520], [180, 590]], { vt: 'flat' }],
-        ['M4', 'TB.3', [[180, 690]], { vt: 'flat' }],
-        ['TB.0', 'sx', [[300, 770], [338, 830], ...spiral(282, 920, 56, 14, 0, 1.5)], { vt: 'slow' }],
-        ['sx', 'M5', [[230, 990], [190, 1060]], { vt: 'fast', hidden: true }],
-        ['TB.1', 'L', [], { vt: 'fast' }],
-        ['L', 'M5', [[180, 1010], [130, 1060]], { vt: 'flat', ok: true }],
-        ['L', 'B', [[130, 960]], { vt: 'flat', fail: true }],
-        ['M5', 'S3', [], { vt: 'flat' }],
-        ['S3', 'V', [[90, 1200], [50, 1270], [130, 1320], [60, 1360]], { vt: 'flat' }],
-        ['S3', 'V', [[270, 1200], [310, 1270], [230, 1320], [300, 1360]], { vt: 'flat' }],
-      ],
-    },
-  ];
+  const LEVELS = PACKS.flatMap((p) => p.levels || []);
+  const COLS = 8, ROWS = 12;
 
   // ---------------------------------------------------------------- geometry
-  function smooth(pts, rad = 26) { // round every corner, then resample at STEP spacing
+  function smooth(pts, rad = 0.5) { // round every corner, then resample at STEP spacing
     const out = [pts[0]];
     for (let i = 1; i < pts.length - 1; i++) {
       const a = pts[i - 1], b = pts[i], c = pts[i + 1], l1 = Math.hypot(b[0] - a[0], b[1] - a[1]), l2 = Math.hypot(c[0] - b[0], c[1] - b[1]);
-      const r = Math.min(rad, l1 / 2, l2 / 2); if (r < 1) { out.push(b); continue; }
+      const r = Math.min(rad, l1 / 2, l2 / 2), straight = Math.abs((b[0] - a[0]) * (c[1] - b[1]) - (b[1] - a[1]) * (c[0] - b[0])) < 1e-6;
+      if (r < 0.01 || straight) { out.push(b); continue; }
       const p = [b[0] - (b[0] - a[0]) / l1 * r, b[1] - (b[1] - a[1]) / l1 * r], q = [b[0] + (c[0] - b[0]) / l2 * r, b[1] + (c[1] - b[1]) / l2 * r];
-      for (let k = 0; k <= 8; k++) { const t = k / 8, u = 1 - t; out.push([u * u * p[0] + 2 * u * t * b[0] + t * t * q[0], u * u * p[1] + 2 * u * t * b[1] + t * t * q[1]]); }
+      for (let k = 0; k <= 10; k++) { const t = k / 10, u = 1 - t; out.push([u * u * p[0] + 2 * u * t * b[0] + t * t * q[0], u * u * p[1] + 2 * u * t * b[1] + t * t * q[1]]); }
     }
     out.push(pts[pts.length - 1]);
     const res = [out[0]]; let carry = 0;
     for (let i = 1; i < out.length; i++) {
-      const a = out[i - 1], b = out[i], l = Math.hypot(b[0] - a[0], b[1] - a[1]); let d = STEP - carry;
+      const a = out[i - 1], b = out[i], l = Math.hypot(b[0] - a[0], b[1] - a[1]); if (!l) continue; let d = STEP - carry;
       while (d <= l) { res.push([a[0] + (b[0] - a[0]) * d / l, a[1] + (b[1] - a[1]) * d / l]); d += STEP; }
       carry = l - (d - STEP);
     }
@@ -223,718 +99,487 @@
     return res;
   }
   const at = (e, s) => { const f = Math.max(0, Math.min(e.pts.length - 1.001, s / STEP)), i = Math.floor(f), t = f - i, a = e.pts[i], b = e.pts[i + 1] || a; return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]; };
-  const rim = (d) => [Math.cos(d * Math.PI / 2), Math.sin(d * Math.PI / 2)];
-  function makeGroove(a, b) { // plate-local, unit radius
-    const A = rim(a), B = rim(b), pts = [];
-    if ((a - b + 4) % 4 === 2) for (let i = 0; i <= 12; i++) { const t = i / 12; pts.push([A[0] + (B[0] - A[0]) * t, A[1] + (B[1] - A[1]) * t]); }
-    else for (let i = 0; i <= 20; i++) { const t = i / 20, u = 1 - t, k = 0.25; pts.push([u * u * u * A[0] + 3 * u * u * t * A[0] * k + 3 * u * t * t * B[0] * k + t * t * t * B[0], u * u * u * A[1] + 3 * u * u * t * A[1] * k + 3 * u * t * t * B[1] * k + t * t * t * B[1]]); }
-    const cum = [0]; for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
-    return { ends: [a, b], pts, cum, len: cum[cum.length - 1] };
-  }
-  function grooveAt(gr, s) {
-    s = Math.max(0, Math.min(gr.len, s)); let i = 1; while (i < gr.cum.length - 1 && gr.cum[i] < s) i++;
-    const a = gr.pts[i - 1], b = gr.pts[i], f = (s - gr.cum[i - 1]) / ((gr.cum[i] - gr.cum[i - 1]) || 1);
-    return [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f];
-  }
-  const mod = (a, n) => ((a % n) + n) % n;
-  const ease = (x) => x * x * (3 - 2 * x);
-  const portPt = (p, d) => [p.x + rim(d)[0] * p.R, p.y + rim(d)[1] * p.R];
+  const dirAt = (e, s) => { const a = at(e, Math.max(0, s - 0.05)), b = at(e, s + 0.05); return Math.atan2(b[1] - a[1], b[0] - a[0]); };
+  const key = (c, r) => c + ',' + r;
 
-  /** Build a board's runtime graph from its spec (also used by sim.js and the probe). */
-  function buildStage(spec) {
-    const N = {}, E = [], pegs = {};
-    for (const [id, x, y, gear, motor] of spec.pegs) pegs[id] = { id, x, y, gear, motor: !!motor, dir: 0, plate: null, def: gear };
-    for (const [id, n0] of Object.entries(spec.nodes)) {
-      const n = N[id] = { id, ...n0, outs: [] };
-      if (n.t === 'tt') { n.grooves = PATTERNS[n.pat].map(([a, b]) => makeGroove(a, b)); n.peg = pegs[n.peg]; n.peg.plate = n; n.rot0 = n.rot; n.ports = Object.fromEntries(Object.entries(n.ports).map(([d, v]) => [d, { d: +d, out: v !== 'in', label: v, edge: null }])); }
-      if (n.t === 'sw') { n.mode = 'alt'; n.next = 0; n.flick = 0; }
-    }
-    const end = (ref) => { const [id, d] = ref.split('.'), n = N[id]; return d != null ? { n, d: +d, pt: portPt(n, +d) } : { n, pt: [n.x, n.y] }; };
-    for (const [from, to, mid, o] of spec.edges) {
-      const A = end(from), B = end(to);
-      let raw = [A.pt, ...mid, B.pt];
-      if (o.ok) raw = [...curl(A.n.x, A.n.y, 18, A.n.side), ...mid, B.pt];
-      const e = { id: E.length, from: A.n.id, to: B.n.id, vt: SPD[o.vt || 'flat'], hidden: !!o.hidden, fail: !!o.fail, curl: !!o.ok, pts: smooth(raw, o.ok ? 6 : 26) };
-      e.len = (e.pts.length - 1) * STEP;
-      if (B.d != null) e.port = { p: B.n, d: B.d };
-      if (A.d != null) A.n.ports[A.d].edge = e.id;
-      else if (o.ok) A.n.ok = e.id; else if (o.fail) A.n.fail = e.id; else A.n.outs.push(e.id);
-      E.push(e);
-    }
-    // tower pads: spots clear of track, plates, pegs and pieces, close to busy track; greedy by how much track they see
-    const near = [], blockers = [];
-    for (const e of E) for (let i = 0; i < e.pts.length; i += 3) { blockers.push([e.pts[i][0], e.pts[i][1], 17]); if (!e.hidden) near.push(e.pts[i]); }
-    for (const n of Object.values(N)) blockers.push([n.x, n.y, n.t === 'tt' ? n.R + 16 : n.t === 'vault' ? 48 : n.t === 'furnace' ? 34 : 20]);
-    for (const p of Object.values(pegs)) if (!p.plate) blockers.push([p.x, p.y, 20]);
-    const cands = [];
-    for (let y = 24; y < spec.H - 30; y += 10) for (let x = 18; x <= WW - 18; x += 10) {
-      if (blockers.some(([bx, by, r]) => Math.abs(bx - x) < r && Math.abs(by - y) < r && Math.hypot(bx - x, by - y) < r)) continue;
-      let see = 0, close = 1e9; for (const q of near) { const d = Math.hypot(q[0] - x, q[1] - y); if (d < 78) see++; if (d < close) close = d; }
-      if (close < 44) cands.push({ x, y, see });
-    }
-    cands.sort((a, b) => b.see - a.see);
-    const pads = [], want = Math.round(spec.H / 38);
-    for (const c of cands) { if (pads.length >= want) break; if (pads.every((p) => Math.hypot(p.x - c.x, p.y - c.y) >= 46)) pads.push({ id: 'p' + pads.length, x: c.x, y: c.y }); }
-    return { N, E, pegs, pads, plates: Object.values(N).filter((n) => n.t === 'tt') };
-  }
-
-  // ---------------------------------------------------------------- a run
-  function createRun(env) {
-    const { W, H, stats: st, sfx, fx } = env;
-    const TOP = 48, UIH = 200, VIEWPX = Math.max(200, H - TOP - UIH);
-    const C = { k: 0, t: 0, e: 0 }; // the clock: k clicks done, t into this click, e = how far through the turn (0 while resting)
-    const R = {
-      lives: st.lives, maxLives: st.lives, brass: st.brass, wave: 0, cleared: 0, state: 'build', marbles: [], towers: {}, chains: new Set(),
-      steam: st.steam, steamMax: st.steam, holdOn: false, holding: false, speed: 1, sel: null, pops: 0, jam: false, boons: {}, freeChains: st.freeChain,
-      spawnQ: [], waveT: 0, pass: {}, tracers: [], flash: 0, nextId: 1, latchBonus: st.latch, bountyMul: st.bounty,
-      boss: null, jumpTold: 0, slowTold: 0, C, msg: '', msgT: 0, stageI: -1, sorted: 0, sortAll: 0, sortBonus: 0, stageLives: [], clogs: 0, camY: 0, G: null,
-    };
-    const run = { over: false, t: 0, R };
-    let G, S, sc = 1, offX = 0, viewH = 0, maxCam = 0, panelKey = '', root = null;
-
-    function loadStage(i) {
-      R.stageI = i; S = STAGES[i]; G = R.G = buildStage(S);
-      sc = S.fit ? Math.min(W / WW, VIEWPX / S.H) : W / WW; offX = (W - WW * sc) / 2; viewH = VIEWPX / sc; maxCam = Math.max(0, S.H - viewH);
-      R.camY = 0; R.sel = null; R.sub = null; R.chains = new Set(); R.freeChains = Math.max(R.freeChains, st.freeChain); R.sorted = 0; R.pass = {}; R.routes = {};
-      drive(); panelKey = '';
-      say(S.name, 1.8);
-    }
-
-    // ---- the gear train: one direction per peg (+1 clockwise, -1 counter, 0 not driven); a fight = jammed
-    const pegList = () => Object.values(G.pegs);
-    const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
-    const adjacent = (a, b) => a !== b && Math.abs(dist(a, b) - PITCH) < 3;
-    const teeth = (p) => (p.gear ? GEARS[p.gear].n : 0);
-    const meshes = (a, b) => adjacent(a, b) && a.gear && b.gear && teeth(a) + teeth(b) === 24;
-    const chainable = (a, b) => a !== b && a.gear && b.gear && !meshes(a, b) && dist(a, b) <= PITCH * 3.4 + 1;
-    const chainKey = (a, b) => [a.id, b.id].sort().join('~');
-    function drive() {
-      for (const p of pegList()) p.dir = 0;
-      const q = pegList().filter((p) => p.motor && p.gear); q.forEach((p) => { p.dir = 1; }); R.jam = false; R.jamAt = null;
-      while (q.length) {
-        const a = q.shift();
-        for (const b of pegList()) {
-          const link = meshes(a, b) ? -1 : R.chains.has(chainKey(a, b)) && chainable(a, b) ? 1 : 0; if (!link) continue;
-          const want = a.dir * link;
-          if (!b.dir) { b.dir = want; q.push(b); } else if (b.dir !== want) { R.jam = true; R.jamAt = [a, b]; }
-        }
+  /** A level's runtime graph: nodes, edges (lanes), which squares are track and which are free for towers. */
+  function buildLevel(L) {
+    const N = {}, E = [], track = new Map(); // key -> {lanes: [edge ids], node}
+    for (const [id, n] of Object.entries(L.nodes)) { N[id] = { id, ...n, x: n.c + 0.5, y: n.r + 0.5, outs: [], ins: [], next: 0 }; track.set(key(n.c, n.r), { lanes: [], node: id }); }
+    for (const [from, to, corners] of L.lanes) {
+      const A = N[from], B = N[to], wp = [[A.c, A.r], ...corners, [B.c, B.r]], cells = [[A.c, A.r]];
+      for (let i = 1; i < wp.length; i++) {
+        const [c0, r0] = wp[i - 1], [c1, r1] = wp[i];
+        if (c0 !== c1 && r0 !== r1) throw new Error(`${L.id}: diagonal lane step ${wp[i - 1]} -> ${wp[i]}`);
+        const n = Math.abs(c1 - c0) + Math.abs(r1 - r0);
+        for (let k = 1; k <= n; k++) cells.push([c0 + Math.sign(c1 - c0) * k, r0 + Math.sign(r1 - r0) * k]);
       }
-      if (R.jam) for (const p of pegList()) p.dir = 0;
+      const e = { id: E.length, from, to, cells, pts: smooth(wp.map(([c, r]) => [c + 0.5, r + 0.5])) };
+      e.len = (e.pts.length - 1) * STEP; E.push(e); A.outs.push(e.id); B.ins.push(e.id);
+      for (const [c, r] of cells.slice(1, -1)) { const k = key(c, r), t = track.get(k) || { lanes: [] }; t.lanes.push(e.id); track.set(k, t); }
     }
-    const stepOf = (p) => (p.peg.gear ? GEARS[p.peg.gear].stepU : 0);
-    const thetaU = (p) => 12 * p.rot + p.peg.dir * (C.k + C.e) * stepOf(p);
-    const theta = (p) => thetaU(p) * U;
-    function portDir(p, d) { // the compass direction a groove end faces right now, or -1 while turning / between directions
-      if (p.peg.dir && C.e > 0) return -1;
-      const a = mod(12 * (d + p.rot) + p.peg.dir * C.k * stepOf(p), 48);
-      return a % 12 ? -1 : a / 12;
-    }
-    const toWorld = (p, lx, ly) => { const a = theta(p), c = Math.cos(a), s = Math.sin(a); return [p.x + (lx * c - ly * s) * p.R, p.y + (lx * s + ly * c) * p.R]; };
-    function receiving(p, d) { for (let g = 0; g < p.grooves.length; g++) for (let e = 0; e < 2; e++) if (portDir(p, p.grooves[g].ends[e]) === d) return { g, e }; return null; }
-    const latchOf = (m) => m.T.latch + R.latchBonus + (R.boons.latch ? 2 : 0);
+    const free = []; for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) if (!track.has(key(c, r))) free.push([c, r]);
+    return { N, E, track, free };
+  }
 
-    // ---- marbles
+  // ---------------------------------------------------------------- waves: a budget of "plodder units" filled from the level's roster
+  function makeWaves(L, diff) {
+    const D = DIFFS[diff], out = [];
+    for (let w = 1; w <= D.waves; w++) {
+      const pool = L.roster.filter(([, from]) => w >= from).map(([t]) => t), fresh = L.roster.filter(([, from]) => from === w).map(([t]) => t);
+      let budget = 5 + 2.1 * w + 0.16 * w * w; const items = [];
+      for (const t of fresh) { for (let i = 0; i < 3 && budget > 0; i++) { items.push(t); budget -= MARBLES[t].cost; } } // a new marble arrives as a little group
+      for (let i = 0; budget > 0; i++) { const t = pool[(i * 3 + w) % pool.length]; items.push(t); budget -= MARBLES[t].cost; }
+      const order = items.map((t, i) => ({ t, k: (i * 7919 + w * 104729) % 997 })).sort((a, b) => a.k - b.k).map((x) => x.t);
+      if (L.boss && w === D.waves) order.splice(Math.floor(order.length / 2), 0, 'boss');
+      out.push({ items: order, gap: Math.max(0.38, 1.05 - 0.055 * w) });
+    }
+    return out;
+  }
+
+  // ---------------------------------------------------------------- a level being played
+  function createRun(L, diff, env) {
+    const { sfx, fx } = env, D = DIFFS[diff], G = buildLevel(L), WAVES = makeWaves(L, diff);
+    const R = { lives: D.lives, brass: START_BRASS, wave: 0, state: 'build', marbles: [], towers: {}, sel: null, speed: 1, spawnQ: [], waveT: 0,
+      tracers: [], pops: 0, flash: 0, nextId: 1, boss: null, msg: '', msgT: 0, G, L, diff, waves: WAVES, leaks: 0 };
+    const run = { over: false, won: false, t: 0, R };
+
     function addMarble(type, at0) {
-      const T = MARBLES[type], n1 = Math.max(0, R.wave - 1), mul = 1 + 0.22 * n1 + 0.035 * n1 * n1;
-      const m = { id: R.nextId++, type, T, hp: Math.ceil(T.hp * (T.boss ? 1 : mul)), armor: T.armor || 0, r: T.r, age: 0, wait: 0, dist: 0, st: 'track', e: G.N.in.outs[0], s: 0, v: 70 * T.pace, slowT: 1, drain: 0, flash: 0 };
-      m.max = m.hp; if (T.boss) { R.boss = m; m.shed = 3; }
+      const T = MARBLES[type], w1 = Math.max(0, R.wave - 1), mul = (1 + 0.11 * w1 + 0.012 * w1 * w1) * D.hp;
+      const m = { id: R.nextId++, type, T, hp: Math.ceil(T.hp * (T.boss ? D.hp * (D.waves / 10) ** 2 : mul)), armor: T.armor || 0, r: T.r, age: 0, dist: 0, e: G.N.in.outs[0], s: 0, slow: 1, stun: 0, startle: 0, flash: 0 };
+      m.max = m.hp; if (T.boss) { R.boss = m; m.shed = diff === 'easy' ? 1 : 3; }
       if (at0) Object.assign(m, at0);
       R.marbles.push(m); return m;
     }
-    function marblePos(m) {
-      if (m.st === 'track') return at(G.E[m.e], m.s);
-      if (m.st === 'groove' || m.st === 'held') { const l = grooveAt(m.p.grooves[m.g], m.s); return toWorld(m.p, l[0], l[1]); }
-      if (m.st === 'hop') { const f = ease(Math.min(1, m.ht / m.hd)); return [m.hx + (m.tx - m.hx) * f, m.hy + (m.ty - m.hy) * f - Math.sin(f * Math.PI) * m.hh]; }
-      return [0, 0];
-    }
-    const hiddenNow = (m) => m.st === 'track' && G.E[m.e].hidden;
-    function goEdge(m, eid) { m.st = 'track'; m.e = eid; m.s = 0; m.wait = 0; }
-    function hop(m, eid, kind) { // fly to the start of an edge: 'jump' over a turntable or 'fall' off a loop
-      const [x, y] = marblePos(m), to = G.E[eid].pts[0]; m.st = 'hop'; m.hx = x; m.hy = y; m.tx = to[0]; m.ty = to[1]; m.ht = 0; m.hd = 0.45; m.hh = kind === 'jump' ? 18 : 6; m.toE = eid;
-      if (kind === 'jump') sfx.play('jump') || sfx.tone(520, 0.08, 'triangle', 0.05, 1.6);
-    }
-    function spill(m, p) { // waited too long at a turntable: jump over it to its spill exit
-      m.wait = 0; R.routes[`${p.id}>jump`] = (R.routes[`${p.id}>jump`] || 0) + 1; if (R.jumpTold++ < 3) say('A marble jumped the turntable!', 1.2);
-      hop(m, p.ports[p.spill].edge, 'jump');
+    const posOf = (m) => at(G.E[m.e], m.s);
+    function danger(eid) { // how well defended a lane is: tower coverage of its track
+      const e = G.E[eid]; let d = 0;
+      for (const t of Object.values(R.towers)) { const r = tStats(t).range; for (let i = 0; i < e.pts.length; i += 6) if (Math.hypot(e.pts[i][0] - t.x, e.pts[i][1] - t.y) <= r) d += t.type === 'magnet' ? 0.5 : 1; }
+      return d;
     }
     function arrive(m, nid) {
       const n = G.N[nid];
-      if (n.t === 'pass' || n.t === 'entry') return goEdge(m, n.outs[0]);
-      if (n.t === 'sw') { const i = n.mode === 'alt' ? n.next : n.mode; if (n.mode === 'alt') n.next ^= 1; n.flick = 0.25; sfx.play('flip', 0.4) || sfx.tone(260, 0.03, 'square', 0.03); return goEdge(m, n.outs[i]); }
-      if (n.t === 'cannon') { m.v = Math.max(m.v, n.boost * Math.max(0.7, m.T.pace)); n.flick = 0.3; sfx.play('boost') || sfx.zap(); return goEdge(m, n.outs[0]); }
-      if (n.t === 'loop') {
-        if (m.v >= n.need || m.T.boss) return goEdge(m, n.ok);
-        if (R.slowTold++ < 2) say('Too slow for the loop!', 1.2);
-        fx.text(n.x, n.y - 14, 'too slow', '#9fe7ff', 11); return hop(m, n.fail, 'fall');
+      if (n.t === 'goal') return leak(m);
+      let eid = n.outs[0];
+      if (n.t === 'split') {
+        if (m.T.clever) { const d = n.outs.map(danger); eid = n.outs[d[0] <= d[1] ? 0 : 1]; m.think = 0.8; }
+        else { eid = n.outs[n.next]; n.next = (n.next + 1) % n.outs.length; n.flick = 0.25; }
       }
-      if (n.t === 'bin') return pop(m, true);
-      if (n.t === 'vault') return leak(m);
-      if (n.t === 'furnace') return furnace(m, n);
+      m.e = eid; m.s = 0;
     }
-    function board(m, p, g, e) { m.st = 'groove'; m.p = p; m.g = g; m.s = e ? p.grooves[g].len : 0; m.dirn = e ? -1 : 1; m.wait = 0; }
     function stepMarbles(dt) {
-      const open = !R.holding, crawl = R.holding && st.freeze ? 0.25 : 1, qOn = {}, plateQ = {};
       for (const m of R.marbles) {
         if (m.dead) continue;
-        m.age += dt; m.flash = Math.max(0, m.flash - dt);
-        if (m.st === 'track') {
-          const e = G.E[m.e], tgt = e.vt * m.T.pace * m.slowT;
-          m.v += (tgt - m.v) * Math.min(1, 1.3 * dt); m.v = Math.max(14, m.v - m.drain * dt);
-          const ds = m.v * dt * crawl; m.s += ds; m.dist += ds;
-          if (e.port) { (qOn[m.e] ||= []).push(m); if (m.s > e.len) m.s = e.len; }
-          else if (m.s >= e.len) arrive(m, e.to);
-        } else if (m.st === 'groove') {
-          const gr = m.p.grooves[m.g], tgt = SPD.plate * m.T.pace * m.slowT;
-          m.v += (tgt - m.v) * Math.min(1, 2 * dt);
-          const ds = m.v * dt * crawl; m.s += m.dirn * ds / m.p.R; m.dist += ds;
-          if (m.s >= gr.len) { m.s = gr.len; m.st = 'held'; m.e = 1; m.wait = 0; }
-          else if (m.s <= 0) { m.s = 0; m.st = 'held'; m.e = 0; m.wait = 0; }
-        } else if (m.st === 'held') {
-          const p = m.p, key = `${p.id}:${m.g}:${m.e}`, i = (plateQ[key] = (plateQ[key] ?? -1) + 1), gr = p.grooves[m.g];
-          const back = i * (2 * m.r + 2) / p.R; m.s = m.e ? gr.len - back : back; // stand in line
-          if (open) m.wait += dt;
-          if (i > 0) continue;
-          const d = portDir(p, gr.ends[m.e]), port = d >= 0 && p.ports[d], pk = `${p.id}>${d}`;
-          if (open && port && port.out && !(R.pass[pk] > 0)) { R.pass[pk] = 0.16; R.routes[`${p.id}>${port.label}`] = (R.routes[`${p.id}>${port.label}`] || 0) + 1; goEdge(m, port.edge); m.v = Math.max(m.v, 50); continue; }
-          if (m.wait > latchOf(m) || m.age > 120) spill(m, p);
-        } else if (m.st === 'hop') {
-          m.ht += dt; if (m.ht >= m.hd) goEdge(m, m.toE);
-        }
+        m.age += dt; m.flash = Math.max(0, m.flash - dt); m.stun = Math.max(0, m.stun - dt); m.startle = Math.max(0, m.startle - dt); if (m.think) m.think = Math.max(0, m.think - dt);
+        const v = m.stun > 0 ? 0 : m.T.spd * m.slow * (m.startle > 0 ? 1.7 : 1);
+        m.s += v * dt; m.dist += v * dt;
+        while (!m.dead && m.s >= G.E[m.e].len) { const over = m.s - G.E[m.e].len, to = G.E[m.e].to; arrive(m, to); if (!m.dead) m.s = over; }
       }
-      // queues into turntables: marbles line up on the track; the front one boards when a groove end faces its port
-      for (const [eid, list] of Object.entries(qOn)) {
-        const e = G.E[eid]; list.sort((a, b) => b.s - a.s);
-        let lim = e.len; for (const m of list) { if (m.s > lim) m.s = lim; lim = m.s - (2 * m.r + 2); }
-        const f = list[0], p = e.port.p, d = e.port.d;
-        if (f.dead || f.st !== 'track' || f.s < e.len - 0.5) continue;
-        if (open) f.wait += dt;
-        const key = `${p.id}<${d}`, rcv = open && !(R.pass[key] > 0) && receiving(p, d);
-        if (rcv) { R.pass[key] = 0.16; board(f, p, rcv.g, rcv.e); }
-        else if (f.wait > latchOf(f) || f.age > 120) spill(f, p);
-      }
-      for (const k in R.pass) R.pass[k] -= dt;
     }
     function leak(m) {
-      m.dead = true; R.lives = Math.max(0, R.lives - m.T.dmg); R.flash = 0.6; R.lastLeak = m.T.name; if (m.T.boss) R.bossLeftHp = m.hp;
-      const V = G.N.V; fx.shake = Math.max(fx.shake, m.T.boss ? 14 : 6); sfx.boom(); fx.text(V.x, V.y - 40, `-${m.T.dmg} ♥`, '#ff6b6b', 18);
-      if (R.lives <= 0) { run.over = true; R.endCause = m.T.boss ? 'The Cannonball smashed into the vault.' : `A ${m.T.name.toLowerCase()} marble broke the vault.`; }
+      m.dead = true; if (m.T.boss) R.bossLeft = m.hp; R.lives = Math.max(0, R.lives - m.T.dmg); R.flash = 0.6; R.leaks++;
+      const V = G.N.V; fx.shake = Math.max(fx.shake, m.T.boss ? 14 : 5); sfx.boom(); fx.text(V.x, V.y - 0.6, `-${m.T.dmg} ♥`, '#ff6b6b', 0.42);
+      if (R.lives <= 0) { run.over = true; R.endCause = m.T.boss ? 'The Cannonball smashed into the vault.' : `A ${m.T.name} broke into the vault.`; }
     }
-    function furnace(m, n) {
-      m.dead = true;
-      if (m.T.steel) { R.sorted++; R.sortAll++; R.brass += 4; fx.text(n.x, n.y - 26, R.sorted >= S.goal ? `${R.sorted} sorted!` : `+1 sorted`, '#ffb347', 13); sfx.play('sizzle') || sfx.coin(); }
-      else if (m.type === 'shard') fx.text(n.x, n.y - 26, 'melts', '#9be3f5', 11);
-      else { R.lives = Math.max(0, R.lives - 1); R.clogs++; R.flash = 0.4; fx.text(n.x, n.y - 26, `${m.T.name} clogs it! -1 ♥`, '#ff6b6b', 13); sfx.play('clink') || sfx.nope(); if (R.lives <= 0) { run.over = true; R.endCause = 'The furnace clogged and the vault gave way.'; } }
-    }
-    function hit(m, dmg, crush) {
+    function hit(m, dmg, pierce) {
       if (m.dead) return false;
-      const eff = crush ? dmg : dmg - m.armor;
-      if (eff <= 0) { if (Math.random() < 0.15) fx.text(...marblePos(m), 'clink', '#cfd6df', 12); sfx.play('clink') || sfx.tone(2400, 0.03, 'square', 0.02); return false; }
-      m.hp -= eff; m.flash = 0.12;
+      const eff = pierce ? dmg : dmg - m.armor;
+      if (eff <= 0) { if (Math.random() < 0.15) { const [x, y] = posOf(m); fx.text(x, y - 0.3, 'clink', '#cfd6df', 0.28); } sfx.play('clink') || sfx.tone(2400, 0.03, 'square', 0.02); return false; }
+      m.hp -= eff; m.flash = 0.12; if (m.T.startle) m.startle = 0.6;
       if (m.T.boss) bossCheck(m);
       if (m.hp <= 0) { pop(m); return true; }
       return false;
     }
-    function pop(m, binned) {
-      m.dead = true; R.pops++; const [x, y] = marblePos(m);
-      const v = Math.max(1, Math.round(m.T.brass * R.bountyMul * (R.boons.bounty ? 1.3 : 1))); R.brass += v;
-      if (binned) { fx.text(x, y - 8, `caught +${v}`, '#ffd166', 12); sfx.play('drop') || sfx.coin(); return; }
-      fx.burst(x, y, m.T.boss ? 40 : 7, [m.T.col, m.T.hi], m.T.boss ? 260 : 120, m.T.boss ? 5 : 3);
-      if (m.T.boss) { fx.shake = 16; sfx.boom(); fx.text(x, y - 10, 'SMASHED!', '#ffd166', 26); }
-      else { sfx.pop(m.T.glass ? 1.6 : 1); if (Math.random() < 0.35) fx.text(x, y - 6, `+${v}`, '#ffd166', 12); }
-      if (m.T.glass && !R.boons.blower) for (const k of [-1, 1]) split(m, 'shard', k);
-    }
-    function split(m, type, k) { // a shard or a shed marble starts where its parent was
-      const keep = ['st', 'e', 's', 'p', 'g', 'dirn', 'hx', 'hy', 'tx', 'ty', 'ht', 'hd', 'hh', 'toE', 'v', 'dist'];
-      const c = addMarble(type, Object.fromEntries(keep.map((f) => [f, m[f]])));
-      if (c.st === 'held') c.st = 'groove';
-      if (c.st === 'groove') { const gr = c.p.grooves[c.g]; c.s = Math.max(0, Math.min(gr.len, c.s + k * 0.12)); if (m.st === 'held') c.dirn = m.e ? -1 : 1; }
-      else if (c.st === 'track') c.s = Math.max(0, c.s - (k + 1) * 6);
+    function pop(m) {
+      m.dead = true; R.pops++; const [x, y] = posOf(m); R.brass += m.T.brass;
+      fx.burst(x, y, m.T.boss ? 40 : 7, [m.T.col, m.T.hi], m.T.boss ? 6 : 3, m.T.boss ? 0.12 : 0.07);
+      if (m.T.boss) { fx.shake = 16; sfx.boom(); fx.text(x, y - 0.3, 'SMASHED!', '#ffd166', 0.6); }
+      else { sfx.pop(m.type === 'shatterer' ? 1.6 : 1); if (Math.random() < 0.3) fx.text(x, y - 0.25, `+${m.T.brass}`, '#ffd166', 0.3); }
+      if (m.T.shards) for (let k = 0; k < m.T.shards; k++) addMarble('shard', { e: m.e, s: Math.max(0, m.s - 0.12 * k), dist: m.dist });
     }
     function bossCheck(m) {
-      while (m.shed > 0 && m.hp <= m.max * (m.shed / 4)) {
+      while (m.shed > 0 && m.hp <= m.max * (m.shed / (diff === 'easy' ? 2 : 4))) {
         m.shed--; fx.shake = 8; sfx.crack(); say('The Cannonball sheds steel!', 1.6);
-        for (let i = 0; i < 2; i++) split(m, 'steel', i ? 1 : -1);
+        for (let i = 0; i < 2; i++) addMarble('bruiser', { e: m.e, s: Math.max(0, m.s - 0.3 * (i + 1)), dist: m.dist });
       }
     }
 
     // ---- towers
     function tStats(t) {
-      const l = t.lvl, rate = R.holding && st.overdrive ? 2 : 1;
-      if (t.type === 'pin') return { range: [82, 88, 94][l], cd: [0.6, 0.5, 0.3][l] / rate, dmg: [1, 2, 2][l] + st.pinDmg + (R.boons.sharp ? 1 : 0), n: l >= 2 ? 2 : 1 };
-      if (t.type === 'hammer') return { range: [40, 50, 54][l] * (R.boons.reach ? 1.35 : 1), cd: [1.3, 1.2, 0.95][l] / rate, dmg: [3, 3, 6][l] };
-      const lode = R.boons.lodestone ? 1.5 : 1;
-      return { range: [62, 76, 80][l], slow: [0.6, 0.5, 0.45][l], drain: [55, 75, 90][l] * lode, zap: l >= 2 || st.magZap ? 0.6 / rate : 0 };
+      const [a, b] = t.up;
+      if (t.type === 'pin') return { range: b >= 2 ? 3 : 2.3, cd: b >= 3 ? 0.2 : b >= 1 ? 0.52 : 0.75, dmg: a >= 1 ? 2 : 1, pierce: a >= 2, n: a >= 3 ? 3 : 1 };
+      if (t.type === 'hammer') return { range: b >= 3 ? 2.0 : b >= 1 ? 1.6 : 1.25, cd: b >= 3 ? 0.75 : b >= 2 ? 1.0 : 1.4, dmg: a >= 3 ? 14 : a >= 1 ? 5 : 3, stun: a >= 2 ? 0.5 : 0 };
+      return { range: a >= 2 ? 2.4 : 1.8, slow: a >= 3 ? 0.15 : a >= 1 ? 0.4 : 0.55, zap: b >= 1 ? (b >= 3 ? 0.45 : 0.8) : 0, zapDmg: b >= 3 ? 3 : 1, zapN: b >= 2 ? 3 : 1 };
     }
     function stepTowers(dt) {
-      const live = R.marbles.filter((m) => !m.dead && !hiddenNow(m) && m.st !== 'hop').map((m) => ({ m, pt: marblePos(m) }));
-      for (const m of R.marbles) { m.slowT = 1; m.drain = 0; }
-      for (const [pid, t] of Object.entries(R.towers)) {
-        const pad = G.pads.find((p) => p.id === pid), x = pad.x, y = pad.y, s = tStats(t);
-        const near = live.filter((o) => !o.m.dead && Math.hypot(o.pt[0] - x, o.pt[1] - y) <= s.range + o.m.r);
+      const live = R.marbles.filter((m) => !m.dead).map((m) => ({ m, pt: posOf(m) }));
+      for (const m of R.marbles) m.slow = 1;
+      for (const t of Object.values(R.towers)) {
+        const s = tStats(t), near = live.filter((o) => !o.m.dead && Math.hypot(o.pt[0] - t.x, o.pt[1] - t.y) <= s.range + o.m.r);
         t.cd -= dt; t.kick = Math.max(0, (t.kick || 0) - dt);
+        const order = () => near.sort(t.aim === 'strong' ? (p, q) => q.m.hp - p.m.hp : t.aim === 'last' ? (p, q) => p.m.dist - q.m.dist : (p, q) => q.m.dist - p.m.dist);
         if (t.type === 'magnet') {
-          for (const o of near) { const k = o.m.T.steel ? 1.5 : 1; o.m.slowT = Math.min(o.m.slowT, o.m.T.steel ? s.slow * 0.6 : s.slow); o.m.drain = Math.max(o.m.drain, s.drain * k); }
-          if (s.zap && near.length && t.cd <= 0) { t.cd = s.zap; const o = near.sort((a, b) => b.m.dist - a.m.dist)[0]; hit(o.m, 1, true); R.tracers.push({ x, y, x2: o.pt[0], y2: o.pt[1], t: 0.1, c: '#9fe7ff' }); sfx.zap(); }
+          for (const o of near) o.m.slow = Math.min(o.m.slow, o.m.armor ? s.slow * 0.6 : s.slow);
+          if (s.zap && near.length && t.cd <= 0) { t.cd = s.zap; order(); for (const o of near.slice(0, s.zapN)) { hit(o.m, s.zapDmg, true); R.tracers.push({ x: t.x, y: t.y, x2: o.pt[0], y2: o.pt[1], t: 0.1, c: '#9fe7ff' }); } sfx.zap(); }
           continue;
         }
         if (t.cd > 0 || !near.length) continue;
+        t.cd = s.cd;
         if (t.type === 'pin') {
-          t.cd = s.cd; t.kick = 0.1; near.sort((a, b) => b.m.dist - a.m.dist);
-          for (const o of near.slice(0, s.n)) {
-            R.tracers.push({ x, y, x2: o.pt[0], y2: o.pt[1], t: 0.08, c: '#ffe39a' }); hit(o.m, s.dmg, st.pierceArmor);
-            if (st.ricochet) { const b = live.find((q) => q.m !== o.m && !q.m.dead && Math.hypot(q.pt[0] - o.pt[0], q.pt[1] - o.pt[1]) < 55); if (b) { R.tracers.push({ x: o.pt[0], y: o.pt[1], x2: b.pt[0], y2: b.pt[1], t: 0.08, c: '#ffe39a' }); hit(b.m, s.dmg, st.pierceArmor); } }
-          }
+          t.kick = 0.1; order();
+          for (const o of near.slice(0, s.n)) { R.tracers.push({ x: t.x, y: t.y, x2: o.pt[0], y2: o.pt[1], t: 0.08, c: '#ffe39a' }); hit(o.m, s.dmg, s.pierce); }
           sfx.play('pin') || sfx.tone(1300, 0.03, 'square', 0.025, 0.6);
         } else {
-          t.cd = s.cd; t.kick = 0.18; for (const o of near) hit(o.m, s.dmg, true);
-          fx.ring(x, y, s.range, '#ffcf6e'); sfx.hit();
+          t.kick = 0.18; for (const o of near) { hit(o.m, s.dmg, true); if (s.stun && !o.m.T.boss) o.m.stun = s.stun; }
+          fx.ring(t.x, t.y, s.range, '#ffcf6e'); sfx.hit();
         }
       }
       for (const tr of R.tracers) tr.t -= dt; R.tracers = R.tracers.filter((tr) => tr.t > 0);
     }
 
-    // ---- waves and boards
-    const specFor = (n) => (env.boss && n === LAST ? BOSS_WAVE : WAVES[n - 1]);
-    function nextWave() {
-      const spec = specFor(R.wave + 1); if (!spec) return 'nothing';
-      const txt = spec.g.map(([t, n]) => `${n} ${MARBLES[t].boss ? 'Cannonball' : t}`).join(', ');
-      return txt + (spec.g.some(([t]) => t === 'steel') && !st.hammer && !st.pierceArmor && !st.magnet ? ' (level 1 pins can\'t dent steel)' : '');
+    // ---- waves
+    function preview(n) {
+      const w = WAVES[n - 1]; if (!w) return '';
+      const c = {}; for (const t of w.items) c[t] = (c[t] || 0) + 1;
+      return Object.entries(c).map(([t, k]) => `${k} ${MARBLES[t].name}${k > 1 && !MARBLES[t].boss ? 's' : ''}`).join(', ');
     }
+    const newIn = (n) => [...new Set((WAVES[n - 1] || { items: [] }).items)].filter((t) => !(env.seen && env.seen[t]));
     function sendWave() {
-      if (R.state !== 'build' || run.over) return;
-      R.wave++; R.state = 'wave'; R.waveT = 0; if (R.sel && R.sel.kind === 'peg' && !st.gearsInWave) { R.sel = null; R.sub = null; }
-      const spec = specFor(R.wave);
-      const items = spec.g.flatMap(([type, n]) => Array.from({ length: n }, (_, i) => ({ type, key: (i + 0.5) / n }))).sort((a, b) => a.key - b.key);
-      R.spawnQ = items.map((it, i) => ({ type: it.type, at: i * spec.gap }));
-      say(R.wave === LAST && env.boss ? 'The Cannonball is coming!' : `Wave ${R.wave}`, 1.4); sfx.ding();
+      if (R.state !== 'build' || run.over || R.wave >= WAVES.length) return;
+      R.wave++; R.state = 'wave'; R.waveT = 0;
+      const w = WAVES[R.wave - 1]; R.spawnQ = w.items.map((type, i) => ({ type, at: i * w.gap }));
+      say(R.wave === WAVES.length ? 'Last wave!' : `Wave ${R.wave}`, 1.2); sfx.ding();
     }
     function waveDone() {
-      R.cleared = R.wave; const bonus = 20 + 6 * R.wave; R.brass += bonus; R.state = 'build';
-      fx.text(WW / 2, R.camY + viewH * 0.4, `Wave ${R.wave} held! +${bonus} brass`, '#ffd166', 18); sfx.coin();
-      if (R.wave >= LAST) { run.over = true; R.won = !!env.boss; R.endCause = env.boss ? 'won' : 'held'; return; }
-      if (R.wave === S.waves[1]) return endStage();
-      if (DRAFT_AFTER.includes(R.wave)) draft();
-    }
-    function endStage() { // towers come home at full value; the vault's health carries on to the next board
-      R.stageLives.push(R.lives);
-      for (const t of Object.values(R.towers)) R.brass += t.spent; R.towers = {};
-      if (S.obj === 'sort') { const ok = R.sorted >= S.goal; R.sortBonus += ok ? 12 : 0; say(ok ? `Sorted ${R.sorted} steel! +12 cogs` : `Sorted ${R.sorted}/${S.goal} steel`, 2); }
-      const next = R.stageI + 1;
-      if (DRAFT_AFTER.includes(R.wave)) draft(() => loadStage(next)); else loadStage(next);
-    }
-    function draft(then) {
-      const pool = BOONS.filter((b) => !R.boons[b.id] || ['parts', 'patch', 'chain'].includes(b.id)), opts = [];
-      while (opts.length < st.drafts && pool.length) opts.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
-      env.pick(then ? 'Board cleared! Workshop: pick one' : 'Workshop: pick one', opts.map((b) => ({ icon: b.icon, name: b.name, desc: b.desc })), (i) => { applyBoon(opts[i]); if (then) then(); });
-    }
-    function applyBoon(b) {
-      R.boons[b.id] = (R.boons[b.id] || 0) + 1;
-      if (b.id === 'parts') R.brass += 120;
-      if (b.id === 'patch') { R.lives += 5; R.maxLives = Math.max(R.maxLives, R.lives); }
-      if (b.id === 'boiler') { R.steamMax *= 1.6; R.steam = R.steamMax; }
-      if (b.id === 'chain') R.freeChains += 2;
-      sfx.buy(); panelKey = '';
+      const bonus = 35 + 5 * R.wave; R.brass += bonus; R.state = 'build';
+      fx.text(COLS / 2, ROWS * 0.45, `Wave ${R.wave} held! +${bonus}`, '#ffd166', 0.45); sfx.coin();
+      if (R.wave >= WAVES.length) { run.over = true; run.won = true; }
     }
 
-    // ---- player actions (the panel and the sim bot both use these)
-    const upCost = (t) => Math.round(TOWERS[t.type].up[t.lvl] * st.upgDisc);
-    const buildCost = (type) => (type === 'pin' ? st.pinCost : TOWERS[type].cost);
-    const unlockedT = (type) => type === 'pin' || (type === 'hammer' && st.hammer) || (type === 'magnet' && st.magnet);
-    const gearsLocked = () => R.state === 'wave' && !st.gearsInWave;
-    const gearOk = (p, g) => !g ? !p.motor : pegList().every((q) => !adjacent(p, q) || !q.gear || GEARS[g].n + teeth(q) <= 24);
-    function dropBadChains() { for (const k of [...R.chains]) { const [a, b] = k.split('~').map((i) => G.pegs[i]); if (!chainable(a, b)) R.chains.delete(k); } }
+    // ---- player actions (panel and sim bot)
+    const price = (c) => Math.round(c * D.cost);
+    const buildCost = (type) => price(TOWERS[type].cost);
+    const nextTier = (t, p) => { const n = t.up[p]; if (n >= 3 || (n >= 1 && t.up[1 - p] >= 2)) return null; return TOWERS[t.type].paths[p].tiers[n]; };
+    const freeCell = (c, r) => c >= 0 && r >= 0 && c < COLS && r < ROWS && !G.track.has(key(c, r));
     const act = {
-      build(pid, type) { if (R.towers[pid] || !G.pads.some((p) => p.id === pid) || !unlockedT(type) || R.brass < buildCost(type)) return false; R.brass -= buildCost(type); R.towers[pid] = { type, lvl: 0, cd: 0.3, spent: buildCost(type) }; sfx.buy(); return true; },
-      upgrade(pid) { const t = R.towers[pid]; if (!t || t.lvl >= 2 || R.brass < upCost(t)) return false; const c = upCost(t); R.brass -= c; t.spent += c; t.lvl++; sfx.buy(); const p = G.pads.find((q) => q.id === pid); fx.ring(p.x, p.y, 26, '#ffd166'); return true; },
-      sell(pid) { const t = R.towers[pid]; if (!t) return false; R.brass += Math.floor(t.spent * (R.state === 'build' ? 1 : 0.7)); delete R.towers[pid]; sfx.coin(); return true; },
-      gear(id, g) { const p = G.pegs[id]; if (!p || gearsLocked() || !gearOk(p, g)) return false; p.gear = g || null; dropBadChains(); drive(); sfx.play('clunk') || sfx.tone(160, 0.08, 'square', 0.06); return true; },
-      turn(id) { const p = G.pegs[id]; if (!p || !p.plate || gearsLocked()) return false; p.plate.rot = (p.plate.rot + 1) % 4; sfx.play('clunk') || sfx.tone(200, 0.06, 'square', 0.05); return true; },
-      chain(id, other) {
-        const a = G.pegs[id], b = G.pegs[other]; if (!a || !b || gearsLocked()) return false; const k = chainKey(a, b);
-        if (R.chains.has(k)) { R.chains.delete(k); drive(); return true; }
-        if (!chainable(a, b)) return false;
-        const cost = R.freeChains > 0 ? 0 : st.chainCost; if (R.brass < cost) return false;
-        R.brass -= cost; if (!cost) R.freeChains--; R.chains.add(k); drive(); sfx.buy(); return true;
-      },
-      flip(id, mode) { const n = G.N[id]; if (!n || n.t !== 'sw') return false; n.mode = mode; if (mode !== 'alt') n.next = mode; n.flick = 0.25; sfx.play('flip', 0.6) || sfx.play('clunk', 0.5) || sfx.tone(240, 0.05, 'square', 0.05); return true; },
+      build(c, r, type) { const k = key(c, r); if (!freeCell(c, r) || R.towers[k] || !L.towers.includes(type) || R.brass < buildCost(type)) return false; R.brass -= buildCost(type); R.towers[k] = { type, c, r, x: c + 0.5, y: r + 0.5, up: [0, 0], cd: 0.2, spent: buildCost(type), aim: 'first' }; sfx.buy(); return true; },
+      upgrade(k, p) { const t = R.towers[k]; if (!t) return false; const nt = nextTier(t, p); if (!nt || R.brass < price(nt[1])) return false; R.brass -= price(nt[1]); t.spent += price(nt[1]); t.up[p]++; sfx.buy(); fx.ring(t.x, t.y, 0.6, '#ffd166'); return true; },
+      sell(k) { const t = R.towers[k]; if (!t) return false; R.brass += Math.floor(t.spent * 0.7); delete R.towers[k]; sfx.coin(); return true; },
+      aim(k) { const t = R.towers[k]; if (!t) return false; t.aim = { first: 'last', last: 'strong', strong: 'first' }[t.aim]; return true; },
       send: sendWave,
-      hold(on) { R.holdOn = !!on; },
-      speed() { R.speed = R.speed === 1 ? 2 : 1; },
+      speed() { R.speed = R.speed === 1 ? 2 : R.speed === 2 ? 3 : 1; },
     };
-    run.act = act; run.TOWERS = TOWERS; run.buildCost = buildCost; run.upCost = upCost;
+    run.act = act; run.buildCost = buildCost; run.nextTier = nextTier; run.price = price; run.tStats = tStats; run.preview = preview; run.newIn = newIn; run.posOf = posOf; run.freeCell = freeCell;
     function say(s, t = 1.5) { R.msg = s; R.msgT = t; }
-
-    // ---- input: drag pans a tall board; a tap (no drag) picks a pad, a switch, a gear peg or a turntable
-    let drag = null;
-    const toW = (x, y) => [(x - offX) / sc, (y - TOP) / sc + R.camY];
-    const miniOn = () => maxCam > 0;
-    function tap(x, y) {
-      if (y < TOP || y > TOP + VIEWPX) return;
-      const [wx, wy] = toW(x, y), hit = (px, py, r) => Math.hypot(px - wx, py - wy) < r;
-      let best = null, bd = 22 / sc + 4;
-      for (const p of G.pads) { const d = Math.hypot(p.x - wx, p.y - wy); if (d < bd) { bd = d; best = p; } }
-      if (best) { R.sel = { kind: 'pad', id: best.id }; R.sub = null; sfx.pop(1.3); return; }
-      const sw = Object.values(G.N).find((n) => n.t === 'sw' && hit(n.x, n.y, 24));
-      if (sw) { if (R.sel && R.sel.id === sw.id) act.flip(sw.id, sw.mode === 'alt' ? 1 - sw.next : 1 - sw.mode); R.sel = { kind: 'sw', id: sw.id }; R.sub = null; sfx.pop(1.2); return; }
-      const peg = pegList().find((p) => (p.plate ? hit(p.x, p.y, p.plate.R + 4) : hit(p.x, p.y, Math.max(16, teeth(p) * PITCH / 24))));
-      if (peg) { R.sel = { kind: 'peg', id: peg.id }; R.sub = null; sfx.pop(1.1); return; }
-      R.sel = null; R.sub = null;
-    }
-    function handleInput(input) {
-      if (input.taps.length) {
-        const t = input.taps[0];
-        if (miniOn() && t.x > W - 22 && t.y > TOP && t.y < TOP + VIEWPX) { R.camY = Math.max(0, Math.min(maxCam, (t.y - TOP) / VIEWPX * S.H - viewH / 2)); drag = null; }
-        else drag = { x0: t.x, y0: t.y, cam0: R.camY, moved: false };
-      }
-      if (drag && input.down) {
-        const dx = input.x - drag.x0, dy = input.y - drag.y0;
-        if (!drag.moved && Math.hypot(dx, dy) > 10 && maxCam > 0) drag.moved = true;
-        if (drag.moved) R.camY = Math.max(0, Math.min(maxCam, drag.cam0 - dy / sc));
-      }
-      if (drag && (input.released || !input.down)) { if (!drag.moved) tap(drag.x0, drag.y0); drag = null; }
-    }
 
     function step(dt) {
       run.t += dt;
-      R.holding = R.holdOn && R.steam > 0.02 && R.state === 'wave';
-      if (R.holding) R.steam = Math.max(0, R.steam - dt); else R.steam = Math.min(R.steamMax, R.steam + dt * R.steamMax / 16);
-      if (!R.holding && !R.jam) {
-        C.t += dt;
-        while (C.t >= PERIOD) { C.t -= PERIOD; C.k++; }
-        const wasMoving = C.e > 0; C.e = C.t < DWELL ? 0 : ease((C.t - DWELL) / MOVE);
-        if (wasMoving && C.e === 0 && G.plates.some((p) => p.peg.dir)) sfx.play('tick', 0.35) || sfx.tone(1900, 0.02, 'square', 0.012);
-      }
       for (const n of Object.values(G.N)) if (n.flick) n.flick = Math.max(0, n.flick - dt);
-      if (R.state === 'wave') {
-        R.waveT += dt;
-        while (R.spawnQ.length && R.spawnQ[0].at <= R.waveT) addMarble(R.spawnQ.shift().type);
-      }
+      if (R.state === 'wave') { R.waveT += dt; while (R.spawnQ.length && R.spawnQ[0].at <= R.waveT) addMarble(R.spawnQ.shift().type); }
       stepMarbles(dt); stepTowers(dt);
       R.marbles = R.marbles.filter((m) => !m.dead);
       if (R.boss && R.boss.dead) R.boss = null;
       if (R.state === 'wave' && !R.spawnQ.length && !R.marbles.length && !run.over) waveDone();
       R.flash = Math.max(0, R.flash - dt); R.msgT -= dt;
     }
-
-    run.update = function (dt, input) {
-      handleInput(input);
-      const n = R.speed; for (let i = 0; i < n; i++) step(dt);
-      fx.update(dt);
-      panel();
-    };
-    run.quit = () => { R.endCause = 'quit'; };
-    run.result = function () {
-      const cogs = Array.from({ length: R.cleared }, (_, i) => 2 + (i + 1)).reduce((a, b) => a + b, 0) + Math.floor(R.pops / 12) + R.sortBonus + (R.won ? 40 : 0);
-      const lines = [`You held ${R.cleared} of ${LAST} waves and smashed or caught ${R.pops} marbles.`];
-      if (!R.won) lines.push(R.endCause === 'held' ? 'The machine held all the way down! Ring the Cannon Bell in the workshop to face the boss.'
-        : R.endCause === 'quit' ? 'You left the workshop early.' : R.endCause || 'The vault broke.');
-      if (R.clogs) lines.push(`${R.clogs} marble${R.clogs > 1 ? 's' : ''} clogged the furnace. Flip the switch to keep them on the fast lane.`);
-      else if (!R.won && R.cleared < 6 && !st.hammer) lines.push('Tip: Hammer Plans unlock a tower that crushes steel.');
-      else if (!R.won) lines.push('Tip: change a turntable\'s gear to change where its marbles go. Watch which exit lights up.');
-      return { earned: { cogs }, won: !!R.won, title: R.endCause === 'held' ? 'The machine held!' : undefined, lines, score: R.cleared };
-    };
-    loadStage(0);
-    run.loadStage = loadStage; run.marblePos = marblePos; run.portDir = portDir;
-
-    // ---------------------------------------------------------------- the bottom panel (DOM, rebuilt only when it changes)
-    const ARROWS = ['→', '↘', '↓', '↙', '←', '↖', '↑', '↗'];
-    const arrowTo = (a, b) => ARROWS[mod(Math.round(Math.atan2(b.y - a.y, b.x - a.x) / (Math.PI / 4)), 8)];
-    if (env.ui) {
-      env.ui.innerHTML = '<div class="cm"><div class="cm-panel" id="cm-panel"></div><div class="cm-bar"><button type="button" id="cm-hold">HOLD</button><button type="button" id="cm-go">Send wave 1 ▶</button></div></div>';
-      root = env.ui;
-      const hb = root.querySelector('#cm-hold');
-      const on = (e) => { e.preventDefault(); act.hold(true); hb.classList.add('on'); };
-      const off = () => { act.hold(false); hb.classList.remove('on'); };
-      hb.addEventListener('pointerdown', on); for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) hb.addEventListener(ev, off);
-      hb.addEventListener('click', (e) => { if (e.detail === 0 && !R.holdOn) { act.hold(true); setTimeout(off, 600); } }); // keyboard/scripted clicks hold briefly (the fuzzer reaches it); real presses use pointer events
-      root.addEventListener('click', (e) => {
-        const b = e.target.closest('button[data-a]'); if (!b) return;
-        const [a, x, y] = b.dataset.a.split(':'); const sel = R.sel;
-        const need = { build: 'pad', up: 'pad', sell: 'pad', gear: 'peg', turn: 'peg', chain: 'peg', chains: 'peg', flip: 'sw' }[a];
-        if (need && !(sel && sel.kind === need && G.N && (need !== 'peg' || G.pegs[sel.id]) && (need !== 'pad' || G.pads.some((p) => p.id === sel.id)))) { panelKey = ''; return panel(); } // a stale button from a moment ago
-        if (a === 'go') { if (R.state === 'build') act.send(); else act.speed(); }
-        else if (a === 'build') { if (!act.build(sel.id, x)) sfx.nope(); }
-        else if (a === 'up') { if (!act.upgrade(sel.id)) sfx.nope(); }
-        else if (a === 'sell') act.sell(sel.id);
-        else if (a === 'gear') { if (!act.gear(sel.id, x === '-' ? null : x)) sfx.nope(); }
-        else if (a === 'turn') act.turn(sel.id);
-        else if (a === 'chains') R.sub = R.sub === 'chain' ? null : 'chain';
-        else if (a === 'chain') { if (!act.chain(sel.id, x)) sfx.nope(); }
-        else if (a === 'flip') act.flip(sel.id, x === 'alt' ? 'alt' : +x);
-        else if (a === 'close') { R.sel = null; R.sub = null; }
-        panelKey = ''; panel();
-      });
-      root.querySelector('#cm-go').dataset.a = 'go';
-    }
-    function panel() {
-      if (!root) return;
-      const s = R.sel, t = s && s.kind === 'pad' ? R.towers[s.id] : null, b = Math.floor(R.brass);
-      const goTxt = R.state === 'build' ? `Send wave ${R.wave + 1} ▶` : R.speed === 1 ? '▶▶ Go faster' : '▶ Normal speed';
-      const hold = root.querySelector('#cm-hold');
-      hold.style.setProperty('--steam', `${Math.round(100 * R.steam / R.steamMax)}%`);
-      const afford = [...Object.keys(TOWERS).map((k) => b >= buildCost(k)), t && t.lvl < 2 && b >= upCost(t), b >= st.chainCost]; // not the brass itself: a rebuild mid-press would swallow the tap
-      const left = root.querySelector('#cm-left'); if (left) left.textContent = R.spawnQ.length + R.marbles.length;
-      const swn = s && s.kind === 'sw' ? G.N[s.id] : null;
-      const key = JSON.stringify([s, R.sub, R.stageI, t && t.lvl, afford, R.state, R.wave, R.speed, R.jam, R.freeChains, swn && swn.mode, s && s.kind === 'peg' && pegList().map((p) => p.gear + (p.plate ? p.plate.rot : '')).join(''), [...R.chains].join()]);
-      if (key === panelKey) return; panelKey = key;
-      const go = root.querySelector('#cm-go'); go.textContent = goTxt; go.classList.toggle('fast', R.state !== 'build');
-      hold.textContent = R.state === 'build' ? 'HOLD (in waves)' : 'HOLD';
-      let msg = '', row = '';
-      if (!s) {
-        const first = R.wave === S.waves[0] - 1;
-        msg = R.jam ? '<b>Jammed!</b> A chain makes two gears fight, so nothing turns. Tap a gear to fix its chain.'
-          : R.state === 'build' ? (first ? S.intro : 'Build, change gears, flip switches.') + ` Next: <b>${nextWave()}</b>.`
-            : `Wave ${R.wave}: <b id="cm-left">${R.spawnQ.length + R.marbles.length}</b> left. ${S.obj === 'sort' ? 'Tap the switch to flip it: steel left, the rest right.' : Object.values(G.N).some((n) => n.t === 'sw') ? 'Tap a switch to flip it.' : 'Watch where the turntable sends them.'} Hold <b>HOLD</b> to stop the machine.`;
-      } else if (s.kind === 'pad' && !t) {
-        msg = 'Build a tower here.';
-        row = Object.entries(TOWERS).map(([k, T]) => unlockedT(k) ? `<button type="button" data-a="build:${k}" ${b >= buildCost(k) ? '' : 'disabled'}>${T.icon} ${T.name}<small>${buildCost(k)} brass</small></button>`
-          : `<button type="button" disabled>${T.icon} ${T.name}<small>Plans needed</small></button>`).join('');
-      } else if (s.kind === 'pad') {
-        const T = TOWERS[t.type], back = Math.floor(t.spent * (R.state === 'build' ? 1 : 0.7));
-        msg = `<b>${T.name} · Lv ${t.lvl + 1}</b>: ${T.lv[t.lvl]}. ${t.lvl < 2 ? `Next: ${T.lv[t.lvl + 1]}.` : T.blurb}`;
-        row = `<button type="button" data-a="up" ${t.lvl < 2 && b >= upCost(t) ? '' : 'disabled'}>${t.lvl < 2 ? `Upgrade<small>${upCost(t)} brass</small>` : 'Max level<small>&nbsp;</small>'}</button>
-          <button type="button" data-a="sell">Sell<small>+${back} brass</small></button><button type="button" data-a="close">Done<small>&nbsp;</small></button>`;
-      } else if (swn) {
-        const dirOf = (i) => { const e = G.E[swn.outs[i]], p = e.pts[Math.min(e.pts.length - 1, 12)]; return p[0] < swn.x ? 'left' : 'right'; };
-        msg = `<b>Switch</b>: ${swn.mode === 'alt' ? 'sends marbles left and right in turn' : `sends every marble ${dirOf(swn.mode)}`}. Tap it again on the board to flip it. Works mid-wave.`;
-        row = `<button type="button" class="${swn.mode === 'alt' ? 'on' : ''}" data-a="flip:alt">⇄ Take turns<small>&nbsp;</small></button>`
-          + [0, 1].map((i) => `<button type="button" class="${swn.mode === i ? 'on' : ''}" data-a="flip:${i}">${dirOf(i) === 'left' ? '↙' : '↘'} All ${dirOf(i)}<small>&nbsp;</small></button>`).join('')
-          + '<button type="button" data-a="close">Done<small>&nbsp;</small></button>';
-      } else {
-        const p = G.pegs[s.id], lock = gearsLocked(), G0 = p.gear && GEARS[p.gear];
-        const turning = p.dir ? (p.dir > 0 ? 'clockwise' : 'anticlockwise') : R.jam ? 'jammed' : p.gear ? '<b>not driven</b>' : 'empty';
-        if (R.sub === 'chain') {
-          const others = pegList().filter((q) => q !== p && dist(p, q) <= PITCH * 3.4 + 1 && !meshes(p, q));
-          msg = `<b>Chains</b> make two gears turn the <b>same</b> way. A chain that fights a mesh jams the machine.${lock ? ' Locked during a wave.' : ''}`;
-          row = others.slice(0, 3).map((q) => { const has = R.chains.has(chainKey(p, q)), ok = chainable(p, q);
-            return `<button type="button" data-a="chain:${q.id}" ${lock || (!has && (!ok || (R.freeChains <= 0 && b < st.chainCost))) ? 'disabled' : ''}>${has ? 'Unchain' : 'Chain'} ${arrowTo(p, q)}<small>${has ? 'remove' : !ok ? 'no gear' : R.freeChains > 0 ? 'free' : st.chainCost + ' brass'}</small></button>`; }).join('')
-            + '<button type="button" data-a="chains">Back<small>&nbsp;</small></button>';
-        } else {
-          msg = (p.plate ? `<b>Turntable</b> on a ${G0 ? G0.name.toLowerCase() + ' gear' : 'bare peg (it stays still)'}` : `<b>${G0 ? G0.name + ' gear' : 'Empty peg'}</b>${p.motor ? ' (motor)' : ''}`)
-            + `, ${turning}${G0 ? ', ' + G0.speed : ''}. ` + (lock ? 'Gears are locked during a wave.' : 'Touching gears must fit: S+L or M+M.');
-          row = ['S', 'M', 'L'].map((g) => `<button type="button" class="${p.gear === g ? 'on' : ''}" data-a="gear:${g}" ${lock || !gearOk(p, g) ? 'disabled' : ''}>${g}<small>${GEARS[g].n} teeth</small></button>`).join('')
-            + (p.motor ? '' : `<button type="button" class="${p.gear ? '' : 'on'}" data-a="gear:-" ${lock ? 'disabled' : ''}>✕<small>none</small></button>`)
-            + (p.plate && (!p.gear || ['elbow', 'twin'].includes(p.plate.pat)) ? `<button type="button" data-a="turn" ${lock ? 'disabled' : ''}>↻<small>turn</small></button>` : '')
-            + `<button type="button" data-a="chains">⛓<small>chain</small></button>`;
-        }
-      }
-      root.querySelector('#cm-panel').innerHTML = `<p class="cm-msg">${msg}</p><div class="cm-row">${row}</div>`;
-    }
-    panel();
-
-    // ---------------------------------------------------------------- drawing (world units inside the camera transform)
-    function drawGear(g, p) {
-      const n = teeth(p), r = n * PITCH / 24, a0 = p.dir * (C.k + C.e) * GEARS[p.gear].stepU * U, tooth = Math.min(6, r * 0.2);
-      g.save(); g.translate(p.x, p.y); g.rotate(a0);
-      g.fillStyle = p.dir ? '#8a6d3b' : '#5e5040'; g.beginPath();
-      for (let i = 0; i < n; i++) { const a = i * TAU / n, w = TAU / n / 4;
-        g.lineTo(Math.cos(a - w * 1.6) * (r - tooth), Math.sin(a - w * 1.6) * (r - tooth)); g.lineTo(Math.cos(a - w) * r, Math.sin(a - w) * r); g.lineTo(Math.cos(a + w) * r, Math.sin(a + w) * r); g.lineTo(Math.cos(a + w * 1.6) * (r - tooth), Math.sin(a + w * 1.6) * (r - tooth)); }
-      g.closePath(); g.fill(); g.strokeStyle = '#00000080'; g.lineWidth = 1.5; g.stroke();
-      g.fillStyle = '#2b1f14'; g.beginPath(); g.arc(0, 0, r * 0.3, 0, TAU); g.fill();
-      g.strokeStyle = '#2b1f14'; g.lineWidth = 2; for (let i = 0; i < 3; i++) { const a = i * TAU / 3; g.beginPath(); g.moveTo(Math.cos(a) * r * 0.3, Math.sin(a) * r * 0.3); g.lineTo(Math.cos(a) * (r - tooth), Math.sin(a) * (r - tooth)); g.stroke(); }
-      g.restore();
-      if (p.motor) { g.fillStyle = '#c0392b'; g.beginPath(); g.arc(p.x, p.y, 5, 0, TAU); g.fill(); }
-    }
-    function drawChain(g, a, b) {
-      const ra = teeth(a) * PITCH / 24 * 0.82, rb = teeth(b) * PITCH / 24 * 0.82, dx = b.x - a.x, dy = b.y - a.y, l = Math.hypot(dx, dy), nx = -dy / l, ny = dx / l;
-      g.save(); g.strokeStyle = '#c7ccd4cc'; g.lineWidth = 3.5; g.setLineDash([5, 3]); g.lineDashOffset = -(C.k + C.e) * 8 * (a.dir || 0);
-      for (const s of [1, -1]) { g.beginPath(); g.moveTo(a.x + nx * ra * s, a.y + ny * ra * s); g.lineTo(b.x + nx * rb * s, b.y + ny * rb * s); g.stroke(); }
-      g.restore();
-    }
-    const path = (g, pts) => { g.beginPath(); pts.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y))); };
-    function drawTrack(g, e) {
-      g.lineCap = 'round'; g.lineJoin = 'round';
-      if (e.hidden) { // a tunnel: a covered tube
-        path(g, e.pts); g.strokeStyle = '#1a120b'; g.lineWidth = 15; g.stroke();
-        path(g, e.pts); g.strokeStyle = '#4a3a2a'; g.lineWidth = 11; g.stroke();
-        g.setLineDash([2, 7]); path(g, e.pts); g.strokeStyle = '#2b1f14'; g.lineWidth = 11; g.stroke(); g.setLineDash([]);
-        return;
-      }
-      if (e.fail) { g.setLineDash([4, 5]); path(g, e.pts); g.strokeStyle = '#ffffff40'; g.lineWidth = 3; g.stroke(); g.setLineDash([]); return; }
-      const rail = e.curl ? '#d9c08a' : e.vt >= SPD.fast ? '#cfa55e' : e.vt <= SPD.slow ? '#9b7b4a' : '#b8904f';
-      path(g, e.pts); g.strokeStyle = '#1b130b'; g.lineWidth = e.curl ? 15 : 14; g.stroke();
-      path(g, e.pts); g.strokeStyle = rail; g.lineWidth = 10; g.stroke();
-      path(g, e.pts); g.strokeStyle = '#3b2a17'; g.lineWidth = 5; g.stroke();
-      if (e.vt >= SPD.fast && !e.curl) { // downhill: chevrons point the way
-        g.strokeStyle = '#ffe9b066'; g.lineWidth = 1.6;
-        for (let s = 18; s < e.len - 10; s += 34) { const a = at(e, s), b = at(e, s + 4), dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy) || 1, ux = dx / l, uy = dy / l;
-          g.beginPath(); g.moveTo(a[0] - uy * 3 - ux * 3, a[1] + ux * 3 - uy * 3); g.lineTo(a[0], a[1]); g.lineTo(a[0] + uy * 3 - ux * 3, a[1] - ux * 3 - uy * 3); g.stroke(); }
-      }
-    }
-    function drawPlate(g, p) {
-      const sel = R.sel && R.sel.kind === 'peg' && R.sel.id === p.peg.id, RP = p.R;
-      g.save(); g.translate(p.x, p.y);
-      g.fillStyle = '#00000060'; g.beginPath(); g.arc(3, 5, RP, 0, TAU); g.fill();
-      g.rotate(theta(p));
-      if (!env.sprite(g, 'obj-plate', 0, 0, RP * 2.04, RP * 2.04)) {
-        const gr = g.createRadialGradient(-RP * 0.3, -RP * 0.3, RP * 0.1, 0, 0, RP); gr.addColorStop(0, '#e2c48d'); gr.addColorStop(1, '#a8834b');
-        g.fillStyle = gr; g.beginPath(); g.arc(0, 0, RP, 0, TAU); g.fill();
-      }
-      g.strokeStyle = sel ? '#ffe08a' : '#5d4423'; g.lineWidth = sel ? 4 : 2.5; g.beginPath(); g.arc(0, 0, RP - 1, 0, TAU); g.stroke();
-      g.lineCap = 'round'; g.lineJoin = 'round';
-      for (const [w, c] of [[0.3, '#3d2a14'], [0.2, '#1e140a']]) {
-        g.strokeStyle = c; g.lineWidth = RP * w;
-        for (const gr of p.grooves) { g.beginPath(); gr.pts.forEach(([x, y], i) => (i ? g.lineTo(x * RP, y * RP) : g.moveTo(x * RP, y * RP))); g.stroke(); }
-      }
-      g.restore();
-      // the hub: the gear underneath (letter) and which way it turns
-      const peg = p.peg;
-      g.save(); g.translate(p.x, p.y);
-      g.fillStyle = '#2b1f14'; g.beginPath(); g.arc(0, 0, 11, 0, TAU); g.fill(); g.strokeStyle = '#c9a24a'; g.lineWidth = 2; g.stroke();
-      g.fillStyle = '#f5dfb0'; g.font = '800 12px Nunito, system-ui'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(peg.gear || '·', 0, 0.5);
-      if (peg.dir) { g.strokeStyle = '#f5dfb0aa'; g.lineWidth = 2; g.beginPath(); const a = -Math.PI / 2; g.arc(0, 0, 16, a - 0.8 * peg.dir, a + 0.8 * peg.dir, peg.dir < 0); g.stroke();
-        const e = a + 0.8 * peg.dir; g.fillStyle = '#f5dfb0aa'; g.beginPath(); g.arc(Math.cos(e) * 16, Math.sin(e) * 16, 2.5, 0, TAU); g.fill(); }
-      g.restore();
-      // ports: a light at every exit; green when a groove end faces it right now; the exit's name beside it
-      for (const port of Object.values(p.ports)) {
-        const [x, y] = portPt(p, port.d), o = rim(port.d), open = !!receiving(p, port.d) && !R.holding;
-        g.fillStyle = open ? (port.out ? '#7ee08a' : '#ffe08a') : '#00000099'; g.beginPath(); g.arc(x + o[0] * 7, y + o[1] * 7, open ? 4.5 : 3, 0, TAU); g.fill();
-        if (port.out) { g.fillStyle = '#f5dfb0cc'; g.font = '700 9px Nunito, system-ui'; g.textAlign = o[0] > 0.5 ? 'left' : o[0] < -0.5 ? 'right' : 'center'; g.textBaseline = 'middle';
-          g.fillText(port.label, x + o[0] * 14 + (o[0] ? 0 : 22), y + o[1] * 14); }
-      }
-    }
-    function drawNode(g, n) {
-      if (n.t === 'entry') { g.fillStyle = '#1b130b'; g.beginPath(); g.moveTo(n.x - 18, n.y + 10); g.lineTo(n.x + 18, n.y + 10); g.lineTo(n.x + 7, n.y + 34); g.lineTo(n.x - 7, n.y + 34); g.fill(); }
-      else if (n.t === 'sw') {
-        const sel = R.sel && R.sel.id === n.id, nx = n.mode === 'alt' ? n.next : n.mode, e = G.E[n.outs[nx]], p = e.pts[Math.min(e.pts.length - 1, 8)];
-        if (!env.sprite(g, 'obj-switch', n.x, n.y, 30, 30)) { g.fillStyle = '#3d6e8f'; g.beginPath(); g.arc(n.x, n.y, 12, 0, TAU); g.fill(); }
-        g.strokeStyle = sel ? '#ffe08a' : '#f5dfb0'; g.lineWidth = sel ? 3 : 2; g.beginPath(); g.arc(n.x, n.y, 13, 0, TAU); g.stroke();
-        const a = Math.atan2(p[1] - n.y, p[0] - n.x); g.save(); g.translate(n.x, n.y); g.rotate(a + (n.flick ? Math.sin(n.flick * 40) * 0.2 : 0));
-        g.fillStyle = '#fff'; g.strokeStyle = '#2b1f14'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(9, 0); g.lineTo(-4, -6); g.lineTo(-4, 6); g.closePath(); g.stroke(); g.fill(); g.restore();
-        if (n.mode !== 'alt') { g.fillStyle = '#ffe08a'; g.font = '800 9px Nunito, system-ui'; g.textAlign = 'center'; g.fillText('LOCK', n.x, n.y - 18); }
-      } else if (n.t === 'cannon') {
-        if (!env.sprite(g, 'obj-cannon', n.x, n.y, 34, 34)) { g.fillStyle = '#6b3d8f'; g.fillRect(n.x - 13, n.y - 9, 26, 18); g.strokeStyle = '#f5dfb0'; g.lineWidth = 2; g.strokeRect(n.x - 13, n.y - 9, 26, 18);
-          g.fillStyle = '#fff'; g.font = '800 12px Nunito, system-ui'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('»', n.x, n.y + 1); }
-        if (n.flick) { g.fillStyle = '#9fe7ff66'; g.beginPath(); g.arc(n.x, n.y, 18, 0, TAU); g.fill(); }
-        g.textAlign = 'center'; g.textBaseline = 'middle';
-        g.fillStyle = '#f5dfb0cc'; g.font = '700 9px Nunito, system-ui'; g.fillText('cannon', n.x - 34, n.y);
-      } else if (n.t === 'loop') {
-        g.fillStyle = '#f5dfb0cc'; g.font = '700 9px Nunito, system-ui'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('loop', n.x + n.side * 18, n.y - 26); const f = G.E[n.fail].pts[Math.floor(G.E[n.fail].pts.length / 2)]; g.fillStyle = '#9fe7ffaa'; g.fillText('too slow ↓', f[0], f[1] - 9);
-      } else if (n.t === 'bin') {
-        if (!env.sprite(g, 'obj-bin', n.x, n.y, 36, 36)) { g.fillStyle = '#2b1f14'; g.beginPath(); g.arc(n.x, n.y, 15, 0, TAU); g.fill(); g.strokeStyle = '#b8904f'; g.lineWidth = 3; g.stroke(); }
-        g.fillStyle = '#f5dfb0cc'; g.font = '700 9px Nunito, system-ui'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('catch', n.x, n.y + 24);
-      } else if (n.t === 'furnace') {
-        const gl = g.createRadialGradient(n.x, n.y, 4, n.x, n.y, 30); gl.addColorStop(0, '#ffd166'); gl.addColorStop(0.5, '#e8662e'); gl.addColorStop(1, '#3a1a0b');
-        if (!env.sprite(g, 'obj-furnace', n.x, n.y, 64, 64)) { g.fillStyle = gl; g.beginPath(); g.arc(n.x, n.y, 26, 0, TAU); g.fill(); g.strokeStyle = '#1b130b'; g.lineWidth = 4; g.stroke(); }
-        g.fillStyle = '#000000a0'; g.beginPath(); g.arc(n.x, n.y, 15, 0, TAU); g.fill();
-        g.fillStyle = '#fff'; g.font = '400 13px "Lilita One", system-ui'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(`${R.sorted}/${S.goal}`, n.x, n.y + 1);
-        g.fillStyle = '#ffd9a8'; g.font = '700 9px Nunito, system-ui'; g.fillText('FURNACE: steel only', n.x, n.y + 36);
-      } else if (n.t === 'vault') {
-        const art = env.sprite(g, 'obj-vault', n.x, n.y, 84, 84);
-        if (!art) { g.fillStyle = R.flash > 0 ? '#c0392b' : '#4a5560'; g.fillRect(n.x - 50, n.y - 14, 100, 28); g.strokeStyle = '#c9d1d9'; g.lineWidth = 2; g.strokeRect(n.x - 50, n.y - 14, 100, 28); }
-        g.textAlign = 'left'; g.textBaseline = 'middle'; g.font = '400 15px "Lilita One", system-ui';
-        g.fillStyle = '#000000a0'; g.fillRect(n.x + 40, n.y - 12, 84, 24); g.fillStyle = R.flash > 0 ? '#ff6b6b' : '#fff'; g.fillText(`VAULT ♥ ${R.lives}`, n.x + 46, n.y + 1);
-      }
-    }
-    function drawTower(g, t, x, y) {
-      const T = t.type, r = 12, kick = t.kick ? 1 + t.kick * 1.5 : 1;
-      const sel = R.sel && R.sel.kind === 'pad' && R.towers[R.sel.id] === t;
-      if (sel) { const s = tStats(t); g.fillStyle = '#ffe08a22'; g.strokeStyle = '#ffe08a88'; g.lineWidth = 1.5; g.beginPath(); g.arc(x, y, s.range, 0, TAU); g.fill(); g.stroke(); }
-      if (env.sprite(g, 'tower-' + T, x, y, r * 2.6 * kick)) return lvlPips(g, t, x, y, r);
-      g.save(); g.translate(x, y); g.scale(kick, kick);
-      g.fillStyle = '#00000066'; g.beginPath(); g.arc(1.5, 2.5, r, 0, TAU); g.fill();
-      g.fillStyle = T === 'pin' ? '#3d6e8f' : T === 'hammer' ? '#8f4b2e' : '#6b3d8f'; g.beginPath(); g.arc(0, 0, r, 0, TAU); g.fill();
-      g.strokeStyle = '#f5dfb0'; g.lineWidth = 2; g.stroke();
-      g.font = '13px system-ui'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(TOWERS[T].icon, 0, 1);
-      g.restore(); lvlPips(g, t, x, y, r);
-    }
-    function lvlPips(g, t, x, y, r) { for (let i = 0; i <= t.lvl; i++) { g.fillStyle = '#ffd166'; g.beginPath(); g.arc(x - (t.lvl * 4) + i * 8, y + r + 4, 2.4, 0, TAU); g.fill(); } return true; }
-    function drawMarble(g, m) {
-      const [x, y] = marblePos(m), r = m.r, T = m.T;
-      if (hiddenNow(m)) { g.fillStyle = '#00000060'; g.beginPath(); g.arc(x, y, r * 0.8, 0, TAU); g.fill(); return; } // in a tunnel: a shadow under the cover
-      if (m.st === 'track' && m.v > 140) { const e = G.E[m.e], b = at(e, Math.max(0, m.s - m.v * 0.08)); g.strokeStyle = T.col + '66'; g.lineWidth = r * 1.4; g.lineCap = 'round'; g.beginPath(); g.moveTo(b[0], b[1]); g.lineTo(x, y); g.stroke(); }
-      if (!env.sprite(g, 'mar-' + m.type, x, y, r * 2.3)) {
-        const gr = g.createRadialGradient(x - r * 0.35, y - r * 0.4, r * 0.1, x, y, r); gr.addColorStop(0, T.hi); gr.addColorStop(1, T.col);
-        g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, TAU); g.fill(); g.strokeStyle = '#00000055'; g.lineWidth = 1; g.stroke();
-      }
-      if (m.flash > 0) { g.fillStyle = '#ffffffaa'; g.beginPath(); g.arc(x, y, r, 0, TAU); g.fill(); }
-      const waiting = m.st === 'held' || (m.st === 'track' && G.E[m.e].port && m.s >= G.E[m.e].len - 0.5);
-      if (waiting) { const left = latchOf(m) - m.wait; if (left < 1.2) { g.strokeStyle = '#ff6b6b'; g.lineWidth = 2; g.beginPath(); g.arc(x, y, r + 3, -Math.PI / 2, -Math.PI / 2 + TAU * Math.min(1, (1.2 - left) / 1.2)); g.stroke(); } } // about to jump
-      if (m.hp < m.max && !T.boss) { g.fillStyle = '#000a'; g.fillRect(x - r, y - r - 5, r * 2, 3); g.fillStyle = '#7ee08a'; g.fillRect(x - r, y - r - 5, r * 2 * m.hp / m.max, 3); }
-    }
-    function drawWorld(g) {
-      const pegs = pegList();
-      for (const p of pegs) { g.fillStyle = '#00000070'; g.beginPath(); g.arc(p.x, p.y, 4, 0, TAU); g.fill(); }
-      for (const p of pegs) if (p.gear) drawGear(g, p);
-      for (const e of G.E) if (e.hidden) drawTrack(g, e);
-      for (const e of G.E) if (!e.hidden && !e.curl) drawTrack(g, e);
-      for (const e of G.E) if (e.curl) drawTrack(g, e);
-      for (const p of G.plates) drawPlate(g, p);
-      for (const k of R.chains) { const [a, b] = k.split('~').map((i) => G.pegs[i]); drawChain(g, a, b); }
-      for (const p of pegs) if (!p.plate && R.sel && R.sel.kind === 'peg' && R.sel.id === p.id) { g.strokeStyle = '#ffe08a'; g.lineWidth = 3; g.beginPath(); g.arc(p.x, p.y, Math.max(14, teeth(p) * PITCH / 24) + 3, 0, TAU); g.stroke(); }
-      if (R.jam && R.jamAt) { const [a, b] = R.jamAt; g.strokeStyle = '#ff6b6b'; g.lineWidth = 3; g.setLineDash([4, 4]); g.beginPath(); g.moveTo(a.x, a.y); g.lineTo(b.x, b.y); g.stroke(); g.setLineDash([]); }
-      for (const n of Object.values(G.N)) drawNode(g, n);
-      for (const p of G.pads) if (!R.towers[p.id]) {
-        const sel = R.sel && R.sel.kind === 'pad' && R.sel.id === p.id;
-        g.strokeStyle = sel ? '#ffe08a' : '#f5dfb070'; g.lineWidth = sel ? 3 : 2; g.setLineDash(sel ? [] : [3, 3]);
-        g.beginPath(); g.arc(p.x, p.y, 10, 0, TAU); g.stroke(); g.setLineDash([]);
-      }
-      for (const m of R.marbles) if (m.st !== 'hop') drawMarble(g, m);
-      for (const m of R.marbles) if (m.st === 'hop') drawMarble(g, m);
-      for (const [pid, t] of Object.entries(R.towers)) { const p = G.pads.find((q) => q.id === pid); drawTower(g, t, p.x, p.y); }
-      for (const tr of R.tracers) { g.strokeStyle = tr.c; g.globalAlpha = Math.min(1, tr.t * 12); g.lineWidth = 2; g.beginPath(); g.moveTo(tr.x, tr.y); g.lineTo(tr.x2, tr.y2); g.stroke(); g.globalAlpha = 1; }
-      fx.draw(g);
-    }
-    run.draw = function (g) {
-      g.fillStyle = '#3a2a1b'; g.fillRect(0, 0, W, H);
-      if (env.sprite(g, 'bg-board', W / 2, H / 2, W, H)) { g.fillStyle = '#00000060'; g.fillRect(0, 0, W, H); }
-      else { g.fillStyle = '#2b1f14'; for (let y = 14; y < H; y += 18) for (let x = (y / 18) % 2 ? 9 : 18; x < W; x += 18) { g.beginPath(); g.arc(x, y, 1.6, 0, TAU); g.fill(); } }
-      g.save(); g.beginPath(); g.rect(0, TOP, W, VIEWPX); g.clip();
-      if (fx.shake > 0) g.translate((Math.random() - 0.5) * fx.shake, (Math.random() - 0.5) * fx.shake);
-      g.translate(offX, TOP); g.scale(sc, sc); g.translate(0, -R.camY);
-      drawWorld(g);
-      g.restore();
-      // minimap (tall boards): the whole run, marbles as dots, the view as a box; tap it to jump
-      if (miniOn()) {
-        const mx = W - 14, my = TOP + 6, mh = VIEWPX - 12, k = mh / S.H;
-        g.fillStyle = '#000000a0'; g.fillRect(mx - 4, my - 2, 16, mh + 4);
-        g.strokeStyle = '#b8904f'; g.lineWidth = 1; for (const e of G.E) { if (e.fail) continue; g.beginPath(); for (let i = 0; i < e.pts.length; i += 6) { const [x, y] = e.pts[i]; i ? g.lineTo(mx + x / WW * 8, my + y * k) : g.moveTo(mx + x / WW * 8, my + y * k); } g.stroke(); }
-        for (const m of R.marbles) { const [x, y] = marblePos(m); g.fillStyle = m.T.col; g.fillRect(mx + x / WW * 8 - 1.5, my + y * k - 1.5, 3, 3); }
-        g.strokeStyle = '#ffe08a'; g.lineWidth = 1.5; g.strokeRect(mx - 3, my + R.camY * k, 14, viewH * k);
-        if (R.flash > 0) { g.fillStyle = '#ff6b6b'; g.fillRect(mx - 4, my + mh - 6, 16, 8); }
-      }
-      // HUD (top-right 56 px is the pause button)
-      g.fillStyle = '#000000b0'; g.fillRect(0, 0, W, TOP);
-      g.font = '400 17px "Lilita One", system-ui'; g.textAlign = 'left'; g.textBaseline = 'middle';
-      g.fillStyle = '#f5dfb0'; g.fillText(`Wave ${R.wave}/${LAST}`, 10, 16);
-      g.font = '700 11px Nunito, system-ui'; g.fillStyle = '#cdb98f'; g.fillText(`Board ${R.stageI + 1}/3 · ${S.name.replace('The ', '')}`, 10, 36);
-      if (S.obj === 'sort') { g.textAlign = 'right'; g.fillStyle = R.sorted >= S.goal ? '#7ee08a' : '#ffb347'; g.fillText(`🔥 steel sorted ${R.sorted}/${S.goal}`, W - 58, 36); g.textAlign = 'left'; }
-      g.font = '400 17px "Lilita One", system-ui';
-      g.fillStyle = R.flash > 0 ? '#ff6b6b' : '#ff9f9f'; g.fillText(`♥ ${R.lives}`, 132, 16);
-      g.fillStyle = '#ffd166'; g.fillText(`⚙ ${Math.floor(R.brass)}`, 190, 16);
-      if (R.boss) { const bw = W - 120; g.fillStyle = '#000a'; g.fillRect(60, TOP + 4, bw, 10); g.fillStyle = '#ff6b6b'; g.fillRect(60, TOP + 4, bw * Math.max(0, R.boss.hp / R.boss.max), 10); g.fillStyle = '#fff'; g.font = '800 11px Nunito, system-ui'; g.textAlign = 'center'; g.fillText('THE CANNONBALL', W / 2, TOP + 9); }
-      if (R.holding) { g.fillStyle = '#7fd0ff'; g.font = '400 16px "Lilita One", system-ui'; g.textAlign = 'right'; g.fillText('HELD', W - 58, 16); }
-      if (R.msgT > 0 && R.msg) { g.globalAlpha = Math.min(1, R.msgT * 2); g.font = '400 18px "Lilita One", system-ui'; g.fillStyle = '#000000b0'; const w = Math.min(W - 40, g.measureText(R.msg).width + 40), my = TOP + VIEWPX * 0.42;
-        g.fillRect(W / 2 - w / 2, my - 18, w, 36); g.fillStyle = '#ffe08a'; g.textAlign = 'center'; g.fillText(R.msg, W / 2, my); g.globalAlpha = 1; }
-    };
+    run.update = function (dt) { for (let i = 0; i < R.speed && !run.over; i++) step(dt); fx.update(dt); };
     return run;
   }
 
-  function drawFace(g, who, x, y, r) {
-    const skin = { tilly: '#f2c79b', gus: '#d9a07a', marla: '#c98d6b' }[who] || '#f2c79b';
-    g.fillStyle = '#3a2a1b'; g.beginPath(); g.arc(x, y, r, 0, TAU); g.fill();
-    g.fillStyle = skin; g.beginPath(); g.arc(x, y + 2, r * 0.72, 0, TAU); g.fill();
-    g.fillStyle = { tilly: '#b5562f', gus: '#555', marla: '#2d2440' }[who]; g.beginPath(); g.arc(x, y - r * 0.25, r * 0.72, Math.PI, 0); g.fill(); // hair / cap
-    g.fillStyle = '#c9a24a'; g.strokeStyle = '#5d4423'; g.lineWidth = 2; for (const s of [-1, 1]) { g.beginPath(); g.arc(x + s * r * 0.28, y, r * 0.2, 0, TAU); g.fill(); g.stroke(); } // goggles
-    g.fillStyle = '#2b1f14'; for (const s of [-1, 1]) { g.beginPath(); g.arc(x + s * r * 0.28, y, r * 0.08, 0, TAU); g.fill(); }
-    g.strokeStyle = '#5d2e1e'; g.lineWidth = 2; g.beginPath(); g.arc(x, y + r * 0.3, r * 0.2, 0.2, Math.PI - 0.2); g.stroke();
-    if (who === 'gus') { g.fillStyle = '#777'; g.fillRect(x - r * 0.4, y + r * 0.42, r * 0.8, r * 0.2); }
+  // ---------------------------------------------------------------- faces: every marble has a personality you can read at a glance
+  function drawMarble(g, x, y, r, T, look = Math.PI / 2, mood = {}) {
+    if (!(typeof Kit !== 'undefined' && Kit.sprite(g, T.sprite, x, y, r * 2.3))) {
+      const gr = g.createRadialGradient(x - r * 0.35, y - r * 0.4, r * 0.1, x, y, r); gr.addColorStop(0, T.hi); gr.addColorStop(1, T.col);
+      g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, TAU); g.fill(); g.strokeStyle = '#00000066'; g.lineWidth = r * 0.08; g.stroke();
+      if (T.clever) { g.fillStyle = '#f3d14a'; g.beginPath(); g.ellipse(x + r * 0.15, y + r * 0.1, r * 0.5, r * 0.2, -0.5, 0, TAU); g.fill(); } // the cat's-eye swirl
+    }
+    const name = T.boss ? 'boss' : T.name, er = r * 0.24, ex = r * 0.34, ey = y - r * 0.12, lx = Math.cos(look) * er * 0.45, ly = Math.sin(look) * er * 0.45;
+    g.lineCap = 'round';
+    if (T === MARBLES.shard) { g.fillStyle = '#1b2a33'; for (const s of [-1, 1]) { g.beginPath(); g.arc(x + s * r * 0.3 + lx * 0.5, ey + ly * 0.5, r * 0.13, 0, TAU); g.fill(); } return; }
+    for (const s of [-1, 1]) { // eyes look where the marble is rolling
+      const cx = x + s * ex;
+      g.fillStyle = name === 'boss' ? '#ff5a36' : '#fff'; g.beginPath(); g.ellipse(cx, ey, er, er * (name === 'Bouncer' ? 1.2 : 1), 0, 0, TAU); g.fill();
+      g.fillStyle = '#1b130b'; g.beginPath(); g.arc(cx + lx, ey + ly, er * (name === 'Bouncer' ? 0.55 : 0.5), 0, TAU); g.fill();
+      if (name === 'Plodder') { g.fillStyle = T.col; g.beginPath(); g.ellipse(cx, ey, er * 1.08, er * 1.08, 0, Math.PI, TAU); g.fill(); g.strokeStyle = '#5a2f1a'; g.lineWidth = r * 0.07; g.beginPath(); g.moveTo(cx - er, ey); g.lineTo(cx + er, ey); g.stroke(); } // sleepy lids
+      if (name === 'Cat\'s-eye') { g.strokeStyle = '#1b130b'; g.lineWidth = r * 0.07; g.beginPath(); g.arc(cx, ey, er * 1.35, 0, TAU); g.stroke(); } // spectacles
+    }
+    if (name === 'Cat\'s-eye') { g.strokeStyle = '#1b130b'; g.lineWidth = r * 0.07; g.beginPath(); g.moveTo(x - ex + er * 1.35, ey); g.lineTo(x + ex - er * 1.35, ey); g.stroke(); }
+    g.strokeStyle = '#1b130b'; g.lineWidth = r * 0.1;
+    const brow = (tilt, h = 0.42) => { for (const s of [-1, 1]) { g.beginPath(); g.moveTo(x + s * (ex - er), ey - er * 1.5 + tilt * er * 0.5); g.lineTo(x + s * (ex + er), ey - er * 1.5 - tilt * er * 0.5); g.stroke(); } };
+    const my = y + r * 0.42;
+    if (name === 'Bruiser' || name === 'boss') { brow(-1); g.fillStyle = '#1b130b'; g.fillRect(x - r * 0.3, my - r * 0.08, r * 0.6, r * 0.16); g.fillStyle = '#fff'; for (let i = -1; i <= 1; i++) g.fillRect(x + i * r * 0.18 - r * 0.05, my - r * 0.06, r * 0.1, r * 0.12); }
+    else if (name === 'Bouncer') { g.fillStyle = '#5a0f2e'; g.beginPath(); g.arc(x, my - r * 0.08, r * 0.3, 0, Math.PI); g.fill(); g.fillStyle = '#ff8fb8'; g.beginPath(); g.arc(x, my + r * 0.1, r * 0.13, 0, Math.PI); g.fill(); }
+    else if (name === 'Shatterer') { brow(1); g.beginPath(); for (let i = 0; i <= 6; i++) { const px = x - r * 0.28 + i * r * 0.093, py = my + (i % 2 ? -1 : 1) * r * 0.05; i ? g.lineTo(px, py) : g.moveTo(px, py); } g.stroke(); if (mood.sweat !== false) { g.fillStyle = '#bff3ff'; g.beginPath(); g.ellipse(x + r * 0.72, y - r * 0.35, r * 0.09, r * 0.14, 0, 0, TAU); g.fill(); } }
+    else if (name === 'Cat\'s-eye') { g.beginPath(); g.arc(x + r * 0.05, my - r * 0.18, r * 0.24, 0.3, Math.PI - 0.9); g.stroke(); }
+    else { g.beginPath(); g.moveTo(x - r * 0.18, my); g.lineTo(x + r * 0.18, my); g.stroke(); } // plodder: a flat little mouth
   }
 
-  const CONFIG = {
-    id: 'cog-marble', title: 'Cog & Marble', tagline: 'A clockwork marble-run tower defence. Gears turn the turntables, switches split the flow, and slow marbles fall off loops. Keep them out of the vault.',
-    howTo: 'Marbles roll down the track. A turntable takes a marble when one of its grooves lines up, and lets it out wherever the far end points, so its gear (small spins fast, large slow) decides where marbles go. Tap a gear or turntable to change it, tap a switch to flip it (even mid-wave), tap a ◯ to build. Slow marbles fall off loops. Drag to scroll tall boards. Three boards a run: the Workbench, the Sorting Office, then the Long Drop.',
-    runVerb: 'Start the machine', winTitle: 'Cannonball smashed!', loseTitle: 'The vault broke', scoreName: 'waves held',
-    colors: { accent: '#ffcf6e', bg: '#1d150e', card: '#2e2216' },
-    currencies: [{ id: 'cogs', name: 'cogs', color: '#ffcf6e' }],
-    characters: [
-      { id: 'tilly', name: 'Tilly the Tinker', blurb: 'Balanced. Pin guns cost 40 instead of 50.', unlock: 0 },
-      { id: 'gus', name: 'Gus the Gearwright', blurb: 'Can change gears mid-wave, and starts each board with a free chain.', unlock: 1 },
-      { id: 'marla', name: 'Marla Magnet', blurb: 'Starts with Magnet plans; her magnets also zap marbles.', unlock: 2 },
-    ],
-    drawFace, nodes: NODES, touchOffset: 0, baseStats, createRun, saveVersion: 2,
+  // ---------------------------------------------------------------- drawing a level (world units are tiles)
+  const path = (g, pts) => { g.beginPath(); pts.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y))); };
+  function rrect(g, x, y, w, h, r) { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); }
+  function drawBoard(g, G, opts = {}) {
+    // empty squares: faint build spots; track squares: raised wooden tiles, then the rails on top, lane by lane (later lanes ride over: bridges)
+    for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) if (!G.track.has(key(c, r))) { g.strokeStyle = '#f5dfb01c'; g.lineWidth = 0.03; rrect(g, c + 0.08, r + 0.08, 0.84, 0.84, 0.12); g.stroke(); }
+    for (const [k] of G.track) { const [c, r] = k.split(',').map(Number); g.fillStyle = '#00000055'; rrect(g, c + 0.06, r + 0.1, 0.9, 0.9, 0.14); g.fill(); g.fillStyle = '#6b4f2c'; rrect(g, c + 0.04, r + 0.04, 0.92, 0.92, 0.14); g.fill(); g.strokeStyle = '#8a6a3d'; g.lineWidth = 0.035; g.stroke(); }
+    g.lineCap = 'round'; g.lineJoin = 'round';
+    for (const e of G.E) {
+      path(g, e.pts); g.strokeStyle = '#1b130b'; g.lineWidth = 0.42; g.stroke();
+      path(g, e.pts); g.strokeStyle = '#d6b071'; g.lineWidth = 0.32; g.stroke();
+      path(g, e.pts); g.strokeStyle = '#4a3420'; g.lineWidth = 0.16; g.stroke();
+    }
+    for (const n of Object.values(G.N)) {
+      if (n.t === 'in') { g.fillStyle = '#1b130b'; g.beginPath(); g.moveTo(n.x - 0.42, n.y - 0.48); g.lineTo(n.x + 0.42, n.y - 0.48); g.lineTo(n.x + 0.18, n.y); g.lineTo(n.x - 0.18, n.y); g.fill(); g.fillStyle = '#c9a46a'; g.fillRect(n.x - 0.46, n.y - 0.5, 0.92, 0.08); }
+      else if (n.t === 'split') {
+        const e = G.E[n.outs[n.next]], p = e.pts[Math.min(e.pts.length - 1, 12)], a = Math.atan2(p[1] - n.y, p[0] - n.x);
+        if (!(typeof Kit !== 'undefined' && Kit.sprite(g, 'obj-switch', n.x, n.y, 0.8, 0.8))) { g.fillStyle = '#3d6e8f'; g.beginPath(); g.arc(n.x, n.y, 0.3, 0, TAU); g.fill(); }
+        g.strokeStyle = '#f5dfb0'; g.lineWidth = 0.05; g.beginPath(); g.arc(n.x, n.y, 0.32, 0, TAU); g.stroke();
+        if (!opts.thumb) { g.save(); g.translate(n.x, n.y); g.rotate(a + (n.flick ? Math.sin(n.flick * 40) * 0.25 : 0)); g.fillStyle = '#fff'; g.strokeStyle = '#2b1f14'; g.lineWidth = 0.04; g.beginPath(); g.moveTo(0.22, 0); g.lineTo(-0.1, -0.15); g.lineTo(-0.1, 0.15); g.closePath(); g.stroke(); g.fill(); g.restore(); }
+      } else if (n.t === 'goal') {
+        if (!(typeof Kit !== 'undefined' && !opts.thumb && Kit.sprite(g, 'obj-vault', n.x, n.y - 0.05, 1.5, 1.5))) { g.fillStyle = '#4a5560'; rrect(g, n.x - 0.6, n.y - 0.3, 1.2, 0.6, 0.1); g.fill(); g.strokeStyle = '#c9d1d9'; g.lineWidth = 0.05; g.stroke(); }
+      }
+    }
+  }
+  function drawTower(g, t, R, sel) {
+    if (sel) { const s = R.tStats(t); g.fillStyle = '#ffe08a1f'; g.strokeStyle = '#ffe08a99'; g.lineWidth = 0.04; g.beginPath(); g.arc(t.x, t.y, s.range, 0, TAU); g.fill(); g.stroke(); }
+    const kick = t.kick ? 1 + t.kick * 1.5 : 1;
+    if (!Kit.sprite(g, 'tower-' + t.type, t.x, t.y, 0.82 * kick)) {
+      g.fillStyle = t.type === 'pin' ? '#3d6e8f' : t.type === 'hammer' ? '#8f4b2e' : '#6b3d8f'; g.beginPath(); g.arc(t.x, t.y, 0.34 * kick, 0, TAU); g.fill(); g.strokeStyle = '#f5dfb0'; g.lineWidth = 0.05; g.stroke();
+      g.font = '0.38px system-ui'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(TOWERS[t.type].icon, t.x, t.y + 0.02);
+    }
+    for (let p = 0; p < 2; p++) for (let i = 0; i < t.up[p]; i++) { g.fillStyle = p ? '#7fd0ff' : '#ffd166'; g.beginPath(); g.arc(t.x - 0.36 + i * 0.13 + p * 0.42, t.y + 0.42, 0.055, 0, TAU); g.fill(); }
+  }
+
+  // ---------------------------------------------------------------- particles and floaters, in tile units (the kit's fx is in pixels)
+  function makeFx() {
+    let ps = [];
+    return {
+      shake: 0,
+      burst(x, y, n = 8, colors = ['#ffd166'], speed = 3, size = 0.07) { for (let i = 0; i < n; i++) { const a = Math.random() * TAU, v = speed * (0.35 + Math.random()); ps.push({ k: 'p', x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - speed * 0.4, t: 0, life: 0.5 + Math.random() * 0.4, c: colors[i % colors.length], s: size }); } },
+      text(x, y, s, c = '#fff', size = 0.34) { ps.push({ k: 't', x, y, s, c, size, t: 0, life: 0.9 }); },
+      ring(x, y, r = 1, c = '#fff') { ps.push({ k: 'r', x, y, r, c, t: 0, life: 0.35 }); },
+      update(dt) { for (const p of ps) p.t += dt; ps = ps.filter((p) => p.t < p.life); this.shake = Math.max(0, this.shake - dt * 30); },
+      draw(g) {
+        for (const p of ps) {
+          const q = p.t / p.life; g.globalAlpha = 1 - q;
+          if (p.k === 'p') { g.fillStyle = p.c; g.beginPath(); g.arc(p.x + p.vx * p.t, p.y + p.vy * p.t + 6 * p.t * p.t, p.s, 0, TAU); g.fill(); }
+          else if (p.k === 't') { g.fillStyle = p.c; g.font = `400 ${p.size}px "Lilita One", system-ui`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(p.s, p.x, p.y - 0.8 * q); }
+          else { g.strokeStyle = p.c; g.lineWidth = 0.1 * (1 - q) + 0.02; g.beginPath(); g.arc(p.x, p.y, p.r * (0.3 + 0.7 * q), 0, TAU); g.stroke(); }
+        }
+        g.globalAlpha = 1;
+      },
+    };
+  }
+
+  // ---------------------------------------------------------------- the app: map -> difficulty -> level -> result
+  if (typeof window === 'undefined') { module.exports = { MARBLES, TOWERS, DIFFS, PACKS, LEVELS, buildLevel, makeWaves, createRun, START_BRASS, COLS, ROWS }; return; }
+  const $ = (s) => document.querySelector(s), DEV = /[?&]dev\b/.test(location.search), SK = 'cm.campaign';
+  let SAVE; try { SAVE = JSON.parse(localStorage.getItem(SK)) || null; } catch { SAVE = null; }
+  SAVE ||= { medals: {}, seen: {}, muted: false };
+  const store = () => { try { localStorage.setItem(SK, JSON.stringify(SAVE)); } catch { /* private window: still playable */ } };
+  const noop = () => {}, quiet = new Proxy({}, { get: (o, k) => (k === 'play' || k === 'has' ? () => true : noop) });
+  const sfx = new Proxy({}, { get: (o, k) => (SAVE.muted ? quiet[k] : Kit.sfx[k]) });
+  let music = null;
+  function playMusic(on) {
+    const url = window.PP_ASSETS && PP_ASSETS.sfx && PP_ASSETS.sfx['music-loop'];
+    if (!url) return;
+    if (!music) { music = new Audio(url); music.loop = true; music.volume = 0.22; }
+    if (on && !SAVE.muted) music.play().catch(noop); else music.pause();
+  }
+  const medalOf = (id) => SAVE.medals[id] || {};
+  const cleared = (id) => Object.keys(medalOf(id)).length > 0;
+  const openIdx = () => { let i = 0; while (i < LEVELS.length && cleared(LEVELS[i].id)) i++; return i; };
+
+  function showMap() {
+    playMusic(false); $('#game').hidden = true; $('#map').hidden = false; $('#modal').hidden = true;
+    const open = openIdx();
+    $('#packs').innerHTML = PACKS.map((p) => p.levels ? `<section class="pack"><header><h2>${p.name}</h2><small>${p.blurb}</small></header><div class="lvls">${p.levels.map((L) => {
+      const i = LEVELS.indexOf(L), m = medalOf(L.id), lock = i > open;
+      return `<button type="button" class="lvl${i === open ? ' next' : ''}" data-lvl="${i}" ${lock ? 'disabled' : ''}><canvas data-thumb="${i}" width="160" height="240"></canvas><b>${i + 1}. ${L.name}</b>
+        <span class="medals">${Object.entries(DIFFS).map(([d, D]) => `<span class="${m[d] ? 'on' : ''}" title="${D.name}">${D.medal}</span>`).join('')}${L.boss ? '<span class="on" title="Boss">💣</span>' : ''}</span></button>`; }).join('')}</div></section>`
+      : `<section class="pack locked"><header><h3>🔒 ${p.name}</h3><small>Coming soon</small></header><small class="muted">${p.blurb}</small></section>`).join('');
+    document.querySelectorAll('[data-thumb]').forEach((cv) => { const L = LEVELS[+cv.dataset.thumb], g = cv.getContext('2d'); g.setTransform(20, 0, 0, 20, 0, 0); g.fillStyle = '#20170e'; g.fillRect(0, 0, COLS, ROWS); drawBoard(g, buildLevel(L), { thumb: true }); });
+    $('#mute').textContent = SAVE.muted ? 'Sound: off' : 'Sound: on';
+  }
+  function modal(html) { const m = $('#modal'); m.innerHTML = `<div class="card">${html}</div>`; m.hidden = false; }
+  function chooseDiff(i) {
+    const L = LEVELS[i], m = medalOf(L.id);
+    modal(`<h2>${i + 1}. ${L.name}</h2><div class="diffs">${Object.entries(DIFFS).map(([d, D]) => `<button type="button" class="diff" data-go="${i}:${d}"><span class="m" style="${m[d] ? '' : 'filter:grayscale(1);opacity:.4'}">${D.medal}</span><b>${D.name}</b><small>${D.waves} waves · ${D.lives} ♥${d === 'hard' ? ' · tougher marbles' : d === 'easy' ? ' · cheaper towers' : ''}</small></button>`).join('')}</div>
+      <button type="button" class="ghost" data-close>Back</button>`);
+  }
+  function portrait(type) { const cv = document.createElement('canvas'); cv.width = cv.height = 280; const g = cv.getContext('2d'); g.setTransform(2, 0, 0, 2, 0, 0); drawMarble(g, 70, 74, 52, MARBLES[type], Math.PI / 2 + 0.3); return cv; }
+  function introduce(types, then) { // a new marble: a card with its face and personality before the wave rolls
+    const t = types[0]; if (!t) return then();
+    SAVE.seen[t] = 1; store(); paused = true;
+    modal(`<p class="muted" style="margin:0">New marble!</p><h2>${MARBLES[t].name}</h2><div id="pf"></div><p style="margin:0">${MARBLES[t].blurb}</p><button type="button" class="big" data-meet>Got it</button>`);
+    $('#pf').appendChild(portrait(t)); $('#pf canvas').style.cssText = 'width:140px;height:140px';
+    meetNext = () => { $('#modal').hidden = true; introduce(types.slice(1), then); };
+  }
+  let meetNext = null;
+
+  // ---- playing a level
+  let run = null, Li = 0, Dk = 'easy', raf = 0, lastT = 0, paused = false, cv, g, DPR = 1, W = 0, H = 0, T = 40, ox = 0, oy = 0, panelKey = '';
+  const TOP = 46, UIH = 196;
+  function layout() {
+    DPR = Math.min(2, window.devicePixelRatio || 1); W = cv.clientWidth; H = cv.clientHeight; cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
+    T = Math.min(W / COLS, (H - TOP - UIH) / ROWS); ox = (W - COLS * T) / 2; oy = TOP + Math.max(0, (H - TOP - UIH - ROWS * T) / 2);
+  }
+  function start(i, d) {
+    Li = i; Dk = d; $('#modal').hidden = true; $('#map').hidden = true; $('#game').hidden = false; paused = false;
+    cv = $('#cv'); g = cv.getContext('2d'); layout();
+    const fx = makeFx();
+    run = createRun(LEVELS[i], d, { sfx, fx, seen: SAVE.seen });
+    run.fx = fx; panelKey = ''; buildPanel(); playMusic(true);
+    lastT = performance.now(); cancelAnimationFrame(raf); raf = requestAnimationFrame(loop);
+  }
+  function loop(now) {
+    const dt = Math.max(0, Math.min(0.05, (now - lastT) / 1000)); lastT = now;
+    try { if (!paused) run.update(dt); draw(); panel(); } catch (e) { console.error('[cog-marble] frame error', e); }
+    if (run.over) return finish();
+    raf = requestAnimationFrame(loop);
+  }
+  function finish() {
+    playMusic(false); const L = LEVELS[Li], D = DIFFS[Dk];
+    if (run.won) { (SAVE.medals[L.id] ||= {})[Dk] = 1; store(); sfx.win(); } else sfx.end();
+    const nxt = LEVELS[Li + 1];
+    modal(run.won ? `<h2>${D.medal} ${D.name} medal!</h2><p style="margin:0">${L.name}: all ${D.waves} waves held with ${run.R.lives} ♥ left.</p>
+        ${nxt ? `<button type="button" class="big" data-lvl="${Li + 1}">Next: ${nxt.name}</button>` : '<p class="muted" style="margin:0">That\'s the whole Rails pack! Pack 2 (Switches) is next to be built.</p>'}
+        ${Dk !== 'hard' ? `<button type="button" class="ghost" data-go="${Li}:${Dk === 'easy' ? 'medium' : 'hard'}">Try ${Dk === 'easy' ? 'Medium' : 'Hard'}</button>` : ''}<button type="button" class="ghost" data-map>Map</button>`
+      : `<h2>The vault broke</h2><p style="margin:0">${run.R.endCause || ''} You held ${run.R.wave - 1} of ${D.waves} waves.</p><p class="muted" style="margin:0">${tipAfterLoss()}</p>
+        <button type="button" class="big" data-go="${Li}:${Dk}">Try again</button><button type="button" class="ghost" data-map>Map</button>`);
+  }
+  function tipAfterLoss() {
+    const R = run.R, types = Object.values(R.towers).map((t) => t.type);
+    if (R.endCause && R.endCause.includes('Bruiser') && !types.includes('hammer')) return 'Tip: Bruisers shrug off plain pins. A Hammer, or Pin Guns with Steel Tips, will crack them.';
+    if (R.endCause && R.endCause.includes('Cannonball')) return 'Tip: slow the Cannonball with Magnets and stack Hammers along its path.';
+    return 'Tip: squares where the track passes on two or more sides are the best spots. Upgrade towers there before building more.';
+  }
+
+  // ---- input
+  function tapAt(x, y) {
+    if (!run || paused) return;
+    const c = Math.floor((x - ox) / T), r = Math.floor((y - oy) / T), R = run.R;
+    if (c < 0 || r < 0 || c >= COLS || r >= ROWS) { R.sel = null; return; }
+    const k = key(c, r);
+    if (R.towers[k]) { R.sel = { kind: 'tower', k }; sfx.pop(1.3); }
+    else if (run.freeCell(c, r)) { R.sel = { kind: 'cell', c, r }; sfx.pop(1.2); }
+    else R.sel = null;
+  }
+
+  // ---- the bottom panel (rebuilt only when what it shows changes)
+  function buildPanel() {
+    $('#ui').innerHTML = '<div class="panel"><p class="msg" id="msg"></p><div class="prow" id="prow"></div></div><div class="bar"><button type="button" id="go">Send wave 1 ▶</button></div>';
+  }
+  function panel() {
+    const R = run.R, L = LEVELS[Li], s = R.sel, t = s && s.kind === 'tower' ? R.towers[s.k] : null, b = Math.floor(R.brass);
+    const afford = [...L.towers.map((k) => b >= run.buildCost(k)), ...(t ? [0, 1].map((p) => { const nt = run.nextTier(t, p); return !!nt && b >= run.price(nt[1]); }) : [])];
+    const left = $('#left'); if (left) left.textContent = R.spawnQ.length + R.marbles.length;
+    const k = JSON.stringify([s, t && t.up, t && t.aim, afford, R.state, R.wave, R.speed]);
+    if (k === panelKey) return; panelKey = k;
+    const go = $('#go'); go.textContent = R.state === 'build' ? (R.wave === 0 ? 'Send wave 1 ▶' : `Send wave ${R.wave + 1} ▶`) : ['', '▶▶ Faster', '▶▶▶ Fastest', '▶ Normal speed'][R.speed]; go.classList.toggle('fast', R.state !== 'build');
+    let msg = '', row = '';
+    if (!s) {
+      msg = R.state === 'build' ? `${R.wave === 0 ? L.tip + ' ' : ''}Next: <b>${run.preview(R.wave + 1)}</b>.` : `Wave ${R.wave}/${R.waves.length}: <b id="left">${R.spawnQ.length + R.marbles.length}</b> marbles left. Tap an empty square to build, a tower to upgrade.`;
+      if (R.wave === 0 && L.tip.length > 90) msg = `${L.tip}`;
+    } else if (s.kind === 'cell') {
+      msg = 'Build a tower here.';
+      row = Object.keys(TOWERS).map((k) => L.towers.includes(k) ? `<button type="button" data-a="build:${k}" ${b >= run.buildCost(k) ? '' : 'disabled'}>${TOWERS[k].icon} ${TOWERS[k].name}<small>${run.buildCost(k)} brass</small></button>`
+        : `<button type="button" disabled>🔒 ${TOWERS[k].name}<small>later level</small></button>`).join('') + '<button type="button" data-a="close" style="flex:.55">✕</button>';
+    } else {
+      const TT = TOWERS[t.type], tiers = [0, 1].map((p) => t.up[p] ? TT.paths[p].tiers[t.up[p] - 1][0] : null).filter(Boolean);
+      msg = `<b>${TT.name}</b>${tiers.length ? ' · ' + tiers.join(' + ') : ''}. ${t.up[0] + t.up[1] ? '' : TT.base}`;
+      row = [0, 1].map((p) => { const nt = run.nextTier(t, p);
+        return nt ? `<button type="button" data-a="up:${p}" ${b >= run.price(nt[1]) ? '' : 'disabled'}>${p ? '🔷' : '🔶'} ${nt[0]}<small>${nt[2]} · ${run.price(nt[1])}</small></button>`
+          : `<button type="button" disabled>${t.up[p] >= 3 ? 'Path maxed' : 'Path closed'}<small>${TT.paths[p].name}</small></button>`; }).join('')
+        + (t.type !== 'magnet' || t.up[1] ? `<button type="button" data-a="aim" style="flex:.7">Aim<small>${t.aim}</small></button>` : '')
+        + `<button type="button" data-a="sell" style="flex:.7">Sell<small>+${Math.floor(t.spent * 0.7)}</small></button>`;
+    }
+    $('#msg').innerHTML = msg; $('#prow').innerHTML = row;
+  }
+
+  // ---- drawing the level
+  function draw() {
+    const R = run.R, G = R.G;
+    g.setTransform(DPR, 0, 0, DPR, 0, 0); g.fillStyle = '#2b1f14'; g.fillRect(0, 0, W, H);
+    if (Kit.sprite(g, 'bg-board', W / 2, H / 2, W, H)) { g.fillStyle = '#00000070'; g.fillRect(0, 0, W, H); }
+    g.save();
+    if (run.fx.shake > 0) g.translate((Math.random() - 0.5) * run.fx.shake, (Math.random() - 0.5) * run.fx.shake);
+    g.translate(ox, oy); g.scale(T, T);
+    drawBoard(g, G);
+    const sel = R.sel;
+    if (sel && sel.kind === 'cell') { g.strokeStyle = '#ffe08a'; g.lineWidth = 0.06; rrect(g, sel.c + 0.06, sel.r + 0.06, 0.88, 0.88, 0.12); g.stroke(); }
+    // marbles, ordered so bigger ones sit on top
+    for (const m of [...R.marbles].sort((a, b) => a.r - b.r)) {
+      const e = G.E[m.e], [x, y] = at(e, m.s), bob = m.T.startle ? Math.abs(Math.sin(m.age * 10)) * 0.06 : 0;
+      g.fillStyle = '#00000050'; g.beginPath(); g.ellipse(x + 0.04, y + 0.07, m.r, m.r * 0.8, 0, 0, TAU); g.fill();
+      drawMarble(g, x, y - bob, m.r, m.T, m.think ? -Math.PI / 2 + Math.sin(m.age * 9) : dirAt(e, m.s));
+      if (m.flash > 0) { g.fillStyle = '#ffffff99'; g.beginPath(); g.arc(x, y - bob, m.r, 0, TAU); g.fill(); }
+      if (m.stun > 0) { g.fillStyle = '#ffe08a'; g.font = '0.22px system-ui'; g.textAlign = 'center'; g.fillText('✦', x, y - m.r - 0.12); }
+      if (m.hp < m.max && !m.T.boss) { g.fillStyle = '#000a'; g.fillRect(x - m.r, y - m.r - 0.12, m.r * 2, 0.06); g.fillStyle = '#7ee08a'; g.fillRect(x - m.r, y - m.r - 0.12, m.r * 2 * m.hp / m.max, 0.06); }
+    }
+    for (const t of Object.values(R.towers)) drawTower(g, t, run, sel && sel.kind === 'tower' && R.towers[sel.k] === t);
+    for (const tr of R.tracers) { g.strokeStyle = tr.c; g.globalAlpha = Math.min(1, tr.t * 12); g.lineWidth = 0.05; g.beginPath(); g.moveTo(tr.x, tr.y); g.lineTo(tr.x2, tr.y2); g.stroke(); g.globalAlpha = 1; }
+    run.fx.draw(g);
+    g.restore();
+    // HUD
+    g.fillStyle = '#000000b0'; g.fillRect(0, 0, W, TOP);
+    g.textBaseline = 'middle'; g.textAlign = 'left'; g.font = '400 17px "Lilita One", system-ui';
+    g.fillStyle = '#f5dfb0'; g.fillText(`Wave ${R.wave}/${R.waves.length}`, 10, 15);
+    g.font = '700 11px Nunito, system-ui'; g.fillStyle = '#cdb98f'; g.fillText(`${LEVELS[Li].name} · ${DIFFS[Dk].name}`, 10, 34);
+    g.font = '400 17px "Lilita One", system-ui';
+    g.fillStyle = R.flash > 0 ? '#ff6b6b' : '#ff9f9f'; g.fillText(`♥ ${R.lives}`, 132, 15);
+    g.fillStyle = '#ffd166'; g.fillText(`⚙ ${Math.floor(R.brass)}`, 196, 15);
+    if (R.boss) { const bw = W - 120; g.fillStyle = '#000a'; g.fillRect(60, TOP + 4, bw, 10); g.fillStyle = '#ff6b6b'; g.fillRect(60, TOP + 4, bw * Math.max(0, R.boss.hp / R.boss.max), 10); g.fillStyle = '#fff'; g.font = '800 11px Nunito, system-ui'; g.textAlign = 'center'; g.fillText('THE CANNONBALL', W / 2, TOP + 9); }
+    if (R.msgT > 0 && R.msg) { g.globalAlpha = Math.min(1, R.msgT * 2); g.font = '400 20px "Lilita One", system-ui'; g.fillStyle = '#000000b0'; const w = g.measureText(R.msg).width + 40, my = oy + ROWS * T * 0.42;
+      g.fillRect(W / 2 - w / 2, my - 19, w, 38); g.fillStyle = '#ffe08a'; g.textAlign = 'center'; g.fillText(R.msg, W / 2, my); g.globalAlpha = 1; }
+  }
+
+  // ---- wiring
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.lvl != null) { if (run && !$('#game').hidden) { /* next level from the result card */ } chooseDiff(+b.dataset.lvl); }
+    else if (b.dataset.go) { const [i, d] = b.dataset.go.split(':'); start(+i, d); }
+    else if (b.dataset.close != null) $('#modal').hidden = true;
+    else if (b.dataset.map != null) { cancelAnimationFrame(raf); run = null; showMap(); }
+    else if (b.dataset.meet != null && meetNext) { const f = meetNext; meetNext = null; f(); }
+    else if (b.id === 'resume') { paused = false; $('#modal').hidden = true; lastT = performance.now(); playMusic(true); }
+    else if (b.id === 'pause' && run && !run.over) { paused = true; playMusic(false); modal(`<h2>Paused</h2><button type="button" class="big" id="resume">Resume</button><button type="button" class="ghost" data-go="${Li}:${Dk}">Restart level</button><button type="button" class="ghost" data-map>Quit to map</button>`); }
+    else if (b.id === 'mute') { SAVE.muted = !SAVE.muted; store(); b.textContent = SAVE.muted ? 'Sound: off' : 'Sound: on'; }
+    else if (b.id === 'reset') { if (b.dataset.sure) { localStorage.removeItem(SK); location.reload(); } else { b.dataset.sure = 1; b.textContent = 'Tap again to erase'; } }
+    else if (b.dataset.a && run) {
+      const [a, x] = b.dataset.a.split(':'), R = run.R, s = R.sel;
+      if (a === 'build' && s && s.kind === 'cell') { if (!run.act.build(s.c, s.r, x)) sfx.nope(); else R.sel = { kind: 'tower', k: key(s.c, s.r) }; }
+      else if (a === 'up' && s && s.kind === 'tower') { if (!run.act.upgrade(s.k, +x)) sfx.nope(); }
+      else if (a === 'sell' && s && s.kind === 'tower') { run.act.sell(s.k); R.sel = null; }
+      else if (a === 'aim' && s && s.kind === 'tower') run.act.aim(s.k);
+      else if (a === 'close') R.sel = null;
+      panelKey = '';
+    } else if (b.id === 'go' && run) {
+      const R = run.R;
+      if (R.state === 'build') { const fresh = run.newIn(R.wave + 1); introduce(fresh, () => { paused = false; lastT = performance.now(); run.act.send(); }); }
+      else run.act.speed();
+      panelKey = '';
+    }
+  });
+  $('#cv').addEventListener('pointerdown', (e) => { const r = $('#cv').getBoundingClientRect(); tapAt(e.clientX - r.left, e.clientY - r.top); e.preventDefault(); });
+  addEventListener('resize', () => { if (run && !$('#game').hidden) layout(); });
+  document.addEventListener('visibilitychange', () => { if (document.hidden && run && !run.over && !paused && !$('#game').hidden) $('#pause').click(); });
+  showMap();
+
+  if (DEV) window.__cm = { // dev/test hook: start a level, fast-forward it with a random thumb to shake out crashes
+    SAVE, LEVELS, start, run: () => run, store,
+    fuzz(frames = 3000, seed = 1, uiRate = 0.05) {
+      let x = seed; const rnd = () => ((x = (x * 1664525 + 1013904223) >>> 0) / 4294967296), errors = [];
+      cancelAnimationFrame(raf);
+      for (let i = 0; i < frames && !run.over; i++) {
+        try {
+          const meet = document.querySelector('[data-meet]'); if (meet && !$('#modal').hidden) meet.click();
+          if (rnd() < 0.08) tapAt(ox + rnd() * COLS * T, oy + rnd() * ROWS * T);
+          const ui = [...document.querySelectorAll('#ui button:not([disabled])')]; if (ui.length && rnd() < uiRate) ui[Math.floor(rnd() * ui.length)].click();
+          if (!paused) run.update(1 / 30); draw(); panel();
+        } catch (e) { errors.push(String(e && e.stack || e).split('\n').slice(0, 3).join(' | ')); if (errors.length > 3) break; }
+      }
+      return { frames, over: run.over, won: run.won, wave: run.R.wave, t: Math.round(run.t), errors };
+    },
   };
-  const API = { NODES, CONFIG, createRun, baseStats, MARBLES, WAVES, TOWERS, STAGES, buildStage };
-  if (typeof module !== 'undefined' && module.exports) module.exports = API;
-  if (typeof window !== 'undefined') { window.CogMarble = API; Kit.game(CONFIG); }
+  document.body.dataset.ready = 1;
 })();
