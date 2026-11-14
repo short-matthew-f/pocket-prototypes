@@ -317,30 +317,56 @@
   // ---------------------------------------------------------------- drawing a level (world units are tiles)
   const path = (g, pts) => { g.beginPath(); pts.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y))); };
   function rrect(g, x, y, w, h, r) { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); }
+  // Art deco: black lacquer tiles with gold inlay, stepped corners, sunbursts
+  const GOLD = '#d4af37', GOLD2 = '#f1d58a', INK = '#0b0c0f', LAC = '#1d2028';
+  const sprite = (...a) => typeof Kit !== 'undefined' && Kit.sprite(...a);
+  function sunburst(g, x, y, r0, r1, n, col, a0 = 0, a1 = TAU) { g.strokeStyle = col; for (let i = 0; i <= n; i++) { const a = a0 + (a1 - a0) * i / n; g.beginPath(); g.moveTo(x + Math.cos(a) * r0, y + Math.sin(a) * r0); g.lineTo(x + Math.cos(a) * r1, y + Math.sin(a) * r1); g.stroke(); } }
   function drawBoard(g, G, opts = {}) {
-    // empty squares: faint build spots; track squares: raised wooden tiles, then the rails on top, lane by lane (later lanes ride over: bridges)
-    for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) if (!G.track.has(key(c, r))) { g.strokeStyle = '#f5dfb01c'; g.lineWidth = 0.03; rrect(g, c + 0.08, r + 0.08, 0.84, 0.84, 0.12); g.stroke(); }
-    for (const [k] of G.track) { const [c, r] = k.split(',').map(Number); g.fillStyle = '#00000055'; rrect(g, c + 0.06, r + 0.1, 0.9, 0.9, 0.14); g.fill(); g.fillStyle = '#6b4f2c'; rrect(g, c + 0.04, r + 0.04, 0.92, 0.92, 0.14); g.fill(); g.strokeStyle = '#8a6a3d'; g.lineWidth = 0.035; g.stroke(); }
+    // empty squares: a hairline grid with a gold diamond in each (build spots); track squares: lacquer tiles with a gold
+    // inlay frame; then the rails, lane by lane (later lanes ride over: bridges)
+    for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) if (!G.track.has(key(c, r))) {
+      g.strokeStyle = '#d4af3722'; g.lineWidth = 0.02; g.strokeRect(c + 0.06, r + 0.06, 0.88, 0.88);
+      g.fillStyle = '#d4af3740'; g.beginPath(); g.moveTo(c + 0.5, r + 0.42); g.lineTo(c + 0.58, r + 0.5); g.lineTo(c + 0.5, r + 0.58); g.lineTo(c + 0.42, r + 0.5); g.fill();
+    }
+    for (const [k] of G.track) {
+      const [c, r] = k.split(',').map(Number);
+      g.fillStyle = '#000000aa'; g.fillRect(c + 0.05, r + 0.09, 0.92, 0.92);
+      g.fillStyle = LAC; g.fillRect(c + 0.03, r + 0.03, 0.94, 0.94);
+      g.strokeStyle = '#d4af3799'; g.lineWidth = 0.025; g.strokeRect(c + 0.08, r + 0.08, 0.84, 0.84);
+      g.fillStyle = '#d4af3799'; for (const [dx, dy] of [[0.08, 0.08], [0.86, 0.08], [0.08, 0.86], [0.86, 0.86]]) g.fillRect(c + dx - 0.015, r + dy - 0.015, 0.09, 0.09); // stepped corners
+    }
     g.lineCap = 'round'; g.lineJoin = 'round';
     for (const e of G.E) {
-      path(g, e.pts); g.strokeStyle = '#1b130b'; g.lineWidth = 0.42; g.stroke();
-      path(g, e.pts); g.strokeStyle = '#d6b071'; g.lineWidth = 0.32; g.stroke();
-      path(g, e.pts); g.strokeStyle = '#4a3420'; g.lineWidth = 0.16; g.stroke();
+      path(g, e.pts); g.strokeStyle = INK; g.lineWidth = 0.46; g.stroke();
+      path(g, e.pts); g.strokeStyle = GOLD; g.lineWidth = 0.36; g.stroke();
+      path(g, e.pts); g.strokeStyle = '#121418'; g.lineWidth = 0.22; g.stroke();
+      path(g, e.pts); g.strokeStyle = '#d4af3755'; g.lineWidth = 0.025; g.stroke();
     }
     for (const n of Object.values(G.N)) {
-      if (n.t === 'in') { g.fillStyle = '#1b130b'; g.beginPath(); g.moveTo(n.x - 0.42, n.y - 0.48); g.lineTo(n.x + 0.42, n.y - 0.48); g.lineTo(n.x + 0.18, n.y); g.lineTo(n.x - 0.18, n.y); g.fill(); g.fillStyle = '#c9a46a'; g.fillRect(n.x - 0.46, n.y - 0.5, 0.92, 0.08); }
-      else if (n.t === 'split') {
+      if (n.t === 'in') { // a stepped gold ziggurat funnel
+        for (let i = 0; i < 3; i++) { const w = 0.9 - i * 0.24; g.fillStyle = i % 2 ? INK : GOLD; g.fillRect(n.x - w / 2, n.y - 0.5 + i * 0.12, w, 0.12); }
+        g.fillStyle = INK; g.fillRect(n.x - 0.12, n.y - 0.14, 0.24, 0.2);
+      } else if (n.t === 'split') {
         const e = G.E[n.outs[n.next]], p = e.pts[Math.min(e.pts.length - 1, 12)], a = Math.atan2(p[1] - n.y, p[0] - n.x);
-        if (!(typeof Kit !== 'undefined' && Kit.sprite(g, 'obj-switch', n.x, n.y, 0.8, 0.8))) { g.fillStyle = '#3d6e8f'; g.beginPath(); g.arc(n.x, n.y, 0.3, 0, TAU); g.fill(); }
-        g.strokeStyle = '#f5dfb0'; g.lineWidth = 0.05; g.beginPath(); g.arc(n.x, n.y, 0.32, 0, TAU); g.stroke();
-        if (!opts.thumb) { g.save(); g.translate(n.x, n.y); g.rotate(a + (n.flick ? Math.sin(n.flick * 40) * 0.25 : 0)); g.fillStyle = '#fff'; g.strokeStyle = '#2b1f14'; g.lineWidth = 0.04; g.beginPath(); g.moveTo(0.22, 0); g.lineTo(-0.1, -0.15); g.lineTo(-0.1, 0.15); g.closePath(); g.stroke(); g.fill(); g.restore(); }
+        if (!sprite(g, 'deco-switch', n.x, n.y, 0.86, 0.86)) {
+          g.fillStyle = INK; g.beginPath(); g.arc(n.x, n.y, 0.36, 0, TAU); g.fill();
+          g.lineWidth = 0.02; sunburst(g, n.x, n.y, 0.16, 0.33, 16, '#d4af3799');
+          g.strokeStyle = GOLD; g.lineWidth = 0.05; g.beginPath(); g.arc(n.x, n.y, 0.36, 0, TAU); g.stroke();
+        }
+        if (!opts.thumb) { g.save(); g.translate(n.x, n.y); g.rotate(a + (n.flick ? Math.sin(n.flick * 40) * 0.25 : 0)); g.fillStyle = GOLD2; g.strokeStyle = INK; g.lineWidth = 0.04; g.beginPath(); g.moveTo(0.24, 0); g.lineTo(-0.1, -0.16); g.lineTo(-0.02, 0); g.lineTo(-0.1, 0.16); g.closePath(); g.stroke(); g.fill(); g.restore(); }
       } else if (n.t === 'goal') {
-        if (!(typeof Kit !== 'undefined' && !opts.thumb && Kit.sprite(g, 'obj-vault', n.x, n.y - 0.05, 1.5, 1.5))) { g.fillStyle = '#4a5560'; rrect(g, n.x - 0.6, n.y - 0.3, 1.2, 0.6, 0.1); g.fill(); g.strokeStyle = '#c9d1d9'; g.lineWidth = 0.05; g.stroke(); }
+        if (opts.thumb || !sprite(g, 'deco-vault', n.x, n.y - 0.1, 1.6, 1.6)) { // a stepped gold frame around a round vault door with a sunburst
+          const x = n.x, y = n.y;
+          g.fillStyle = INK; g.fillRect(x - 0.7, y - 0.42, 1.4, 0.84); g.fillRect(x - 0.5, y - 0.56, 1.0, 0.2); g.fillRect(x - 0.3, y - 0.66, 0.6, 0.14);
+          g.strokeStyle = GOLD; g.lineWidth = 0.04; g.strokeRect(x - 0.7, y - 0.42, 1.4, 0.84); g.strokeRect(x - 0.5, y - 0.56, 1.0, 0.14); g.strokeRect(x - 0.3, y - 0.66, 0.6, 0.1);
+          g.fillStyle = '#1d2026'; g.beginPath(); g.arc(x, y, 0.32, 0, TAU); g.fill(); g.lineWidth = 0.02; sunburst(g, x, y, 0.08, 0.3, 20, '#d4af3799');
+          g.strokeStyle = GOLD2; g.lineWidth = 0.05; g.beginPath(); g.arc(x, y, 0.32, 0, TAU); g.stroke(); g.fillStyle = GOLD; g.beginPath(); g.arc(x, y, 0.07, 0, TAU); g.fill();
+        }
       }
     }
   }
   function drawTower(g, t, R, sel) {
-    if (sel) { const s = R.tStats(t); g.fillStyle = '#ffe08a1f'; g.strokeStyle = '#ffe08a99'; g.lineWidth = 0.04; g.beginPath(); g.arc(t.x, t.y, s.range, 0, TAU); g.fill(); g.stroke(); }
+    if (sel) { const s = R.tStats(t); g.fillStyle = '#d4af371c'; g.strokeStyle = '#f1d58aaa'; g.lineWidth = 0.04; g.beginPath(); g.arc(t.x, t.y, s.range, 0, TAU); g.fill(); g.stroke(); }
     const kick = t.kick ? 1 + t.kick * 1.5 : 1;
     if (!Kit.sprite(g, 'tower-' + t.type, t.x, t.y, 0.82 * kick)) {
       g.fillStyle = t.type === 'pin' ? '#3d6e8f' : t.type === 'hammer' ? '#8f4b2e' : '#6b3d8f'; g.beginPath(); g.arc(t.x, t.y, 0.34 * kick, 0, TAU); g.fill(); g.strokeStyle = '#f5dfb0'; g.lineWidth = 0.05; g.stroke();
@@ -362,7 +388,7 @@
         for (const p of ps) {
           const q = p.t / p.life; g.globalAlpha = 1 - q;
           if (p.k === 'p') { g.fillStyle = p.c; g.beginPath(); g.arc(p.x + p.vx * p.t, p.y + p.vy * p.t + 6 * p.t * p.t, p.s, 0, TAU); g.fill(); }
-          else if (p.k === 't') { g.fillStyle = p.c; g.font = `400 ${p.size}px "Lilita One", system-ui`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(p.s, p.x, p.y - 0.8 * q); }
+          else if (p.k === 't') { g.fillStyle = p.c; g.font = `400 ${p.size}px Limelight, system-ui`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(p.s, p.x, p.y - 0.8 * q); }
           else { g.strokeStyle = p.c; g.lineWidth = 0.1 * (1 - q) + 0.02; g.beginPath(); g.arc(p.x, p.y, p.r * (0.3 + 0.7 * q), 0, TAU); g.stroke(); }
         }
         g.globalAlpha = 1;
@@ -397,7 +423,7 @@
       return `<button type="button" class="lvl${i === open ? ' next' : ''}" data-lvl="${i}" ${lock ? 'disabled' : ''}><canvas data-thumb="${i}" width="160" height="240"></canvas><b>${i + 1}. ${L.name}</b>
         <span class="medals">${Object.entries(DIFFS).map(([d, D]) => `<span class="${m[d] ? 'on' : ''}" title="${D.name}">${D.medal}</span>`).join('')}${L.boss ? '<span class="on" title="Boss">💣</span>' : ''}</span></button>`; }).join('')}</div></section>`
       : `<section class="pack locked"><header><h3>🔒 ${p.name}</h3><small>Coming soon</small></header><small class="muted">${p.blurb}</small></section>`).join('');
-    document.querySelectorAll('[data-thumb]').forEach((cv) => { const L = LEVELS[+cv.dataset.thumb], g = cv.getContext('2d'); g.setTransform(20, 0, 0, 20, 0, 0); g.fillStyle = '#20170e'; g.fillRect(0, 0, COLS, ROWS); drawBoard(g, buildLevel(L), { thumb: true }); });
+    document.querySelectorAll('[data-thumb]').forEach((cv) => { const L = LEVELS[+cv.dataset.thumb], g = cv.getContext('2d'); g.setTransform(20, 0, 0, 20, 0, 0); g.fillStyle = INK; g.fillRect(0, 0, COLS, ROWS); drawBoard(g, buildLevel(L), { thumb: true }); });
     $('#mute').textContent = SAVE.muted ? 'Sound: off' : 'Sound: on';
   }
   function modal(html) { const m = $('#modal'); m.innerHTML = `<div class="card">${html}</div>`; m.hidden = false; }
@@ -499,14 +525,16 @@
   // ---- drawing the level
   function draw() {
     const R = run.R, G = R.G;
-    g.setTransform(DPR, 0, 0, DPR, 0, 0); g.fillStyle = '#2b1f14'; g.fillRect(0, 0, W, H);
-    if (Kit.sprite(g, 'bg-board', W / 2, H / 2, W, H)) { g.fillStyle = '#00000070'; g.fillRect(0, 0, W, H); }
+    g.setTransform(DPR, 0, 0, DPR, 0, 0); g.fillStyle = INK; g.fillRect(0, 0, W, H);
+    if (Kit.sprite(g, 'bg-deco', W / 2, H / 2, W, H)) { g.fillStyle = '#00000080'; g.fillRect(0, 0, W, H); }
+    else { g.lineWidth = 1; sunburst(g, W / 2, H + 40, 60, H * 1.4, 36, '#d4af3714', Math.PI, TAU); } // a sunburst rising from below
+    g.strokeStyle = '#d4af3766'; g.lineWidth = 1; g.strokeRect(ox - 4.5, oy - 4.5, COLS * T + 9, ROWS * T + 9); g.strokeStyle = '#d4af3733'; g.strokeRect(ox - 8.5, oy - 8.5, COLS * T + 17, ROWS * T + 17);
     g.save();
     if (run.fx.shake > 0) g.translate((Math.random() - 0.5) * run.fx.shake, (Math.random() - 0.5) * run.fx.shake);
     g.translate(ox, oy); g.scale(T, T);
     drawBoard(g, G);
     const sel = R.sel;
-    if (sel && sel.kind === 'cell') { g.strokeStyle = '#ffe08a'; g.lineWidth = 0.06; rrect(g, sel.c + 0.06, sel.r + 0.06, 0.88, 0.88, 0.12); g.stroke(); }
+    if (sel && sel.kind === 'cell') { g.strokeStyle = GOLD2; g.lineWidth = 0.06; g.strokeRect(sel.c + 0.06, sel.r + 0.06, 0.88, 0.88); g.lineWidth = 0.02; g.strokeRect(sel.c + 0.14, sel.r + 0.14, 0.72, 0.72); }
     // marbles, ordered so bigger ones sit on top
     for (const m of [...R.marbles].sort((a, b) => a.r - b.r)) {
       const e = G.E[m.e], [x, y] = at(e, m.s), bob = m.T.startle ? Math.abs(Math.sin(m.age * 10)) * 0.06 : 0;
@@ -520,17 +548,18 @@
     for (const tr of R.tracers) { g.strokeStyle = tr.c; g.globalAlpha = Math.min(1, tr.t * 12); g.lineWidth = 0.05; g.beginPath(); g.moveTo(tr.x, tr.y); g.lineTo(tr.x2, tr.y2); g.stroke(); g.globalAlpha = 1; }
     run.fx.draw(g);
     g.restore();
-    // HUD
-    g.fillStyle = '#000000b0'; g.fillRect(0, 0, W, TOP);
-    g.textBaseline = 'middle'; g.textAlign = 'left'; g.font = '400 17px "Lilita One", system-ui';
-    g.fillStyle = '#f5dfb0'; g.fillText(`Wave ${R.wave}/${R.waves.length}`, 10, 15);
-    g.font = '700 11px Nunito, system-ui'; g.fillStyle = '#cdb98f'; g.fillText(`${LEVELS[Li].name} · ${DIFFS[Dk].name}`, 10, 34);
-    g.font = '400 17px "Lilita One", system-ui';
-    g.fillStyle = R.flash > 0 ? '#ff6b6b' : '#ff9f9f'; g.fillText(`♥ ${R.lives}`, 132, 15);
-    g.fillStyle = '#ffd166'; g.fillText(`⚙ ${Math.floor(R.brass)}`, 196, 15);
-    if (R.boss) { const bw = W - 120; g.fillStyle = '#000a'; g.fillRect(60, TOP + 4, bw, 10); g.fillStyle = '#ff6b6b'; g.fillRect(60, TOP + 4, bw * Math.max(0, R.boss.hp / R.boss.max), 10); g.fillStyle = '#fff'; g.font = '800 11px Nunito, system-ui'; g.textAlign = 'center'; g.fillText('THE CANNONBALL', W / 2, TOP + 9); }
-    if (R.msgT > 0 && R.msg) { g.globalAlpha = Math.min(1, R.msgT * 2); g.font = '400 20px "Lilita One", system-ui'; g.fillStyle = '#000000b0'; const w = g.measureText(R.msg).width + 40, my = oy + ROWS * T * 0.42;
-      g.fillRect(W / 2 - w / 2, my - 19, w, 38); g.fillStyle = '#ffe08a'; g.textAlign = 'center'; g.fillText(R.msg, W / 2, my); g.globalAlpha = 1; }
+    // HUD: a black band with a double gold rule
+    g.fillStyle = INK; g.fillRect(0, 0, W, TOP); g.fillStyle = GOLD; g.fillRect(0, TOP - 4, W, 1); g.fillRect(0, TOP - 1, W, 1);
+    g.textBaseline = 'middle'; g.textAlign = 'left'; g.font = '400 17px Limelight, system-ui';
+    g.fillStyle = GOLD2; g.fillText(`Wave ${R.wave}/${R.waves.length}`, 10, 16);
+    g.font = '600 11px "Josefin Sans", system-ui'; g.fillStyle = '#b9ad8f'; g.fillText(`${LEVELS[Li].name.toUpperCase()} · ${DIFFS[Dk].name.toUpperCase()}`, 10, 34);
+    g.font = '400 17px Limelight, system-ui';
+    g.fillStyle = R.flash > 0 ? '#ff6b6b' : '#e8836b'; g.fillText(`♥ ${R.lives}`, 136, 16);
+    g.fillStyle = GOLD; g.fillText(`◆ ${Math.floor(R.brass)}`, 200, 16);
+    if (R.boss) { const bw = W - 120; g.fillStyle = '#000c'; g.fillRect(60, TOP + 4, bw, 10); g.fillStyle = '#c0392b'; g.fillRect(60, TOP + 4, bw * Math.max(0, R.boss.hp / R.boss.max), 10); g.strokeStyle = GOLD; g.lineWidth = 1; g.strokeRect(60.5, TOP + 4.5, bw, 10); g.fillStyle = '#fff'; g.font = '600 10px "Josefin Sans", system-ui'; g.textAlign = 'center'; g.fillText('THE CANNONBALL', W / 2, TOP + 10); }
+    if (R.msgT > 0 && R.msg) { g.globalAlpha = Math.min(1, R.msgT * 2); g.font = '400 21px Limelight, system-ui'; const w = g.measureText(R.msg).width + 48, my = oy + ROWS * T * 0.42;
+      g.fillStyle = '#0b0c0fe6'; g.fillRect(W / 2 - w / 2, my - 20, w, 40); g.strokeStyle = GOLD; g.lineWidth = 1; g.strokeRect(W / 2 - w / 2 + 0.5, my - 19.5, w - 1, 39); g.strokeRect(W / 2 - w / 2 + 3.5, my - 16.5, w - 7, 33);
+      g.fillStyle = GOLD2; g.textAlign = 'center'; g.fillText(R.msg, W / 2, my + 1); g.globalAlpha = 1; }
   }
 
   // ---- wiring
