@@ -70,7 +70,15 @@ h3{font:400 18px/1.1 var(--display);margin:0;color:var(--ink)}
 .bar{display:flex;gap:8px}
 #ui .bar button{min-height:50px;font:400 17px var(--display);letter-spacing:.04em}
 #go{flex:1.6;background:linear-gradient(180deg,var(--gold2),var(--gold))!important;border-color:var(--gold2)!important;color:#141008!important}
-#go.fast{background:#16181c!important;color:var(--gold2)!important;border-color:var(--line)!important}
+#ui #go:disabled{opacity:1;background:#16181c!important;color:var(--gold2)!important;border-color:var(--line)!important;font-size:15px!important}
+/* the speed button: a round gold-rimmed dial that floats up out of the bar */
+#ui #spd{flex:none;width:64px;height:64px;min-height:0;margin:-8px 0 0;border-radius:50%;clip-path:none;padding:0;display:grid;place-content:center;gap:1px;
+  background:radial-gradient(circle at 50% 35%,#2a2d36,#0b0c0f 70%);border:2px solid var(--gold);box-shadow:0 0 0 3px #0b0c0f,0 0 0 4px #d4af3766,0 6px 14px #000c;color:var(--gold2)}
+#ui #spd i{font:normal 15px/1 system-ui;letter-spacing:-3px;margin-left:-3px}
+#ui #spd small{font:400 12px var(--display);color:var(--gold);margin:0}
+#ui #spd.on{background:radial-gradient(circle at 50% 35%,var(--gold2),var(--gold) 75%);color:#141008}
+#ui #spd.on small{color:#141008}
+#ui #spd:active{transform:scale(.94)}
 </style>
 </head>
 <body>

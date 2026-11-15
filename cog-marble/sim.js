@@ -5,7 +5,7 @@
 const { LEVELS, DIFFS, TOWERS, createRun, buildLevel } = require('./game.js');
 const V = process.argv.includes('-v'), DT = 1 / 30;
 const noop = () => {}, sfx = new Proxy({}, { get: () => noop });
-const fx = { shake: 0, burst: noop, text: noop, ring: noop, update: noop, draw: noop };
+const fx = { shake: 0, burst: noop, text: noop, ring: noop, sink: noop, update: noop, draw: noop };
 let seed = 7; Math.random = () => ((seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648);
 
 function play(L, diff, skill = 1) {
