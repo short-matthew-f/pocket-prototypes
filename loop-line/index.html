@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Loop Line">
+<meta name="theme-color" content="#2f6b2a">
+<title>Loop Line</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Nunito:wght@600;800&display=swap" rel="stylesheet">
+<style>
+:root{--grass:#5daa4b;--deep:#2f6b2a;--ink:#1d3d1a;--cream:#fff8e8;--sun:#ffd23f;--red:#e2453c;--display:"Lilita One",system-ui,sans-serif;--body:Nunito,system-ui,sans-serif;color-scheme:light}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:var(--grass);overflow:hidden;overscroll-behavior:none;font-family:var(--body)}
+#game{position:fixed;inset:0;padding-top:env(safe-area-inset-top,0px)}
+#cv{width:100%;height:100%;display:block;touch-action:none}
+#ui{position:absolute;left:0;right:0;bottom:0;padding:8px max(10px,env(safe-area-inset-right,0px)) calc(8px + env(safe-area-inset-bottom,0px)) max(10px,env(safe-area-inset-left,0px));background:var(--deep);border-top:4px solid #24561f;display:grid;gap:7px}
+.msg{margin:0;color:var(--cream);font:600 13px/1.3 var(--body);min-height:34px}
+.msg b{color:var(--sun)}
+.train{display:flex;gap:5px;align-items:stretch;overflow-x:auto;scrollbar-width:none}
+.train .eng{font-size:26px;display:grid;place-items:center;padding-right:2px}
+button{font:inherit;cursor:pointer;touch-action:manipulation}
+.car{flex:none;width:62px;border:3px solid var(--ink);border-radius:10px;background:var(--c);color:#fff;padding:3px 2px;display:grid;justify-items:center;gap:1px;box-shadow:0 3px 0 var(--ink)}
+.car b{font-size:17px;line-height:1}.car small{font:800 9.5px/1.1 var(--body);text-shadow:0 1px 0 #0008;text-align:center}
+.car.sel{outline:3px solid var(--sun);outline-offset:1px;transform:translateY(-3px)}
+.car:disabled{cursor:default}
+.bar{display:flex;gap:8px;align-items:center}
+.bar button{min-height:50px;border:3px solid var(--ink);border-radius:14px;font:20px var(--display);letter-spacing:.02em;box-shadow:0 4px 0 var(--ink);color:var(--ink)}
+.bar button:active:not(:disabled){transform:translateY(3px);box-shadow:0 1px 0 var(--ink)}
+#go{flex:1;background:var(--sun)}
+#go:disabled{background:#3f7d38;color:#cfe8c6;box-shadow:none;border-color:#24561f;font-size:17px}
+#undo{flex:none;background:var(--cream);font-size:15px;padding:0 10px}
+#undo:disabled{opacity:.45}
+/* game speed: its own round button */
+#spd{flex:none;width:58px;height:58px;border-radius:50%!important;background:var(--cream);display:grid;place-content:center;padding:0;font:14px/1 system-ui!important;letter-spacing:-2px}
+#spd small{font:15px var(--display);letter-spacing:0}
+#spd.on{background:var(--red);color:#fff}
+#modal[hidden]{display:none}
+#modal{position:fixed;inset:0;background:#0f2a0d99;display:grid;place-items:center;padding:16px;z-index:5}
+.card{width:min(420px,100%);background:var(--cream);border:4px solid var(--ink);border-radius:20px;box-shadow:0 6px 0 var(--ink);padding:18px;display:grid;gap:12px;text-align:center}
+.card h2{margin:0;font:32px var(--display);color:var(--red);-webkit-text-stroke:1px var(--ink)}
+.card p{margin:0;font:700 15px/1.35 var(--body);color:var(--ink)}
+.picks{display:grid;gap:8px}
+.pick{display:grid;grid-template-columns:44px 1fr;grid-template-rows:auto auto;gap:0 10px;align-items:center;text-align:left;border:3px solid var(--ink);border-radius:14px;background:#fff;padding:8px 10px;box-shadow:0 4px 0 var(--ink)}
+.pick b{grid-row:span 2;width:44px;height:44px;border-radius:10px;background:var(--c);border:3px solid var(--ink);display:grid;place-items:center;font-size:20px}
+.pick span{font:20px var(--display);color:var(--ink)}.pick small{font:700 12.5px/1.25 var(--body);color:#4a5a46}
+.big{min-height:52px;border:3px solid var(--ink);border-radius:14px;background:var(--sun);font:22px var(--display);color:var(--ink);box-shadow:0 4px 0 var(--ink)}
+.back{position:absolute;top:calc(12px + env(safe-area-inset-top,0px));right:max(10px,env(safe-area-inset-right,0px));color:#cfe8c6;font:800 12px var(--body);text-decoration:none}
+</style>
+</head>
+<body>
+<section id="game"><canvas id="cv"></canvas><div id="ui"></div><a class="back" href="../">All prototypes</a></section>
+<div id="modal" hidden></div>
+<script src="../kit/kit.js"></script>
+<script src="game.js"></script>
+</body>
+</html>
