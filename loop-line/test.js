@@ -60,9 +60,9 @@ function bot(label, grow, seed) {
   const reserved = new Set(grow ? DETOURS.flatMap((d) => d.slice(1, -1).map((p) => key(...p))) : []);
   for (let guard = 0; guard < 400000 && !S.over; guard++) {
     if (S.phase === 'build') {
-      if (S.wave >= 2 && S.cars.length < 2 && S.coins >= 45) G.place('spark', '');
-      if (S.wave >= 3 && S.cars.length < 3 && S.coins >= 25) G.place('coal', '');
-      for (;;) {
+      if (grow !== null && S.wave >= 2 && S.cars.length < 2 && S.coins >= 45) G.place('spark', '');
+      if (grow !== null && S.wave >= 3 && S.cars.length < 3 && S.coins >= 25) G.place('coal', '');
+      for (;grow !== null;) {
         const t = ORDER[gi % ORDER.length]; if (S.coins < GADGETS[t].cost) break;
         const sl = slots(G, reserved);
         if (!sl.length) { if (grow && di < DETOURS.length && S.coins >= 30) { const e = G.lay(DETOURS[di]); if (e) { console.log('  grow:', e); break; } di++; continue; } break; }
@@ -74,4 +74,4 @@ function bot(label, grow, seed) {
   }
   return `${label.padEnd(6)} seed ${seed}: ${S.won ? 'WON ' : 'lost'} w${S.wave} ♥${S.hp} pops ${S.pops} combo ${S.best} gadgets ${S.gadgets.size} track ${S.track.size} cars ${S.cars.join(',')} | ${S.log.join(' ')}`;
 }
-for (const seed of [1, 2, 3, 4, 5]) { console.log(bot('ring', false, seed)); console.log(bot('grow', true, seed)); }
+for (const seed of [1, 2, 3, 4, 5]) { console.log(bot('none', null, seed)); console.log(bot('ring', false, seed)); console.log(bot('grow', true, seed)); }

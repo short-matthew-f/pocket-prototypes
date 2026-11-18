@@ -133,7 +133,7 @@
     }
     flow();
     function spawn(type) {
-      const T = MARBLES[type], side = Math.floor(rnd() * 4), u = rnd(), hp = T.hp * (1 + 1.1 * (S.wave - 1));
+      const T = MARBLES[type], side = Math.floor(rnd() * 4), u = rnd(), hp = T.hp * (1 + 1.3 * (S.wave - 1));
       const [x, y] = side === 0 ? [u * COLS, -0.4] : side === 1 ? [COLS + 0.4, u * ROWS] : side === 2 ? [u * COLS, ROWS + 0.4] : [-0.4, u * ROWS];
       const c = Math.max(0, Math.min(COLS - 1, Math.floor(x))), r = Math.max(0, Math.min(ROWS - 1, Math.floor(y)));
       S.enemies.push({ type, T, x, y, tx: c + 0.5, ty: r + 0.5, hp, max: hp, flash: 0, age: rnd() * 9, vx: 0, vy: 1, hits: {} });
@@ -206,6 +206,16 @@
       for (let i = -1; i < S.cars.length; i++) { // which rail each car is on; rolling onto a new one sets off the gadgets beside it
         const p = carPos(i), k = key(Math.floor(p.x), Math.floor(p.y));
         if (carCells[i + 1] !== k) { carCells[i + 1] = k; if (S.track.has(k)) carRolled(i, k); }
+      }
+      for (let i = -1; i < S.cars.length; i++) { // anything the train touches gets run over and thrown off the line
+        const p = carPos(i), hx = Math.cos(p.a), hy = Math.sin(p.a);
+        for (const m of S.enemies) {
+          if (m.dead || m.kx || Math.hypot(m.x - p.x, m.y - p.y) > 0.4 + m.T.r || m.hits[i] > S.t) continue;
+          m.hits[i] = S.t + 0.5; const side = Math.sign(hx * (m.y - p.y) - hy * (m.x - p.x)) || 1;
+          m.kx = -hy * side * 0.85 + hx * 0.25; m.ky = hx * side * 0.85 + hy * 0.25; // sideways off the rails, a little forward
+          const c = Math.floor(m.x + m.kx), r = Math.floor(m.y + m.ky); m.tx = Math.max(0, Math.min(COLS - 1, c)) + 0.5; m.ty = Math.max(0, Math.min(ROWS - 1, r)) + 0.5;
+          hurt(m, i < 0 ? 3 : 1, true); fx.text(m.x, m.y - 0.3, i < 0 ? 'SQUASH' : 'bonk', '#ffd23f', i < 0 ? 0.3 : 0.24); sfx.hit();
+        }
       }
       S.cars.forEach((type, i) => {
         if (type !== 'gun') return; cool[i] = (cool[i] || 0) - dt; if (cool[i] > 0) return;
