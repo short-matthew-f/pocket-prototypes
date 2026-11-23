@@ -228,6 +228,7 @@ function scoreItem(s, it, st) {
   if (P.fam === 'unit') return Math.sqrt(P.hp * (P.dmg / P.every)) * (1 + P.twin) * (it.base === 'archer' ? 1.2 : it.base === 'tinker' ? 0.8 : 1);
   if (P.fam === 'spell') return 4 * P.s * (it.base === 'lightning' ? 1.3 : 1);
   if (P.fam === 'engine') return 0.1;
+  if (P.fam === 'magnet') return 0.5;
   return 2 * P.yield;
 }
 function trainValue(s, st) {
@@ -298,6 +299,28 @@ if (argv.includes('--bots')) {
   ok(res.mixed.marks.legendary && res.mixed.marks.legendary < 20 * 60, 'first legendary inside 20 minutes');
   ok(res.mixed.marks.d10 && res.mixed.marks.d10 > 0.75 * 3600 && res.mixed.marks.d10 < 3 * 3600, 'Depth 10 (first Overhaul) in roughly 1-3 hours');
   for (const k of ['no-wrench', 'grunts-only', 'archers-only', 'mortars-only']) ok(res[k].s.best <= res.mixed.s.best, `${k} does not beat mixed play`);
+}
+if (argv.includes('--expedition')) { // play whole Expeditions from a ~2 h bot save; report how often they're completed
+  const out = { won: 0, lost: 0, rows: [] };
+  for (const seed of [7, 202, 3003]) {
+    const base = bot('exp-prep', {}, 2, seed).s;
+    for (let k = 0; k < 4; k++) {
+      const s = JSON.parse(JSON.stringify(base)); arrange(s); M.startExpedition(s, 'd' + k); let guard = 0;
+      while (!s.exp.over && guard++ < 40) {
+        const E = s.exp, ch = M.expChoices(s); if (!ch.length) break;
+        const pick = ch.slice().sort((a, b) => { const w = (n) => n.type === 'rest' ? (E.integrity < 0.6 ? -3 : 2) : n.type === 'treasure' ? -2 : n.type === 'event' ? -1 : n.type === 'elite' ? (E.integrity > 0.75 ? -1.5 : 3) : 0; return w(a) - w(b); })[0];
+        M.expEnter(s, pick.y, pick.x);
+        if (['fight', 'elite', 'boss'].includes(pick.type)) { const o = M.expShiftOpts(s); const sh = M.createShift(s, o); const w = { x: 13, y: 8 };
+          while (!sh.S.over) { const near = sh.S.enemies.filter((e) => e.y < 18).sort((a, b) => a.y - b.y)[0]; if (near) { w.x += (near.x - w.x) * 0.2; w.y += (near.y - w.y) * 0.2; } if (sh.S.cranks > 0 && sh.S.enemies.length > 12) sh.crank(); sh.update(1 / 20, { wrench: w }); }
+          M.expAfterShift(s, sh.result()); }
+        else if (pick.type === 'shop') { M.expResolve(s, E.integrity < 0.6 && E.coins >= 2 ? 'repair' : E.coins >= 3 ? 'oil' : 'leave'); if (!pick.done) M.expResolve(s, 'leave'); }
+        else if (pick.type === 'event') M.expResolve(s, E.integrity < 0.5 ? 1 : 0);
+        else M.expResolve(s);
+      }
+      if (s.exp.won) out.won++; else out.lost++; out.rows.push((s.exp.won ? 'WON' : 'lost@row' + (s.exp.at ? s.exp.at[0] + 1 : 0)) + ` door ${Math.round(s.exp.integrity * 100)}% depth ${s.exp.depth}`);
+    }
+  }
+  console.log(`expeditions: ${out.won} won, ${out.lost} lost\n  ` + out.rows.join('\n  '));
 }
 console.log(fails ? `${fails} failing` : 'all good');
 process.exitCode = fails ? 1 : 0;

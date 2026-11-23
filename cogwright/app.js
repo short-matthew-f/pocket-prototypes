@@ -383,7 +383,7 @@
         <button data-a="temper" ${tc && save.brass >= tc ? '' : 'disabled'}>${tc ? `Temper → ${to} (${tc}🔩)` : 'Temper: maxed'}</button>
         <button data-a="vault">${it.vault ? 'Unvault' : `Vault (${M.vaultCount(save)}/${stats.vault})`}</button>
         <button data-a="salvage" ${it.vault ? 'disabled' : ''}>Salvage +${sv}🔩</button>
-        ${!n && !it.vault ? `<button data-a="toforge">🔥 Send to the Forge</button>` : ''}
+        ${!n && !it.vault && !it.leg && !it.set ? `<button data-a="toforge">🔥 Send to the Forge</button>` : ''}
         ${M.roomLvl(save, 'forge') >= 2 && !it.leg && !it.set ? `<select data-a="reforge" style="flex:1 1 30%;min-height:42px;border:2px solid var(--ink);border-radius:12px;font:800 13px var(--body)"><option value="">Reforge (${M.reforgeCost(it)}🔩)…</option>${Object.keys(D.GEARS).filter((k) => D.GEARS[k].fam === D.GEARS[it.base].fam && k !== it.base).map((k) => `<option value="${k}">into ${D.GEARS[k].name}</option>`).join('')}</select>` : ''}
       </div>
       ${same.length ? '' : `<div class="sub" style="margin-top:6px">Merging needs another ${D.SIZES[it.size].name.toLowerCase()} ${D.GEARS[it.base].name} of rank ${it.rank}.</div>`}`;
@@ -439,7 +439,7 @@
     audio(); closeSheet();
     const { ctx, ...o } = opts; const sh = M.createShift(save, { ...o, depth: o.depth || save.depth });
     shift = { sh, S: sh.S, ctx: ctx || {}, paused: false, acc: 0, res: null, wrench: null, crank: null, pointers: new Map() };
-    fx = []; document.body.classList.add('shift'); requestAnimationFrame(resize); music();
+    fx = []; document.body.classList.remove('codex', 'tree'); document.body.classList.add('shift'); requestAnimationFrame(resize); music();
     if (sh.S.boss) toast(`${sh.S.zone.names.boss} guards this depth`);
     if (opts.mod) toast(M.MODS[opts.mod]); if (opts.heat) toast(`Boss Trial, Heat ${opts.heat}`);
     persist();
@@ -469,6 +469,8 @@
       case 'shell': fx.push({ k: 'arc', x1: lx(e.x1), y1: ly(e.y1), x2: lx(e.x2), y2: ly(e.y2), r: e.r * unit(), t: 0, life: 0.45 }); thr('mortar', 120) && (play('mortar', 0.4) || sfx.hit()); break;
       case 'blast': fx.push({ k: 'ring', x: lx(e.x), y: ly(e.y), r: e.r * unit(), c: '#ff7a2a', t: 0, life: 0.4 }); shake(4); break;
       case 'stone': fx.push({ k: 'text', x: lx(e.x), y: ly(e.y) - 10, s: `${D.STONE_TIERS[e.tier]} ${D.STONES[e.type].name}`, c: D.STONES[e.type].color, t: 0, life: 1.3 }); play('socket', 0.7) || sfx.loot('magic'); break;
+      case 'summon': fx.push({ k: 'ring', x: lx(e.x), y: ly(e.y), r: 40, c: '#c77dff', t: 0, life: 0.5 }); toast('The boss calls for help'); break;
+      case 'enrage': fx.push({ k: 'flash', t: 0, life: 0.5, c: '#ff3b2a' }); toast('The boss is enraged!'); shake(8); sfx.boss(); break;
       case 'pull': fx.push({ k: 'fly', x: lx(e.x), y: ly(e.y), t: 0, life: 0.4 }); sfx.coin(); break;
       case 'spawn': if (Math.random() < 0.5) fx.push({ k: 'ring', x: lx(e.x), y: ly(1.5), r: 14, c: '#f3e6c6', t: 0, life: 0.3 }); break;
       case 'die': fx.push({ k: 'burst', x: lx(e.x), y: ly(e.y), t: 0, life: 0.35, c: '#d4a94e' }); break;
@@ -594,6 +596,7 @@
       g.fillStyle = '#1a0f08'; g.beginPath(); g.arc(x - r * 0.32, y + r * 0.18, r * 0.11, 0, TAU); g.arc(x + r * 0.32, y + r * 0.18, r * 0.11, 0, TAU); g.fill();
     }
     if (e.hp < e.max && e.kind !== 'boss') bar(x - r, y - r - 7, r * 2, 3, e.hp / e.max, e.elite ? '#c77dff' : '#ff6a4a');
+    if (e.shieldUp) { g.strokeStyle = '#9fe7ff'; g.lineWidth = 3; g.globalAlpha = 0.6 + 0.3 * Math.sin(t * 20); g.beginPath(); g.arc(x, y, r * 1.5, 0, TAU); g.stroke(); g.globalAlpha = 1; g.fillStyle = '#9fe7ff'; g.font = '900 11px Nunito'; g.textAlign = 'center'; g.fillText('SHIELDED', x, y - r * 1.6); }
     if (e.elite) { // Diablo-style champion: a pulsing aura ring and its name
       const pc = e.elite.includes('molten') ? '#ff6a2a' : e.elite.includes('warding') ? '#7fd8ff' : e.elite.includes('vampiric') ? '#ff3a5a' : '#c77dff';
       g.strokeStyle = pc; g.globalAlpha = 0.55 + 0.3 * Math.sin(t * 6 + e.x); g.lineWidth = 2.5; g.beginPath(); g.ellipse(x, y + r * 0.6, r * 1.05, r * 0.42, 0, 0, TAU); g.stroke(); g.globalAlpha = 1;
@@ -717,7 +720,7 @@
       if (a === 'again') { if (r.opened) save.depth = save.unlocked; refresh(); startShift(); }
     });
   }
-  function endShift() { shift = null; fx = []; document.body.classList.remove('shift'); refresh(); requestAnimationFrame(resize); music(); }
+  function endShift() { shift = null; fx = []; document.body.classList.remove('shift'); setTab(tab); requestAnimationFrame(resize); music(); }
 
   function lootList(ids) { const items = ids.map((id) => save.items[id]).filter(Boolean); return items.length ? `<div class="loot">${items.map((it) => `<div style="color:${rarity(it.rarity).color === '#b9b3a6' ? '#5a4c3a' : rarity(it.rarity).color}">⚙ ${it.name} <small>(ilvl ${it.ilvl})</small></div>`).join('')}</div>` : ''; }
   function expResult(r, doneB) {
@@ -780,7 +783,7 @@
       if (a === 'auto3') FORGE.picked = fuseCandidates(b.dataset.r).slice(0, 3).map((it) => it.id);
       if (a === 'unpick') FORGE.picked = FORGE.picked.filter((id) => id !== +b.dataset.id);
       if (a === 'fuse') { const out = M.fuse(save, FORGE.picked); err = out.err; if (!err) { FORGE.picked = []; const it = save.items[out.id]; sfx.loot(it.rarity); showModal(`<h2>Fused!</h2>${lootList([out.id])}<button data-a="ok">Nice</button>`, hideModal); } }
-      if (a === 'feedcommons' || a === 'feedpicked') { const ids = a === 'feedpicked' ? FORGE.picked : spare.map((it) => it.id); const r2 = M.feedMainspring(save, ids); FORGE.picked = []; sfx.merge(); toast(`Fed ${r2.fed} gears${r2.ups ? `: Mainspring level ${save.mainspring.l}!` : ''}`); }
+      if (a === 'feedcommons' || a === 'feedpicked') { const ids = a === 'feedpicked' ? FORGE.picked : spare.map((it) => it.id); const r2 = M.feedMainspring(save, ids); if (r2.err) { err = r2.err; } else { FORGE.picked = []; sfx.merge(); toast(`Fed ${r2.fed} gears${r2.ups ? `: Mainspring level ${save.mainspring.l}!` : ''}`); } }
       if (a === 'startR') { err = M.startResearch(save, b.dataset.k, Date.now()); if (!err) sfx.tick(); }
       if (a === 'claimR') { const out = M.claimResearch(save, +b.dataset.i, Date.now()); err = out.err; if (!err) { sfx.loot('rare'); toast(out.scrap ? `+${fmt(out.scrap)} scrap` : out.bp ? '+1 Blueprint' : out.stone ? `A Flawed ${D.STONES[out.stone].name}` : out.item ? `${save.items[out.item] ? save.items[out.item].name : 'A gear'}!` : 'Study done: +25% scrap for 5 Shifts'); } }
       if (a === 'pouch') { openPouch(); return; }
@@ -808,7 +811,7 @@
         <p class="room-d">One free ↻ reroll a day.</p></section>
       <section class="room"><div class="room-h"><b>🗺 Expedition</b><span>${E && !E.over ? `row ${E.at ? E.at[0] + 1 : 1} of 7` : 'none under way'}</span></div>
         <p class="room-d">A branching route of fights, elites, treasure, a stall, repairs and odd events, ending at a boss. Your door's damage carries from node to node; if it breaks, the Expedition ends (you keep the loot). Win the boss for a Blueprint and a legendary-or-set chest. Doesn't affect your depth progress.</p>
-        <div class="chips">${E && !E.over ? `<button class="act" data-a="map">Open the map</button><button class="act small" data-a="abandon">Abandon</button>` : `<button class="act" data-a="startE">Set out (Depth ${Math.max(1, save.unlocked - 2)})</button>`}</div></section>
+        <div class="chips">${E && !E.over ? `<button class="act" data-a="map">Open the map</button><button class="act small" data-a="abandon">Abandon</button>` : `<button class="act" data-a="startE">Set out (Depth ${Math.max(1, save.unlocked - 1)})</button>`}</div></section>
       <section class="room"><div class="room-h"><b>👑 Boss Trials</b><span>${bosses.length ? `${bosses.length} boss${bosses.length > 1 ? 'es' : ''}` : 'beat a boss first'}</span></div>
         <p class="room-d">Rematch a beaten boss at higher Heat. Each Heat you clear is a permanent trophy bonus; from Heat 3 the boss may drop its own legendary.</p>
         ${bosses.map((d) => { const open = M.trialHeatOpen(save, d), h = Math.min(open, JOB.heat[d] || open), T = D.TROPHIES[M.trophyKey(d)]; return `<div class="bounty"><b>${BOSSNAME(d)}</b><span>Trophy: ${T.name}, ${save.trophies[M.trophyKey(d)] ? `Heat ${save.trophies[M.trophyKey(d)]}` : 'none yet'}</span>
@@ -819,7 +822,7 @@
       if (a === 'daily') return dailyPrompt();
       if (a === 'claimB') { const out = M.claimBounty(save, +b.dataset.id); err = out.err; if (!err) { sfx.loot('rare'); toast(out.brass ? `+${out.brass} brass` : out.bp ? '+1 Blueprint' : out.stone ? `A ${D.STONES[out.stone].name}` : 'A new gear in your drawers'); } }
       if (a === 'rerollB') { err = M.rerollBounty(save, +b.dataset.id, today()); }
-      if (a === 'startE') { err = M.startExpedition(save); if (!err) { JOB.view = 'map'; sfx.buy(); } }
+      if (a === 'startE') { err = M.startExpedition(save, today()); if (!err) { JOB.view = 'map'; sfx.buy(); } }
       if (a === 'map') JOB.view = 'map';
       if (a === 'abandon') { if (!b.dataset.sure) { b.dataset.sure = 1; b.textContent = 'Tap to give up'; return; } M.abandonExpedition(save); }
       if (a === 'heat') { const d = +b.dataset.d; JOB.heat[d] = Math.max(1, Math.min(M.trialHeatOpen(save, d), (JOB.heat[d] || M.trialHeatOpen(save, d)) + +b.dataset.v)); }
@@ -834,11 +837,19 @@
       <div class="bar"><i style="width:${E.integrity * 100}%;background:${E.integrity > 0.35 ? '#7fd36b' : '#ff5a3a'}"></i></div>
       <div class="map">${E.rows.slice().reverse().map((row) => `<div class="mrow">${row.map((nd) => { const here = E.at && E.at[0] === nd.y && E.at[1] === nd.x, can = ch.includes(nd); return `<button class="node ${nd.done ? 'done' : ''} ${here ? 'here' : ''} ${can ? 'can' : ''}" data-a="node" data-y="${nd.y}" data-x="${nd.x}" ${can ? '' : 'disabled'}><b>${NODE[nd.type][0]}</b><small>${NODE[nd.type][1]}</small></button>`; }).join('')}</div>`).join('')}</div>
       <div class="chips"><button class="act" data-a="back">‹ Jobs</button></div>`;
+    drawPaths(E);
     page.onclick = (e) => {
       const b = e.target.closest('button'); if (!b) return; const a = b.dataset.a;
       if (a === 'back') { JOB.view = 'main'; renderJobs(); return; }
       if (a === 'node') { const err = M.expEnter(save, +b.dataset.y, +b.dataset.x); if (err) { toast(err); return; } persist(); openExpNode(save.exp.rows[+b.dataset.y][+b.dataset.x]); }
     };
+  }
+  function drawPaths(E) { // lines between nodes, so the route ahead is visible
+    const map = page.querySelector('.map'); if (!map) return; const box = map.getBoundingClientRect();
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); svg.setAttribute('class', 'paths'); svg.setAttribute('width', box.width); svg.setAttribute('height', box.height);
+    const at = (y, x) => { const el = map.querySelector(`.node[data-y="${y}"][data-x="${x}"]`); if (!el) return null; const r = el.getBoundingClientRect(); return [r.left - box.left + r.width / 2, r.top - box.top + r.height / 2]; };
+    for (const row of E.rows) for (const nd of row) for (const nx of nd.next || []) { const a = at(nd.y, nd.x), b = at(nd.y + 1, nx); if (!a || !b) continue; const ln = document.createElementNS('http://www.w3.org/2000/svg', 'line'); ln.setAttribute('x1', a[0]); ln.setAttribute('y1', a[1]); ln.setAttribute('x2', b[0]); ln.setAttribute('y2', b[1]); ln.setAttribute('stroke', nd.done ? '#7fd36b' : '#6b5a44'); ln.setAttribute('stroke-width', nd.done ? 3 : 2); ln.setAttribute('stroke-dasharray', nd.done ? '' : '4 4'); svg.appendChild(ln); }
+    map.prepend(svg);
   }
   function openExpNode(nd) {
     if (['fight', 'elite', 'boss'].includes(nd.type)) { const o = M.expShiftOpts(save); return startShift({ ...o, ctx: { exp: true } }); }
@@ -999,11 +1010,11 @@
       const b = e.target.closest('button'); if (!b) return; const a = b.dataset.a;
       if (a === 'f') { ARM[b.dataset.g] = b.dataset.v; renderArmory(); return; }
       if (a === 'select') { ARM.select = !ARM.select; ARM.picked.clear(); renderArmory(); return; }
-      if (a === 'pickall') { for (const it of armoryList()) if (!it.vault) ARM.picked.add(it.id); renderArmory(); return; }
+      if (a === 'pickall') { for (const it of armoryList()) if (!it.vault && it.loc !== 'board' && it.rarity !== 'legendary' && it.rarity !== 'set') ARM.picked.add(it.id); renderArmory(); toast('Picked everything shown except bench, vault, set and legendary gears'); return; }
       if (a === 'pouch') { openPouch(); return; }
       if (a === 'card') { const id = +b.dataset.id; if (ARM.select) { if (save.items[id] && save.items[id].vault) { toast('Vaulted gears can\'t be salvaged'); return; } ARM.picked.has(id) ? ARM.picked.delete(id) : ARM.picked.add(id); renderArmory(); } else openGear(id); return; }
       if (a === 'salv') { if (!b.dataset.sure) { b.dataset.sure = 1; b.textContent = `Tap again to salvage ${ARM.picked.size}`; return; } let n = 0; const before = save.brass; for (const id of ARM.picked) if (!M.salvage(save, id)) n++; ARM.picked.clear(); ARM.select = false; sfx.clank(); toast(`Salvaged ${n} gears for +${save.brass - before} brass`); persist(); refresh(); return; }
-      if (a === 'mergeall') { let n = 0; for (const [src, dst] of mergePlan()) if (!M.merge(save, src, dst)) n++; sfx.merge(); toast(`Merged ${n} pairs`); persist(); refresh(); return; }
+      if (a === 'mergeall') { let n = 0; for (const [src, dst] of mergePlan()) if (!M.mergeKeepBest(save, src, dst).err) n++; sfx.merge(); toast(`Merged ${n} pairs`); persist(); refresh(); return; }
     };
   }
   function renderCodex() {

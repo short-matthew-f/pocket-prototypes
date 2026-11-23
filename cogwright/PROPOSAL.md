@@ -35,6 +35,20 @@ Changes from the proposal:
   - Overhauls pay only for depths cleared beyond Head Start.
   - The save format is v2, migrated from v1 and tested against a v1 fixture.
 
+### Added after Matt's feedback (2026-11-23)
+
+- **Legibility.** Every gear on the bench shows its role and RPM, a rarity ring, and a green merge badge when an identical gear exists. Upgrade nodes are named.
+- **The Armory.** A tab with filters, sorting, merge-duplicates and multi-select salvage.
+- **The Bench** is now the board plus a filterable tray.
+- **The Workshop.**
+  - The Forge: fuse three gears into one of the next rarity, reforge, feed the Mainspring. Mainspring levels reset on Overhaul.
+  - The Research desk, the Jeweller and the Trophy Wall.
+- **Jobs.**
+  - The Daily Contract.
+  - Bounties, which progress from every Shift.
+  - Expeditions: a 7-row map whose boss is the current depth's boss at Heat 1.3 with faster enemies. A bot playing 2-hour saves completes 2 of 3 seeds. The Blueprint is paid on the first completion each day.
+  - Boss Trials: Heat 1–10, with trophies and boss-only legendaries on the first clear of each Heat.
+
 Late-game pacing (Overhaul bot, 2 seeds, `ONLY=overhaul node test.js --bots --hours 30`):
 
 - The Mines boss (Depth 20) falls at about 6.5–9 hours.

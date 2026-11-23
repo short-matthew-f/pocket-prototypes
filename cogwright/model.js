@@ -386,7 +386,7 @@
     const counts = opts.counts !== false, heat = opts.heat || 0, buffs = opts.buffs || {};
     const board = solve(save, st), sets = board.sets;
     Object.assign(st, trainStats(st, board));
-    const es = enemyScale(depth), boss = opts.forceBoss || heat > 0 || isBossDepth(depth);
+    const es = enemyScale(depth), boss = opts.forceBoss || heat > 0 || (!opts.noBoss && isBossDepth(depth));
     const S = { t: 0, time: st.shiftTime, depth, zone, boss, over: false, outcome: null,
       door: { hp: st.doorHp, max: st.doorHp }, gate: { hp: gateHp(depth), max: gateHp(depth) },
       troops: [], enemies: [], drops: [], shots: [], events: [], scrap: 0, brass: 0, kills: 0, items: [], salvaged: 0,
@@ -455,7 +455,7 @@
       const il = depth + st.ilvlBonus + (r.next() < 0.3 ? 1 : 0);
       if (e.kind === 'boss') {
         S.bossDead = true;
-        const first = !(save.stats.bossKills > 0);
+        const first = counts && !(save.stats.bossKills > 0);
         for (let i = 0; i < 3; i++) S.drops.push({ kind: 'gear', x: e.x + (i - 1) * 3, y: e.y, il, force: i === 0 && first ? 'legendary' : i === 0 ? 'rare' : null, t: 0 });
         dropStone(e.x - 2, e.y - 2, r.next() < 0.5 ? 1 : 0); dropStone(e.x + 2, e.y - 2, 0);
       } else if (r.next() < 0.025 * e.odds * st.dropRate) S.drops.push({ kind: 'gear', x: e.x, y: e.y, il, t: 0, force: e.elite && r.next() < 0.5 ? 'magic+' : null });
@@ -758,7 +758,8 @@ const overhaulGain = (save) => (save.best < 10 || save.best <= (save.cycleStart 
   const msMax = (save) => (roomLvl(save, 'forge') >= 5 ? 20 : 15);
   function feedMainspring(save, ids) {
     const st = stats(save); let xp = 0, n = 0;
-    for (const id of ids) { const it = save.items[id]; if (!it || it.vault || it.loc === 'board') continue; xp += salvageValue(save, it, st) * 3; for (const x of it.sockets || []) if (x) pouchAdd(save, x[0], x[1]); delete save.items[id]; n++; }
+    if (save.mainspring.l >= msMax(save)) return { fed: 0, xp: 0, ups: 0, err: 'the Mainspring is at its cap' };
+    for (const id of ids) { const it = save.items[id]; if (!it || it.vault || it.loc === 'board' || it.rarity === 'legendary' || it.rarity === 'set') continue; xp += salvageValue(save, it, st) * 3; for (const x of it.sockets || []) if (x) pouchAdd(save, x[0], x[1]); delete save.items[id]; n++; }
     const ms = save.mainspring; ms.xp += xp; let ups = 0;
     while (ms.l < msMax(save) && ms.xp >= msNeed(ms.l)) { ms.xp -= msNeed(ms.l); ms.l++; ups++; }
     if (ms.l >= msMax(save)) ms.xp = Math.min(ms.xp, msNeed(ms.l));
@@ -827,35 +828,36 @@ const overhaulGain = (save) => (save.best < 10 || save.best <= (save.cycleStart 
   }
   // ================================================================== Expeditions (a branching map of Shifts; nothing here counts toward depth progress)
   const NODE_W = [['fight', 44], ['elite', 15], ['treasure', 12], ['shop', 10], ['rest', 9], ['event', 10]];
-  function startExpedition(save) {
+  function startExpedition(save, day = '') {
     if (save.exp && !save.exp.over) return 'an Expedition is already under way';
-    const depth = Math.max(1, save.unlocked - 2); const seed = withRng(save, (r) => Math.floor(r.next() * 4294967296)); const r = rngFrom(seed);
+    const depth = Math.max(1, save.unlocked - 1); const seed = withRng(save, (r) => Math.floor(r.next() * 4294967296)); const r = rngFrom(seed);
     const rows = []; for (let y = 0; y < 7; y++) { const n = y === 6 ? 1 : 2 + r.int(0, 2); const row = []; for (let x = 0; x < n; x++) row.push({ y, x, type: y === 0 ? 'fight' : y === 6 ? 'boss' : y === 5 ? 'rest' : r.weighted(NODE_W), seed: Math.floor(r.next() * 4294967296), done: false }); rows.push(row); }
     for (let y = 0; y < 6; y++) for (const nd of rows[y]) { const nx = rows[y + 1], tgt = Math.round((nd.x / Math.max(1, rows[y].length - 1)) * (nx.length - 1)); nd.next = [...new Set([tgt, Math.max(0, tgt - (r.next() < 0.5 ? 1 : 0)), Math.min(nx.length - 1, tgt + (r.next() < 0.5 ? 1 : 0))])]; }
-    save.exp = { seed, depth, rows, at: null, integrity: 1, coins: 0, buffs: { rpm: 0, dmg: 0 }, over: false, won: false, log: [] };
+    save.exp = { day, seed, depth, rows, at: null, integrity: 1, coins: 0, buffs: { rpm: 0, dmg: 0 }, over: false, won: false, log: [] };
     return '';
   }
   function expChoices(save) { const E = save.exp; if (!E || E.over) return []; if (!E.at) return E.rows[0]; const cur = E.rows[E.at[0]][E.at[1]]; if (!cur.done) return [cur]; return E.at[0] >= 6 ? [] : cur.next.map((x) => E.rows[E.at[0] + 1][x]); }
   function expEnter(save, y, x) { const E = save.exp; const nd = E.rows[y] && E.rows[y][x]; if (!nd || !expChoices(save).includes(nd)) return 'you can\'t get there from here'; E.at = [y, x]; return ''; }
   function expShiftOpts(save) { // the Shift for the current fight/elite/boss node (seeded: a retry is the same fight)
-    const E = save.exp, nd = E.rows[E.at[0]][E.at[1]], depth = E.depth + Math.floor(E.at[0] / 3) + (nd.type === 'elite' ? 1 : 0);
-    return { depth: nd.type === 'boss' ? Math.max(E.depth + 2, 2) : depth, seed: nd.seed, counts: false, doorFrac: E.integrity, buffs: E.buffs, mods: nd.type === 'elite' ? ['elites'] : [], forceBoss: nd.type === 'boss' };
+    const E = save.exp, nd = E.rows[E.at[0]][E.at[1]], depth = E.depth + (E.at[0] >= 4 ? 1 : 0);
+    const mods = [...(nd.type === 'elite' ? ['elites'] : []), ...(E.at[0] >= 3 ? ['swift'] : [])];
+    return { noBoss: nd.type !== 'boss', depth: nd.type === 'boss' ? E.depth : depth, seed: nd.seed, counts: false, doorFrac: E.integrity, buffs: E.buffs, mods, forceBoss: nd.type === 'boss', heat: nd.type === 'boss' ? 1.3 : 0 };
   }
   function expAfterShift(save, res) {
     const E = save.exp, nd = E.rows[E.at[0]][E.at[1]];
     if (res.outcome === 'timeout') { E.integrity = Math.max(0, Math.min(res.door, E.integrity) - 0.25); if (E.integrity <= 0.01) { E.over = true; return { over: true }; } return { retry: true }; } // out of time: it costs door, and you can try the node again
-    E.integrity = Math.max(0, Math.min(1, res.door + 0.1));
+    E.integrity = Math.max(0, Math.min(1, res.door + 0.15));
     if (res.outcome !== 'win') { E.over = true; E.log.push(`The door gave way on row ${E.at[0] + 1}.`); return { over: true }; }
     nd.done = true; E.coins += nd.type === 'elite' ? 3 : nd.type === 'boss' ? 0 : 1;
     const st = stats(save), out = { items: [] };
     if (nd.type === 'elite') withRng(save, (r) => { const it = rollDrop(save, r, maxIlvl(save), st, 'rare'); if (addLoot(save, it, st).kept) out.items.push(it.id); });
-    if (nd.type === 'boss') { E.over = true; E.won = true; withRng(save, (r) => { for (const f of [r.next() < 0.5 ? 'legendary' : 'set', 'rare', null]) { const it = rollDrop(save, r, maxIlvl(save) + 1, st, f); if (addLoot(save, it, st).kept) out.items.push(it.id); } pouchAdd(save, r.pick(Object.keys(STONES)), 1); }); save.blueprints += 1; out.bp = 1; save.stats.expeditions = (save.stats.expeditions || 0) + 1; }
+    if (nd.type === 'boss') { E.over = true; E.won = true; withRng(save, (r) => { for (const f of [r.next() < 0.5 ? 'legendary' : 'set', 'rare', null]) { const it = rollDrop(save, r, maxIlvl(save) + 1, st, f); if (addLoot(save, it, st).kept) out.items.push(it.id); } pouchAdd(save, r.pick(Object.keys(STONES)), 1); }); if (save.expBpDay !== E.day) { save.blueprints += 1; out.bp = 1; save.expBpDay = E.day; } save.stats.expeditions = (save.stats.expeditions || 0) + 1; }
     return out;
   }
   function expResolve(save, choice) { // treasure / shop / rest / event nodes
     const E = save.exp, nd = E.rows[E.at[0]][E.at[1]], st = stats(save), r = rngFrom(nd.seed), out = { items: [] }; if (nd.done) return { err: 'already done' };
     if (nd.type === 'treasure') { const it = withRng(save, (rr) => rollDrop(save, rr, maxIlvl(save), st, r.next() < 0.4 ? 'rare' : 'magic')); if (addLoot(save, it, st).kept) out.items.push(it.id); const b = 20 + 3 * E.depth; save.brass += b; out.brass = b; E.coins += 1; }
-    if (nd.type === 'rest') { E.integrity = Math.min(1, E.integrity + 0.4); }
+    if (nd.type === 'rest') { E.integrity = Math.min(1, E.integrity + 0.45); }
     if (nd.type === 'shop') {
       if (choice === 'leave') { nd.done = true; return out; }
       if (choice === 'repair') { if (E.coins < 2) return { err: 'needs 2 tickets' }; E.coins -= 2; E.integrity = Math.min(1, E.integrity + 0.5); return out; }
@@ -890,7 +892,7 @@ const overhaulGain = (save) => (save.best < 10 || save.best <= (save.cycleStart 
     if (res.outcome !== 'win') return { won: false };
     const k = trophyKey(d), prev = save.trophies[k] || 0, out = { won: true, newHeat: heat > prev };
     if (heat > prev) save.trophies[k] = Math.min(10, heat);
-    if (heat >= 3) withRng(save, (r) => { if (r.next() < 0.12 + 0.03 * heat) { const L = { 10: 'foremanshammer', 20: 'dredgemaw', 30: 'horohand' }[d] || r.pick(['foremanshammer', 'dredgemaw', 'horohand']); const st = stats(save); const it = makeItem(save, r, { rarity: 'legendary', ilvl: maxIlvl(save) + 1, leg: L }); addLoot(save, it, st); out.legendary = it.id; save.stats.legendaries++; } });
+    if (heat >= 3 && out.newHeat) withRng(save, (r) => { if (r.next() < 0.12 + 0.03 * heat) { const L = { 10: 'foremanshammer', 20: 'dredgemaw', 30: 'horohand' }[d] || r.pick(['foremanshammer', 'dredgemaw', 'horohand']); const st = stats(save); const it = makeItem(save, r, { rarity: 'legendary', ilvl: maxIlvl(save) + 1, leg: L }); addLoot(save, it, st); out.legendary = it.id; save.stats.legendaries++; } });
     return out;
   }
 
