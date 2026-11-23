@@ -1,6 +1,6 @@
 # Pocket Prototypes
 
-Seven phone game MVPs to feel the loop of each idea. Vector art, with optional raster art + sound per game (assets below). Site: GitHub Pages (`/<game>/`).
+Seven phone game MVPs to feel the loop of each idea, plus standalone games that don't use the kit: Cog & Marble, Loop Line and **Cogwright** (`cogwright/`: a full installable PWA, see `cogwright/PROPOSAL.md`; rules in `model.js`, tests and balance bots in `node cogwright/test.js [--bots]`). Vector art, with optional raster art + sound per game (assets below). Site: GitHub Pages (`/<game>/`).
 
 ## Kit contract (`kit/kit.js` + `kit/kit.css`)
 Each game is `<game>/index.html` (loads Google Fonts Lilita One + Nunito, `../kit/kit.css`, `../kit/kit.js`, then `game.js`)
