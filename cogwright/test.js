@@ -148,6 +148,12 @@ function runShift(s, policy = {}, dt = 1 / 20) {
   ok(s.stats.bossKills === 1 && Object.values(s.items).some((it) => it.leg), 'the first boss always drops a legendary');
 }
 
+// ---------------------------------------------------------------- Daily Contract
+{ const s = M.newSave(90); s.tree.t_dmg = 10; s.tree.t_hp = 10; s.tree.s_door = 8; const c = M.dailyContract(s, '2026-11-22');
+  ok(c.mod && c.text && !c.done && M.dailyContract(s, '2026-11-22').mod === c.mod, `the Daily Contract is the same all day (${c.text})`);
+  const sh = M.createShift(s, { depth: c.depth, mod: c.mod, contract: c.day }); while (!sh.S.over) sh.update(1 / 20, { wrench: { x: 13, y: 12 } });
+  const r = sh.result(); ok(r.outcome !== 'win' || (r.contract && M.dailyContract(s, '2026-11-22').done && r.stones.length >= 1), `winning the Contract opens its chest (${r.outcome})`); }
+
 // ---------------------------------------------------------------- Cogstones
 { const s = M.newSave(80); s.brass = 1000; M.pouchAdd(s, 'ruby', 0, 7);
   ok(M.combineStones(s, 'ruby', 0) === '' && s.pouch.ruby[0] === 4 && s.pouch.ruby[1] === 1, 'three Chipped Rubies combine into a Flawed one');

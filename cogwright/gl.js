@@ -144,7 +144,7 @@ function icon(spec, px = 96) {
   if (!iconR) {
     iconR = new THREE.WebGLRenderTarget(px * 2, px * 2); iconR.texture.colorSpace = THREE.SRGBColorSpace;
     iconScene = new THREE.Scene(); iconScene.environment = scene.environment;
-    iconScene.add(new THREE.HemisphereLight(0xfff1d6, 0x2a1d12, 0.7)); const d = new THREE.DirectionalLight(0xffe2b0, 1.5); d.position.set(-0.6, 0.8, 1); iconScene.add(d);
+    iconScene.add(new THREE.HemisphereLight(0xfff1d6, 0x6a5a48, 1.6)); const d = new THREE.DirectionalLight(0xffe2b0, 2.6); d.position.set(-0.6, 0.8, 1); iconScene.add(d);
     iconCam = new THREE.OrthographicCamera(-1.15, 1.15, 1.15, -1.15, 0.1, 10); iconCam.position.set(0, 0, 5);
   }
   const g = makeGear(spec); g.rotation.z = 0.2; iconScene.add(g);

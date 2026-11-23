@@ -36,6 +36,8 @@ body.codex #gl,body.tree #gl{display:none}
 .depth span{min-width:86px;text-align:center;font:700 13px/1.1 var(--body)}
 .depth b{display:block;font:900 17px var(--display);color:var(--paper)}
 #go{flex:1;min-height:52px;border:3px solid #3a2810;border-radius:16px;background:linear-gradient(#f0c86a,#c99a3a);color:var(--ink);font:900 20px var(--display);letter-spacing:.04em;box-shadow:0 4px 0 #3a2810}
+#daily{flex:none;width:58px;min-height:52px;border:2px solid #5a4430;border-radius:14px;background:#00000040;color:var(--brass);display:grid;place-items:center;padding:2px 0;font:800 10px var(--body)}
+#daily b{font-size:20px;line-height:1}#daily.done{opacity:.45}#daily.new{border-color:var(--brass);box-shadow:0 0 12px #d4a94e80}
 #go:active{transform:translateY(3px);box-shadow:0 1px 0 #3a2810}
 nav{display:flex;background:#1a130e;border-top:1px solid #4a3826;padding-bottom:env(safe-area-inset-bottom,0px)}
 nav button{flex:1;background:none;border:0;padding:8px 0 7px;color:var(--dim);font:800 11px var(--body);display:grid;justify-items:center;gap:1px}
@@ -59,6 +61,7 @@ body.shift #cv,body.shift #gl{top:env(safe-area-inset-top,0px);height:calc(100% 
 #sheet .acts button{flex:1 1 30%;min-height:42px;border:2px solid var(--ink);border-radius:12px;background:#fff;font:800 13px var(--body);color:var(--ink)}
 #sheet .acts button.pri{background:var(--brass);}
 #sheet .acts button:disabled{opacity:.4}
+#sheet ul button:disabled{opacity:.35}
 #sheet .x{position:absolute;right:12px;top:10px;width:34px;height:34px;border-radius:50%;border:2px solid var(--ink);background:#fff;font:900 16px var(--body);color:var(--ink)}
 #sheet .warn{color:#b3261e;font:800 13px var(--body)}
 #modal{position:fixed;inset:0;z-index:8;background:#0b0806c0;display:grid;place-items:center;padding:16px}
@@ -97,6 +100,7 @@ body.codex #cv{display:none}
   <main><canvas id="gl"></canvas><canvas id="cv"></canvas><div id="page"></div></main>
   <div id="foot">
     <div class="depth"><button id="d-prev" aria-label="Shallower">◀</button><span><b id="d-num">1</b><span id="d-zone">Foundry</span></span><button id="d-next" aria-label="Deeper">▶</button></div>
+    <button id="daily" aria-label="Daily Contract"><b>📜</b><small>Daily</small></button>
     <button id="go">Start Shift</button>
   </div>
   <nav>

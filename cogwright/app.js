@@ -106,6 +106,7 @@
     save.depth = Math.max(1, Math.min(save.depth, save.unlocked));
     $('#d-num').textContent = 'Depth ' + save.depth; $('#d-zone').textContent = M.zoneOf(save.depth).name.replace('The ', '') + (M.isBossDepth(save.depth) ? ' · Boss' : '');
     $('#d-prev').disabled = save.depth <= 1; $('#d-next').disabled = save.depth >= save.unlocked;
+    { const c = M.dailyContract(save, today()); $('#daily').classList.toggle('done', c.done); $('#daily').classList.toggle('new', !c.done); }
     $('#tree-dot').hidden = !D.TREE.some((n) => M.canBuyNode(save, n.id) === '') && !M.overhaulGain(save);
     if (tab === 'codex') renderCodex();
     if (sel && !save.items[sel]) closeSheet();
@@ -120,7 +121,13 @@
   }
   $('#d-prev').onclick = () => { save.depth--; refresh(); };
   $('#d-next').onclick = () => { save.depth++; refresh(); };
-  $('#go').onclick = startShift;
+  $('#go').onclick = () => startShift();
+  const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+  $('#daily').onclick = () => {
+    const c = M.dailyContract(save, today());
+    if (c.done) { toast('Today\'s Contract is done. A new one comes tomorrow.'); return; }
+    showModal(`<h2>Daily Contract</h2><p><b>${c.text}</b></p><p>Depth ${c.depth}. Win it for a chest: a rare gear, another gear, a Flawed Cogstone and 30 brass. One a day.</p><div class="row"><button class="alt" data-a="no">Later</button><button data-a="go">Take the job</button></div>`, (a) => { hideModal(); if (a === 'go') startShift({ depth: c.depth, mod: c.mod, contract: c.day }); });
+  };
 
   // ------------------------------------------------------------------ drawing helpers
   const gearPaths = {};
@@ -391,13 +398,14 @@
 
   // ------------------------------------------------------------------ Shift
   let fx = [];
-  function startShift() {
+  function startShift(opts = {}) {
     if (!board.spinning.some((n) => D.GEARS[n.item.base].fam === 'unit')) { toast('Mesh at least one troop gear to the Mainspring first'); sfx.nope(); return; }
     audio(); closeSheet();
-    const sh = M.createShift(save, { depth: save.depth });
+    const sh = M.createShift(save, { depth: opts.depth || save.depth, mod: opts.mod, contract: opts.contract });
     shift = { sh, S: sh.S, paused: false, acc: 0, res: null, wrench: null, crank: null, pointers: new Map() };
     fx = []; document.body.classList.add('shift'); requestAnimationFrame(resize); music();
     if (sh.S.boss) toast(`${sh.S.zone.names.boss} guards this depth`);
+    if (opts.mod) toast(M.MODS[opts.mod]);
     persist();
   }
   let SL = null;
@@ -657,6 +665,7 @@
     const title = { win: st.boss ? `${st.zone.names.boss} falls!` : 'Gate broken!', door: 'The door gave way', timeout: 'Shift over' }[r.outcome];
     const items = r.items.map((id) => save.items[id]).filter(Boolean);
     const lines = [`+${fmt(r.scrap)} scrap · ${r.kills} kills${r.brass ? ` · +${r.brass} brass from salvage` : ''}`];
+    if (r.contract) lines.unshift('📜 Contract complete! The chest held a rare gear, a gear, a Flawed Cogstone and 30 brass.');
     if (r.opened) lines.push(`Depth ${save.unlocked} is open${M.isBossDepth(save.unlocked) ? ' — a boss waits there' : ''}.`);
     if (r.outcome !== 'win') lines.push(r.outcome === 'door' ? 'Upgrade the door, troop health, or put a Tinker on the bench.' : `Gate ${Math.round(r.gate * 100)}% left. More troops, more damage, or a longer Shift will get it.`);
     if (r.outcome === 'win' && st.boss && st.depth === 10 && save.overhauls === 0) lines.push('You can now Overhaul from the Upgrades tab for permanent Blueprints.');

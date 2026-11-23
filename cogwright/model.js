@@ -387,7 +387,8 @@
       bossSpawned: false, bossDead: false, spawnAcc: 0, surge: 0, held: 0, stats: st, sets, gremlin: null, elitesKilled: 0, gremlinKilled: false, stones: [] };
     const has = (leg) => board.spinning.some((n) => n.item.leg === leg);
     const pierce = has('piercer'), siege = has('siegebreaker'), heartwood = has('heartwood'), clocksmith = has('clocksmith');
-    S.gremlinAt = (has('gremlinbait') || (depth >= 2 && r.next() < 0.3)) ? 12 + r.next() * 30 : -1;
+    const mod = opts.mod || null; S.mod = mod;
+    S.gremlinAt = (mod === 'gremlins' || has('gremlinbait') || (depth >= 2 && r.next() < 0.3)) ? (mod === 'gremlins' ? 6 : 12 + r.next() * 30) : -1;
     // per-gear runtime
     const esc = board.spinning.some((n) => n.item.leg === 'escapement');
     const heart = board.spinning.some((n) => n.item.leg === 'heart');
@@ -400,7 +401,8 @@
     function spawnTroop(g, mult = 1) {
       const P = g.P, T = TROOPS[GEARS[g.item.base].troop];
       if (S.troops.length >= st.troopCap) return;
-      const tr = { side: 1, kind: g.item.base, x: 3 + r.next() * (LANE.W - 6), y: 1.5, hp: P.hp, max: P.hp, dmg: P.dmg * mult, every: P.every, cd: r.next() * 0.3, speed: P.speed, range: P.range, r: P.r,
+      const gm = mod === 'glass' ? [0.6, 1.8] : [1, 1];
+      const tr = { side: 1, kind: g.item.base, x: 3 + r.next() * (LANE.W - 6), y: 1.5, hp: P.hp * gm[0], max: P.hp * gm[0], dmg: P.dmg * mult * gm[1], every: P.every, cd: r.next() * 0.3, speed: P.speed, range: P.range, r: P.r,
         leech: P.leech, crit: P.crit, thorns: P.thorns, shield: P.shield, heal: P.heal || 0, size: g.item.size, rarity: g.item.rarity, ranged: T.range > 3, hit: 0,
         splash: P.splash || 0, pierce: pierce && g.item.base === 'archer', siege: siege && g.item.base === 'mortar' };
       if (P.repair) S.door.hp = Math.min(S.door.max, S.door.hp + P.repair);
@@ -420,7 +422,8 @@
       const K = ENEMY_KINDS[kind], m = kind === 'boss' ? es * 1.0 : es;
       const e = { side: -1, kind, x: kind === 'boss' ? LANE.W / 2 : 2 + r.next() * (LANE.W - 4), y: LANE.L - 1, hp: K.hp * m, max: K.hp * m, dmg: K.dmg * Math.pow(TUNE.enemyDmgGrowth, depth - 1), every: K.every,
         cd: r.next() * 0.5, speed: K.speed, range: K.range, r: K.r, armor: (K.armor || 0) * Math.pow(TUNE.armorGrowth, depth - 1), ranged: K.range > 3, scrap: K.scrap, odds: K.gearOdds, hit: 0, shield: 0 };
-      if (kind !== 'boss' && !small && depth >= 3 && r.next() < Math.min(0.12, 0.03 + 0.004 * depth)) makeElite(e);
+      if (kind !== 'boss' && !small && (depth >= 3 || mod === 'elites') && r.next() < Math.min(0.12, 0.03 + 0.004 * depth) * (mod === 'elites' ? 4 : 1)) makeElite(e);
+      if (mod === 'swift') e.speed *= 1.4;
       if (small) { e.hp = e.max = e.hp * 0.35; e.r *= 0.7; e.scrap *= 0.3; e.odds *= 0.3; e.x = small.x + (r.next() - 0.5) * 3; e.y = small.y; }
       S.enemies.push(e);
       if (kind === 'boss') { S.bossSpawned = true; ev('boss'); }
@@ -436,7 +439,7 @@
     }
     function kill(e) {
       e.dead = true; S.kills++; ev('kill', { x: e.x, y: e.y, kind: e.kind });
-      let v = e.scrap * Math.pow(TUNE.scrapGrowth, depth - 1) * st.scrapMult * (sets.furnace >= 3 ? 1.5 : 1);
+      let v = e.scrap * Math.pow(TUNE.scrapGrowth, depth - 1) * st.scrapMult * (sets.furnace >= 3 ? 1.5 : 1) * (mod === 'rich' ? 2 : 1);
       dropScrap(e.x, e.y, v);
       const il = depth + st.ilvlBonus + (r.next() < 0.3 ? 1 : 0);
       if (e.kind === 'boss') {
@@ -556,6 +559,7 @@
       for (const e of S.enemies) e.warded = wards.length > 0 && wards.some((w) => w !== e && Math.hypot(w.x - e.x, w.y - e.y) < 6);
       if (sets.hospital >= 2) for (const t of S.troops) t.hp = Math.min(t.max, t.hp + t.max * 0.02 * dt);
       if (sets.hospital >= 3) S.door.hp = Math.min(S.door.max, S.door.hp + S.door.max * 0.01 * dt);
+      if (mod === 'storm' && Math.floor(S.t / 5) !== Math.floor((S.t - dt) / 5)) for (let i = 0; i < 3; i++) { const e = r.pick(S.enemies.filter((x) => !x.dead) || []); if (e) { hurt(e, e.max * 0.35); ev('bolt', { x1: e.x, y1: LANE.L, x2: e.x, y2: e.y }); } }
       // the Scrap Gremlin: only the Wrench can catch it
       if (S.gremlinAt >= 0 && S.t >= S.gremlinAt && !S.gremlin) { const fromLeft = r.next() < 0.5; S.gremlin = { x: fromLeft ? 0 : LANE.W, y: LANE.L * (0.35 + r.next() * 0.3), dir: fromLeft ? 1 : -1, hp: 7 * st.wrenchDmg * Math.pow(TUNE.wrenchGrowth, depth - 1), max: 0, t: 0, hit: 0 }; S.gremlin.max = S.gremlin.hp; S.gremlinAt = -1; ev('gremlin'); }
       if (S.gremlin && !S.gremlin.gone) { const gr = S.gremlin; gr.t += dt; gr.hit = Math.max(0, gr.hit - dt); gr.x += gr.dir * 2.4 * dt; gr.y += Math.sin(gr.t * 3) * 3 * dt; if (gr.x < -1 || gr.x > LANE.W + 1) { gr.gone = true; ev('gremlinaway'); } }
@@ -601,6 +605,11 @@
       save.scrap += scrap; save.brass += S.brass; save.stats.shifts++; save.stats.kills += S.kills; save.stats.elites = (save.stats.elites || 0) + S.elitesKilled; if (S.gremlinKilled) save.stats.gremlins = (save.stats.gremlins || 0) + 1; save.stats.scrapTotal += scrap; save.stats.playSecs += S.t;
       if (save.stats.legendaries && !save.stats.firstLegendaryAt) save.stats.firstLegendaryAt = save.stats.playSecs;
       let opened = false;
+      if (S.outcome === 'win' && opts.contract) { // the Daily Contract chest
+        save.contract = { day: opts.contract, done: true };
+        withRng(save, (rr) => { for (const f of ['rare', null]) { const it = rollDrop(save, rr, depth + st.ilvlBonus + 1, st, f); if (addLoot(save, it, st).kept) S.items.push(it.id); } const ty = rr.pick(Object.keys(STONES)); pouchAdd(save, ty, 1); S.stones.push([ty, 1]); });
+        save.brass += 30; S.contractWon = true;
+      }
       if (S.outcome === 'win') {
         if (S.boss) save.stats.bossKills = (save.stats.bossKills || 0) + 1;
         save.best = Math.max(save.best, depth); save.stats.deepest = Math.max(save.stats.deepest || 0, depth);
@@ -608,7 +617,7 @@
       }
       const a = save.avg, w = a.n < 5 ? 1 / (a.n + 1) : 0.2; // recent average, for Night Shift
       a.scrap += (scrap - a.scrap) * w; a.drops += (S.items.length + (S.brass > 0 ? 1 : 0) - a.drops) * w; a.secs += (S.t - a.secs) * w; a.n++;
-      return { stones: S.stones.slice(), outcome: S.outcome, depth, scrap, brass: S.brass, items: S.items.slice(), kills: S.kills, opened, secs: S.t, door: S.door.hp / S.door.max, gate: Math.max(0, S.gate.hp / S.gate.max) };
+      return { contract: !!S.contractWon, stones: S.stones.slice(), outcome: S.outcome, depth, scrap, brass: S.brass, items: S.items.slice(), kills: S.kills, opened, secs: S.t, door: S.door.hp / S.door.max, gate: Math.max(0, S.gate.hp / S.gate.max) };
     }
     return { S, update, crank: crankBurst, quit, result, LANE };
   }
@@ -673,7 +682,16 @@ const overhaulGain = (save) => (save.best < 10 || save.best <= (save.cycleStart 
     for (const m of D.MILESTONES) if (!save.milestones[m.id]) { let ok = false; try { ok = m.check(save, ctx); } catch { ok = false; } if (ok) { save.milestones[m.id] = 1; save.brass += m.brass; save.blueprints += m.bp; got.push(m); } }
     return got;
   }
-  const api = { trainStats, socketSlots, pouchAdd, combineStones, combineCost, socket, unsocket, unsocketCost, checkMilestones, TUNE, SAVE_V, LANE, rngFrom, key, unkey, cells, neighbours, hexDist, NEI, stats, baseStats, nodeCost, nodeOpen, canBuyNode, buyNode, buyBlueprint,
+  // ---- Daily Contract: one special Shift a day, same for everyone on that date
+  const MODS = { elites: 'Champion Night: four times the elites', gremlins: 'Gremlin Rush: a Scrap Gremlin straight away', swift: 'Hurry Up: enemies move 40% faster',
+    rich: 'Rich Seam: double scrap from kills', glass: 'Glass Cannons: troops hit 80% harder but have 40% less health', storm: 'Thunderstorm: lightning strikes three enemies every 5 s' };
+  function dailyContract(save, day) {
+    let h = 2166136261; for (const c of day) h = Math.imul(h ^ c.charCodeAt(0), 16777619) >>> 0;
+    const keys = Object.keys(MODS), mod = keys[h % keys.length];
+    const depth = Math.max(1, Math.max(save.best, (save.stats.deepest || 0) > 0 ? save.unlocked - 2 : 1) - 1);
+    return { day, mod, text: MODS[mod], depth: Math.min(depth, save.unlocked), done: !!(save.contract && save.contract.day === day && save.contract.done) };
+  }
+  const api = { dailyContract, MODS, trainStats, socketSlots, pouchAdd, combineStones, combineCost, socket, unsocket, unsocketCost, checkMilestones, TUNE, SAVE_V, LANE, rngFrom, key, unkey, cells, neighbours, hexDist, NEI, stats, baseStats, nodeCost, nodeOpen, canBuyNode, buyNode, buyBlueprint,
     makeItem, rollDrop, dropOdds, describe, gearPower, solve, affix, place, unplace, canMerge, merge, mergeKeepBest, salvage, salvageValue, reroll, rerollCost, temper, temperCost,
     maxIlvl, toggleVault, invItems, vaultCount, newSave, load, zoneOf, isBossDepth, enemyScale, gateHp, createShift, idleRates, applyOffline, overhaulGain, overhaul, withRng, addLoot };
   if (typeof module !== 'undefined') module.exports = api; else root.CogModel = api;
