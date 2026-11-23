@@ -228,6 +228,14 @@ function runShift(s, policy = {}, dt = 1 / 20) {
   for (let i = 0; i < 1600 && !sh.S.over; i++) { const gr = sh.S.gremlin; sh.update(1 / 20, { wrench: gr && !gr.gone ? { x: gr.x, y: gr.y } : null }); if (gr) seen = true; }
   ok(baited && seen && sh.S.gremlinKilled, 'Gremlin Bait brings a Scrap Gremlin, and the Wrench can catch it');
   ok(sh.S.drops.some((d) => d.kind === 'gear') || sh.S.items.length > 0 || sh.S.over, 'a caught Gremlin spills gears'); }
+{ const s = M.newSave(71); s.depth = 2; s.unlocked = 2; const sh = M.createShift(s); sh.S.gremlinAt = 1;
+  for (let i = 0; i < 40; i++) sh.update(1 / 20, {});
+  ok(sh.S.gremlin && !sh.S.gremlin.gone, 'a Gremlin is loose'); sh.S.gate.hp = 0; sh.update(1 / 20, {});
+  ok(!sh.S.over && sh.S.lap && sh.S.enemies.length === 0, 'winning with a Gremlin loose waits for you to chase it, field cleared');
+  for (let i = 0; i < 400 && !sh.S.over; i++) { const gr = sh.S.gremlin; sh.update(1 / 20, { wrench: { x: gr.x, y: gr.y } }); }
+  ok(sh.S.over && sh.S.outcome === 'win' && sh.S.gremlinKilled, 'catching it then ends the Shift as a win');
+  const s2 = M.newSave(72); s2.depth = 2; s2.unlocked = 2; const sh2 = M.createShift(s2); sh2.S.gremlinAt = 1; for (let i = 0; i < 40; i++) sh2.update(1 / 20, {}); sh2.S.gate.hp = 0;
+  for (let i = 0; i < 600 && !sh2.S.over; i++) sh2.update(1 / 20, {}); ok(sh2.S.over && sh2.S.outcome === 'win' && !sh2.S.gremlinKilled, 'if it gets away the win still counts'); }
 { const s = M.newSave(71); clearBoard(s); const mo = gear(s, 'mortar', 'L'); M.place(s, mo.id, '1,0'); const sh = M.createShift(s); let multi = 0;
   for (let i = 0; i < 1200 && !sh.S.over; i++) { const before = sh.S.enemies.map((e) => e.hp); sh.update(1 / 20, {}); if (sh.S.events.some((e) => e.type === 'shell')) multi++; }
   ok(multi > 0, 'Mortars lob splash shells'); }

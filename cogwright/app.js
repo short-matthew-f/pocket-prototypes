@@ -468,6 +468,7 @@
       case 'elite': toast(`${e.name}!`); play('elite', 0.7) || sfx.boss(); break;
       case 'gremlin': toast('A Scrap Gremlin! Catch it with the Wrench!'); play('gremlin', 0.8) || sfx.loot('magic'); break;
       case 'gremlinaway': toast('The Gremlin got away…'); break;
+      case 'lap': toast('Won! Now catch that Gremlin!'); break;
       case 'gremlinkill': fx.push({ k: 'ring', x: lx(e.x), y: ly(e.y), r: 60, c: '#ffe28a', t: 0, life: 0.5 }); fx.push({ k: 'text', x: lx(e.x), y: ly(e.y) - 14, s: 'Gremlin caught!', c: '#ffe28a', t: 0, life: 1.4, big: true }); sfx.loot('rare'); shake(6); break;
       case 'shell': fx.push({ k: 'arc', x1: lx(e.x1), y1: ly(e.y1), x2: lx(e.x2), y2: ly(e.y2), r: e.r * unit(), t: 0, life: 0.45 }); thr('mortar', 120) && (play('mortar', 0.4) || sfx.hit()); break;
       case 'blast': fx.push({ k: 'ring', x: lx(e.x), y: ly(e.y), r: e.r * unit(), c: '#ff7a2a', t: 0, life: 0.4 }); shake(4); break;

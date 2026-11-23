@@ -573,9 +573,9 @@
       const hasteM = S.buffs.haste > 0 ? S.buffs.hasteM : 0, overM = S.buffs.over > 0 ? S.buffs.overM : 0;
       // enemies
       const rate = TUNE.spawnBase + TUNE.spawnStep * ((depth - 1) % 10) + 0.12 * Math.floor((depth - 1) / 10);
-      S.spawnAcc += rate * dt * (1 + S.t / 90);
+      if (!S.lap) S.spawnAcc += rate * dt * (1 + S.t / 90);
       while (S.spawnAcc >= 1) { S.spawnAcc--; spawnEnemy(r.weighted(enemyMix(depth))); }
-      if (S.t - S.surge >= 20) { S.surge = S.t; for (let i = 0; i < 4 + Math.floor(depth / 3); i++) spawnEnemy(r.weighted(enemyMix(depth))); ev('surge'); }
+      if (!S.lap && S.t - S.surge >= 20) { S.surge = S.t; for (let i = 0; i < 4 + Math.floor(depth / 3); i++) spawnEnemy(r.weighted(enemyMix(depth))); ev('surge'); }
       if (boss && !S.bossSpawned && S.t >= (heat ? 4 : 12)) spawnEnemy('boss');
       if (heat) { // Boss Trial mechanics, stacking with heat
         const B = S.enemies.find((e) => e.kind === 'boss');
@@ -592,7 +592,7 @@
       if (sets.hospital >= 3) S.door.hp = Math.min(S.door.max, S.door.hp + S.door.max * 0.01 * dt);
       if (hasMod('storm') && Math.floor(S.t / 5) !== Math.floor((S.t - dt) / 5)) for (let i = 0; i < 3; i++) { const e = r.pick(S.enemies.filter((x) => !x.dead) || []); if (e) { hurt(e, e.max * 0.35); ev('bolt', { x1: e.x, y1: LANE.L, x2: e.x, y2: e.y }); } }
       // the Scrap Gremlin: only the Wrench can catch it
-      if (S.gremlinAt >= 0 && S.t >= S.gremlinAt && !S.gremlin) { const fromLeft = r.next() < 0.5; S.gremlin = { x: fromLeft ? 0 : LANE.W, y: LANE.L * (0.35 + r.next() * 0.3), dir: fromLeft ? 1 : -1, hp: 7 * st.wrenchDmg * Math.pow(TUNE.wrenchGrowth, depth - 1), max: 0, t: 0, hit: 0 }; S.gremlin.max = S.gremlin.hp; S.gremlinAt = -1; ev('gremlin'); }
+      if (S.gremlinAt >= 0 && S.t >= S.gremlinAt && !S.gremlin && !S.lap) { const fromLeft = r.next() < 0.5; S.gremlin = { x: fromLeft ? 0 : LANE.W, y: LANE.L * (0.35 + r.next() * 0.3), dir: fromLeft ? 1 : -1, hp: 7 * st.wrenchDmg * Math.pow(TUNE.wrenchGrowth, depth - 1), max: 0, t: 0, hit: 0 }; S.gremlin.max = S.gremlin.hp; S.gremlinAt = -1; ev('gremlin'); }
       if (S.gremlin && !S.gremlin.gone) { const gr = S.gremlin; gr.t += dt; gr.hit = Math.max(0, gr.hit - dt); gr.x += gr.dir * 2.4 * dt; gr.y += Math.sin(gr.t * 3) * 3 * dt; if (gr.x < -1 || gr.x > LANE.W + 1) { gr.gone = true; ev('gremlinaway'); } }
       for (const e of S.enemies) { if (e.burnT > 0) { e.burnT -= dt; hurt(e, e.burnD * dt); } if (e.slowT > 0) e.slowT -= dt; }
       for (const t of S.troops) if (t.ench && t.ench.t === 'emerald' && !t.dead) t.hp = Math.min(t.max, t.hp + t.max * 0.02 * t.ench.p * dt);
@@ -617,7 +617,9 @@
       for (const d of S.drops) d.t += dt;
       S.drops = S.drops.filter((d) => !d.gone);
       // ends
-      if ((!boss && S.gate.hp <= 0) || (boss && S.bossDead)) finish('win');
+      const grLive = S.gremlin && !S.gremlin.gone && !S.gremlin.dead;
+      if (S.lap) { if (!grLive) finish('win'); } // won already: the Shift waits until the Gremlin is caught or gets away
+      else if ((!boss && S.gate.hp <= 0) || (boss && S.bossDead)) { if (grLive) { S.lap = true; for (const e of S.enemies) e.dead = true; S.enemies = []; ev('lap'); } else finish('win'); }
       else if (S.door.hp <= 0) finish('door');
       else if (S.t >= S.time) finish('timeout');
     }
@@ -632,7 +634,7 @@
       ev(outcome);
     }
     function crankBurst() { if (S.over || S.cranks <= 0 || S.crankT > 0) return false; S.cranks--; S.crankT = st.crankTime; ev('crank'); return true; }
-    function quit() { finish('timeout'); }
+    function quit() { finish(S.lap ? 'win' : 'timeout'); } // quitting during the Gremlin chase keeps the win
     function result() { // bank it into the save; call once after over
       const scrap = Math.round(S.scrap);
       save.scrap += scrap; save.brass += S.brass; save.stats.shifts++; save.stats.kills += S.kills; save.stats.elites = (save.stats.elites || 0) + S.elitesKilled; if (S.gremlinKilled) save.stats.gremlins = (save.stats.gremlins || 0) + 1; save.stats.scrapTotal += scrap; save.stats.playSecs += S.t;
