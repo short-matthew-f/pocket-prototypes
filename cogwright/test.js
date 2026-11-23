@@ -122,6 +122,7 @@ function clearBoard(save) { for (const k of Object.keys(save.board)) { save.item
   ok(M.fuse(s, [g('grunt').id, g('grunt', 'magic').id, g('grunt').id]).err, 'fusing needs three of the same rarity');
   let legs = 0; for (let i = 0; i < 60; i++) { const r3 = [g('brute', 'rare'), g('brute', 'rare'), g('brute', 'rare')]; const out = M.fuse(s, r3.map((x) => x.id)); if (s.items[out.id].rarity === 'legendary') legs++; }
   ok(legs > 4 && legs < 30, `three Rares sometimes fuse into a legendary (${legs}/60)`);
+  M.buildRoom(s, 'merge'); for (let i = 0; i < 6; i++) { const out = M.fuse(s, [g('grunt').id, g('archer').id, g('brute').id]); if (i === 0) ok(s.items[out.id] && ['grunt', 'archer', 'brute', 'tinker', 'mortar'].includes(s.items[out.id].base), 'Merge Workshop level 2: three troop gears merge into a troop gear'); }
   M.buildRoom(s, 'forge'); const re = g('grunt', 'magic'); ok(M.reforge(s, re.id, 'archer') === '' && s.items[re.id].base === 'archer', 'Forge level 2 reforges a gear within its family');
   ok(M.reforge(s, re.id, 'haste') !== '', 'but not across families');
   const rpm0 = M.stats(s).mainRpm; const fed = M.feedMainspring(s, Array.from({ length: 12 }, () => g('grunt', 'rare').id));

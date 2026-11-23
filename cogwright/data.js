@@ -230,7 +230,8 @@
 
   // Workshop rooms: permanent (kept through Overhauls), built and levelled with brass
   const ROOMS = {
-    forge:    { name: 'The Forge', icon: '🔥', cost: [0, 80, 220, 550, 1300], desc: ['Fuse three gears of a rarity into one of the next; feed spare gears to the Mainspring', 'Reforge: change a gear into another of its family', 'Fusing three of one family keeps that family', 'Better odds when fusing rares (+5% legendary per level)', 'Mainspring levels cap rises to 20'] },
+    merge:    { name: 'Merge Workshop', icon: '⇧', cost: [0, 120, 350, 800, 1600], desc: ['Merge three junk gears of one rarity into a random gear of the next rarity up', 'Merging three of one family (all troops, all spells…) keeps that family', 'Merging three Rares: +5% Legendary chance', 'Merging three Rares: another +5% Legendary chance', 'Merging three Rares: another +5% Legendary chance'] },
+    forge:    { name: 'The Forge', icon: '🔥', cost: [0, 80, 550], desc: ['Feed spare gears to the Mainspring for permanent speed this Overhaul', 'Reforge: change a gear into another of its family', 'The Mainspring can climb to level 20'] },
     research: { name: 'Research Desk', icon: '📐', cost: [60, 180, 450, 1000], desc: ['One project at a time, running while you are away', 'Projects finish 15% faster', 'A second project slot; Blueprint drafting', 'Projects finish 30% faster'] },
     jeweller: { name: 'The Jeweller', icon: '💎', cost: [40, 160, 420], desc: ['Combining stones costs 20% less', 'Polish: lift a stone one tier for brass', 'Removing socketed stones is free'] },
     trophy:   { name: 'Trophy Wall', icon: '🏆', cost: [0], desc: ['Boss Trial trophies: each Heat level cleared is a permanent bonus'] },

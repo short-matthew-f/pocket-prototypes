@@ -344,7 +344,7 @@
   }
   function newSave(seed = 12345, now = 0) {
     const save = { v: SAVE_V, rng: seed >>> 0, scrap: 0, brass: 0, blueprints: 0, tree: { root: 1 }, bp: {}, board: {}, items: {}, nextId: 1,
-      depth: 1, unlocked: 1, best: 0, cycleStart: 0, overhauls: 0, pity: 0, milestones: {}, pouch: {}, rooms: { forge: 1, trophy: 1 }, mainspring: { l: 0, xp: 0 }, research: { slots: [] }, trophies: {}, bounties: null, exp: null, study: 0,
+      depth: 1, unlocked: 1, best: 0, cycleStart: 0, overhauls: 0, pity: 0, milestones: {}, pouch: {}, rooms: { merge: 1, forge: 1, trophy: 1 }, mainspring: { l: 0, xp: 0 }, research: { slots: [] }, trophies: {}, bounties: null, exp: null, study: 0,
       stats: { shifts: 0, kills: 0, legendaries: 0, playSecs: 0, firstLegendaryAt: 0, bossKills: 0, scrapTotal: 0, deepest: 0 },
       avg: { scrap: 0, drops: 0, secs: 0, n: 0 }, lastSeen: now, settings: { muted: false }, codex: {} };
     starterKit(save);
@@ -363,7 +363,7 @@
     for (const k of Object.keys(s.board)) if (!s.items[s.board[k]]) delete s.board[k];
     for (const it of Object.values(s.items)) if (!it.sockets) it.sockets = socketSlots(it);
     s.pouch = s.pouch || {}; s.milestones = s.milestones || {};
-    s.rooms = s.rooms || { forge: 1, trophy: 1 }; s.mainspring = s.mainspring || { l: 0, xp: 0 }; s.research = s.research || { slots: [] }; s.trophies = s.trophies || {}; s.bounties = s.bounties || null; s.exp = s.exp || null;
+    s.rooms = s.rooms || { forge: 1, trophy: 1 }; if (!s.rooms.merge) s.rooms.merge = 1; if (s.rooms.forge > 3) s.rooms.forge = 3; s.mainspring = s.mainspring || { l: 0, xp: 0 }; s.research = s.research || { slots: [] }; s.trophies = s.trophies || {}; s.bounties = s.bounties || null; s.exp = s.exp || null;
     return s;
   }
 
@@ -733,12 +733,12 @@ const overhaulGain = (save) => (save.best < 10 || save.best <= (save.cycleStart 
   }
   function fuse(save, ids) {
     const e = canFuse(save, ids); if (e) return { err: e };
-    const its = ids.map((id) => save.items[id]), rar = its[0].rarity, st = stats(save), fl = roomLvl(save, 'forge');
-    const fam = its.every((it) => GEARS[it.base].fam === GEARS[its[0].base].fam) && fl >= 3 ? GEARS[its[0].base].fam : null;
+    const its = ids.map((id) => save.items[id]), rar = its[0].rarity, st = stats(save), ml = roomLvl(save, 'merge');
+    const fam = its.every((it) => GEARS[it.base].fam === GEARS[its[0].base].fam) && ml >= 2 ? GEARS[its[0].base].fam : null;
     const il = Math.max(...its.map((it) => it.ilvl)) + 1;
     for (const it of its) { for (const x of it.sockets || []) if (x) pouchAdd(save, x[0], x[1]); delete save.items[it.id]; }
     const it = withRng(save, (r) => {
-      let to = rar === 'common' ? 'magic' : rar === 'magic' ? 'rare' : r.weighted([['legendary', 20 + 5 * Math.max(0, fl - 3)], ['set', 20], ['rare', 60 - 5 * Math.max(0, fl - 3)]]);
+      let to = rar === 'common' ? 'magic' : rar === 'magic' ? 'rare' : r.weighted([['legendary', 20 + 5 * Math.max(0, ml - 2)], ['set', 20], ['rare', 60 - 5 * Math.max(0, ml - 2)]]);
       if (to === 'legendary') return makeItem(save, r, { rarity: to, ilvl: il, leg: r.pick(Object.keys(LEGENDARIES).filter((k) => !LEGENDARIES[k].bossOnly && (!fam || GEARS[LEGENDARIES[k].base].fam === fam))) });
       if (to === 'set') { const sk = r.pick(Object.keys(SETS)); const pieces = Object.keys(SETS[sk].pieces).filter((b) => !fam || GEARS[b].fam === fam); return makeItem(save, r, { rarity: 'set', ilvl: il, set: sk, base: pieces.length ? r.pick(pieces) : r.pick(Object.keys(SETS[sk].pieces)), size: 'M' }); }
       const bases = BASE_W.filter(([b]) => !fam || GEARS[b].fam === fam); return makeItem(save, r, { rarity: to, ilvl: il, base: r.weighted(bases), size: r.weighted([['S', 35], ['M', 45], ['L', 20]]) });
@@ -755,7 +755,7 @@ const overhaulGain = (save) => (save.best < 10 || save.best <= (save.cycleStart 
     if (it.rarity === 'common' || it.rarity === 'magic') it.name = withRng(save, (r) => itemName(it, r)); return '';
   }
   const msNeed = (l) => Math.round(30 * Math.pow(1.6, l));
-  const msMax = (save) => (roomLvl(save, 'forge') >= 5 ? 20 : 15);
+  const msMax = (save) => (roomLvl(save, 'forge') >= 3 ? 20 : 15);
   function feedMainspring(save, ids) {
     const st = stats(save); let xp = 0, n = 0;
     if (save.mainspring.l >= msMax(save)) return { fed: 0, xp: 0, ups: 0, err: 'the Mainspring is at its cap' };
