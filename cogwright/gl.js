@@ -8,6 +8,7 @@ import { RoomEnvironment } from './vendor/RoomEnvironment.js';
 const METAL = { // per gear type: base colour, roughness
   main: ['#e0ac3e', 0.2], grunt: ['#c8702e', 0.28], archer: ['#4f9a6a', 0.3], brute: ['#a8482a', 0.3], tinker: ['#3f86b0', 0.26],
   haste: ['#e6b830', 0.22], overcharge: ['#d44f22', 0.28], lightning: ['#8a72f0', 0.24], shield: ['#4fb0c8', 0.24], engine: ['#9ca3ae', 0.18], collector: ['#d6a43a', 0.2],
+  mortar: ['#7d6650', 0.34], mender: ['#d0708e', 0.26], magnet: ['#b83a3a', 0.22],
 };
 const RARITY = { common: null, magic: '#6b9bff', rare: '#f2c14e', set: '#3fcf74', legendary: '#ff8a1f' };
 
@@ -109,7 +110,10 @@ function resize(w, h, dpr) {
 }
 
 /** One frame. o = {W, H, dpr, under: canvas|null, underKey, region: {y, h}|null, gears: [{id, x, y, R, teeth, angle, base, rarity, state, sel, emblem}]} */
+let lastT = 0, slow = 0;
 function frame(o) {
+  // a struggling phone GPU drops the soft shadows first (frame gaps over ~24 ms for a couple of seconds)
+  const now = performance.now(); if (lastT) { const dt = now - lastT; if (dt > 24 && dt < 200) slow++; else slow = Math.max(0, slow - 1); if (slow > 90 && sun.castShadow) { sun.castShadow = false; window.CogGL.lowPower = true; } } lastT = now;
   resize(o.W, o.H, o.dpr);
   if (o.under) {
     if (o.underKey !== underKey) { underKey = o.underKey; underTex.image = o.under; underTex.needsUpdate = true; }

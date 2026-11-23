@@ -82,8 +82,8 @@
   setInterval(() => { if (!document.hidden) persist(); }, 5000);
   addEventListener('pagehide', persist);
   document.addEventListener('visibilitychange', () => {
-    if (document.hidden) { if (shift && !shift.res) shift.paused = true; persist(); }
-    else { const away = M.applyOffline(save, Date.now()); if (away) welcomeBack(away); persist(); refresh(); }
+    if (document.hidden) { if (shift && !shift.res) shift.paused = true; persist(); try { AC && AC.suspend(); } catch { /* no audio */ } }
+    else { try { AC && AC.resume(); } catch { /* no audio */ } const away = M.applyOffline(save, Date.now()); if (away) welcomeBack(away); persist(); refresh(); }
   });
 
   // ------------------------------------------------------------------ dom
@@ -99,6 +99,8 @@
   invalidate();
   function refresh() {
     invalidate();
+    const got = M.checkMilestones(save, board);
+    if (got.length) { persist(); setTimeout(() => { toast(got.map((m) => `🏅 ${m.name}: +${m.brass} brass${m.bp ? ` +${m.bp} Blueprints` : ''}`).join('  ·  ')); play('milestone', 0.8) || sfx.win(); }, shift ? 900 : 50); }
     $('#c-scrap').textContent = fmt(save.scrap); $('#c-brass').textContent = fmt(save.brass);
     $('#c-bp').textContent = fmt(save.blueprints); $('#c-bp-wrap').hidden = !(save.overhauls || save.blueprints);
     save.depth = Math.max(1, Math.min(save.depth, save.unlocked));
@@ -276,6 +278,7 @@
     const items = drawerItems();
     g.fillStyle = '#d4a94e'; g.font = '900 13px Cinzel, serif'; g.textAlign = 'left'; g.fillText(`Drawers ${items.length}/${stats.invSlots}`, BL.dx + 2, BL.dy - 9);
     g.textAlign = 'right'; g.fillStyle = '#a8957a'; g.font = '800 12px Nunito, system-ui'; g.fillText('Sort ⇅', BL.dx + BL.cols * BL.slot - 2, BL.dy - 9);
+    const nStones = pouchList().reduce((a, p) => a + p.n, 0); g.fillStyle = nStones ? '#c9a8ff' : '#6b5a44'; g.fillText(`◆ Stones ${nStones}`, BL.dx + BL.cols * BL.slot - 70, BL.dy - 9);
     for (let i = 0; i < BL.slots; i++) {
       const r = slotRect(i); const sg = g.createLinearGradient(0, r.y, 0, r.y + r.s); sg.addColorStop(0, '#000000a0'); sg.addColorStop(1, '#00000040');
       g.fillStyle = sg; g.beginPath(); g.roundRect(r.x + 2, r.y + 2, r.s - 4, r.s - 4, 9); g.fill();
@@ -290,7 +293,8 @@
   let drag = null;
   function benchHit(x, y) {
     if (y < BL.bh) { const k = pxHex(x, y); const id = save.board[k]; if (id && M.cells(stats.boardR).includes(k)) return { id, cell: k }; return { cell: k }; }
-    if (y > BL.dy - 26 && y < BL.dy && x > BL.dx + BL.cols * BL.slot - 70) return { sort: true };
+    if (y > BL.dy - 26 && y < BL.dy && x > BL.dx + BL.cols * BL.slot - 66) return { sort: true };
+    if (y > BL.dy - 26 && y < BL.dy && x > BL.dx + BL.cols * BL.slot - 150) return { pouch: true };
     const c = Math.floor((x - BL.dx) / BL.slot), r = Math.floor((y - BL.dy) / BL.slot), i = r * BL.cols + c;
     if (c >= 0 && c < BL.cols && r >= 0 && i < BL.slots) { const it = drawerItems()[i]; return { drawer: true, id: it ? it.id : null, i }; }
     return {};
@@ -301,6 +305,7 @@
     if (!drag) return; const d = drag; drag = null;
     if (!d.live) { // a tap
       if (d.h.sort) { sortDrawers(); return; }
+      if (d.h.pouch) { openPouch(); return; }
       if (d.id) openGear(d.id); else closeSheet();
       return;
     }
@@ -331,6 +336,7 @@
       <ul>${ds.lines.map((l) => `<li>${l}</li>`).join('')}
       ${ds.affixes.map((a, i) => `<li class="aff ${a.dim ? 'dim' : ''}">${a.txt}<button data-a="reroll" data-i="${i}" ${save.brass < rc ? 'disabled' : ''}>reroll ${rc}🔩</button></li>`).join('')}</ul>
       ${ds.power ? `<div class="power">★ ${ds.power}</div>` : ''}
+      ${ds.sockets.length ? `<ul>${ds.sockets.map((x, i) => x ? `<li style="color:${x.color}">◆ ${x.name}: ${x.txt}<button data-a="unsock" data-i="${i}" style="border:1px solid ${x.color};background:#fff;border-radius:8px;font:800 11px var(--body);margin-left:6px;color:${x.color}">remove ${M.unsocketCost(x.tier)}🔩</button></li>` : `<li style="color:#6b5a44">◇ Empty socket <button data-a="sock" data-i="${i}" style="border:1px solid #6b5a44;background:#fff;border-radius:8px;font:800 11px var(--body);margin-left:6px" ${pouchList().length ? '' : 'disabled'}>${pouchList().length ? 'add a stone' : 'no stones yet'}</button></li>`).join('')}</ul>` : ''}
       ${ds.set ? `<div class="set"><b>${ds.set.name}</b> (${ds.set.have} meshed)<br>${ds.set.bonus.map((b, i) => `<span class="${ds.set.have >= i + 2 ? 'on' : ''}">${ds.set.have >= i + 2 ? '✓' : '·'} ${b}</span>`).join('<br>')}<br><small>Set pieces only count while they turn and touch each other.</small></div>` : ''}
       <div class="acts">
         ${n ? `<button data-a="off">Take off</button>` : `<button class="pri" data-a="place">Place</button>`}
@@ -350,10 +356,29 @@
       if (a === 'temper') { err = M.temper(save, id); if (!err) sfx.buy(); }
       if (a === 'vault') err = M.toggleVault(save, id);
       if (a === 'reroll') { err = M.reroll(save, id, +b.dataset.i); if (!err) sfx.buy(); }
+      if (a === 'unsock') err = M.unsocket(save, id, +b.dataset.i);
+      if (a === 'sock') return stonePicker(id, +b.dataset.i);
       if (a === 'salvage') { if (b.dataset.sure) { err = M.salvage(save, id); if (!err) { sfx.clank(); toast(`+${sv} brass`); persist(); refresh(); return closeSheet(); } } else { b.dataset.sure = 1; b.textContent = `Sure? +${sv}🔩`; return; } }
       if (err) { toast(err); sfx.nope(); }
       persist(); refresh(); if (save.items[id]) openGear(id);
     };
+  }
+  function pouchList() { const out = []; for (const [ty, tiers] of Object.entries(save.pouch || {})) tiers.forEach((n, ti) => { if (n > 0) out.push({ ty, ti, n }); }); return out.sort((a, b) => b.ti - a.ti || a.ty.localeCompare(b.ty)); }
+  const stoneRow = (p, btn) => `<li style="display:flex;align-items:center;gap:8px"><span style="color:${D.STONES[p.ty].color};font-size:20px">◆</span><span style="flex:1"><b>${D.STONE_TIERS[p.ti]} ${D.STONES[p.ty].name}</b> ×${p.n}<br><small>${D.STONES[p.ty].txt(D.STONES[p.ty].v[p.ti])}</small></span>${btn}</li>`;
+  function stonePicker(id, slot) {
+    const it = save.items[id];
+    sheet.innerHTML = `<button class="x" data-a="close">✕</button><h3>Socket a stone</h3><div class="sub">into ${it.name}</div><ul>${pouchList().map((p, i) => stoneRow(p, `<button data-a="pick" data-i="${i}" style="border:2px solid var(--ink);border-radius:10px;background:var(--brass);font:800 13px var(--body);padding:6px 10px">Socket</button>`)).join('')}</ul>`;
+    sheet.hidden = false;
+    sheet.onclick = (e) => { const b = e.target.closest('button'); if (!b) return; if (b.dataset.a === 'close') return openGear(id);
+      const p = pouchList()[+b.dataset.i]; const err = M.socket(save, id, slot, p.ty, p.ti); if (err) { toast(err); sfx.nope(); } else { play('socket', 0.8) || sfx.buy(); persist(); refresh(); } openGear(id); };
+  }
+  function openPouch() {
+    sel = null; const list = pouchList();
+    sheet.innerHTML = `<button class="x" data-a="close">✕</button><h3>◆ Cogstones</h3><div class="sub">Socket them from a rare, set or legendary gear's card. Three of a kind combine into the next tier.</div>
+      ${list.length ? `<ul>${list.map((p, i) => stoneRow(p, p.ti < 4 ? `<button data-a="comb" data-i="${i}" ${p.n >= 3 && save.brass >= M.combineCost(p.ti) ? '' : 'disabled'} style="border:2px solid var(--ink);border-radius:10px;background:#fff;font:800 12px var(--body);padding:6px 8px">3 → 1 (${M.combineCost(p.ti)}🔩)</button>` : '<b>Perfect</b>')).join('')}</ul>` : '<p class="sub">No stones yet. Elites, bosses and Scrap Gremlins drop them; pick them up with the Wrench.</p>'}`;
+    sheet.hidden = false;
+    sheet.onclick = (e) => { const b = e.target.closest('button'); if (!b) return; if (b.dataset.a === 'close') return closeSheet();
+      const p = pouchList()[+b.dataset.i]; const err = M.combineStones(save, p.ty, p.ti); if (err) { toast(err); sfx.nope(); } else { play('socket', 0.8) || sfx.merge(); persist(); refresh(); } openPouch(); };
   }
   function autoPlace(id) { // the first free cell where it turns without jamming anything
     const it = save.items[id];
@@ -393,6 +418,14 @@
     const U = unit();
     switch (e.type) {
       case 'kill': fx.push({ k: 'burst', x: lx(e.x), y: ly(e.y), t: 0, life: 0.45, c: S().zone.colors[e.kind] || '#cc5555' }); sfx.pop(); if (e.kind === 'boss') shake(14); break;
+      case 'elite': toast(`${e.name}!`); play('elite', 0.7) || sfx.boss(); break;
+      case 'gremlin': toast('A Scrap Gremlin! Catch it with the Wrench!'); play('gremlin', 0.8) || sfx.loot('magic'); break;
+      case 'gremlinaway': toast('The Gremlin got away…'); break;
+      case 'gremlinkill': fx.push({ k: 'ring', x: lx(e.x), y: ly(e.y), r: 60, c: '#ffe28a', t: 0, life: 0.5 }); fx.push({ k: 'text', x: lx(e.x), y: ly(e.y) - 14, s: 'Gremlin caught!', c: '#ffe28a', t: 0, life: 1.4, big: true }); sfx.loot('rare'); shake(6); break;
+      case 'shell': fx.push({ k: 'arc', x1: lx(e.x1), y1: ly(e.y1), x2: lx(e.x2), y2: ly(e.y2), r: e.r * unit(), t: 0, life: 0.45 }); thr('mortar', 120) && (play('mortar', 0.4) || sfx.hit()); break;
+      case 'blast': fx.push({ k: 'ring', x: lx(e.x), y: ly(e.y), r: e.r * unit(), c: '#ff7a2a', t: 0, life: 0.4 }); shake(4); break;
+      case 'stone': fx.push({ k: 'text', x: lx(e.x), y: ly(e.y) - 10, s: `${D.STONE_TIERS[e.tier]} ${D.STONES[e.type].name}`, c: D.STONES[e.type].color, t: 0, life: 1.3 }); play('socket', 0.7) || sfx.loot('magic'); break;
+      case 'pull': fx.push({ k: 'fly', x: lx(e.x), y: ly(e.y), t: 0, life: 0.4 }); sfx.coin(); break;
       case 'spawn': if (Math.random() < 0.5) fx.push({ k: 'ring', x: lx(e.x), y: ly(1.5), r: 14, c: '#f3e6c6', t: 0, life: 0.3 }); break;
       case 'die': fx.push({ k: 'burst', x: lx(e.x), y: ly(e.y), t: 0, life: 0.35, c: '#d4a94e' }); break;
       case 'shot': fx.push({ k: 'line', x1: lx(e.x1), y1: ly(e.y1), x2: lx(e.x2), y2: ly(e.y2), c: e.side === 1 ? '#f3e6c6' : '#ff9a6a', t: 0, life: 0.15 }); break;
@@ -443,6 +476,7 @@
     const scrapImg = art('obj-scrap');
     for (const d of st.drops) {
       const x = lx(d.x), y = ly(d.y);
+      if (d.kind === 'stone') { const c = D.STONES[d.type].color, si = art('stone-' + d.type); glow(x, y, 16, c); if (si) g.drawImage(si, x - 9, y - 9, 18, 18); else { g.fillStyle = c; g.beginPath(); g.moveTo(x, y - 7); g.lineTo(x + 6, y); g.lineTo(x, y + 7); g.lineTo(x - 6, y); g.closePath(); g.fill(); g.strokeStyle = '#fff8'; g.stroke(); } continue; }
       if (d.kind === 'scrap') { const r = 4 + Math.min(4, Math.log10(1 + d.v)); if (scrapImg) g.drawImage(scrapImg, x - r * 1.6, y - r * 1.6, r * 3.2, r * 3.2); else { g.fillStyle = '#e8c05a'; g.beginPath(); g.arc(x, y, r - 1, 0, TAU); g.fill(); g.strokeStyle = '#7a5a1a'; g.stroke(); } }
       else {
         const c = d.force === 'legendary' ? '#ff8a1f' : '#ffe28a', grd = g.createLinearGradient(x, y - 80, x, y);
@@ -453,6 +487,7 @@
     // units, sorted so lower ones draw on top
     const all = st.enemies.map((e) => [e, 0]).concat(st.troops.map((tr) => [tr, 1])).sort((a, b) => b[0].y - a[0].y);
     for (const [u, side] of all) side ? drawTroop(u, U, t) : drawFoe(u, Z, U, t);
+    if (st.gremlin && !st.gremlin.gone) drawGremlin(st.gremlin, U, t);
     // wrench + sprite
     if (st.stats.autoWrench) { const p = st.sprite; glow(lx(p.x), ly(p.y), 16, '#9fe7ff'); g.fillStyle = '#e8fbff'; g.beginPath(); g.arc(lx(p.x), ly(p.y), 3.5, 0, TAU); g.fill(); }
     if (shift.wrench) {
@@ -498,7 +533,8 @@
     if (tr.hp < tr.max) bar(x - r, y + r + 3, r * 2, 2.5, tr.hp / tr.max, '#7fd36b');
   }
   function drawFoe(e, Z, U, t) {
-    const x = lx(e.x), y = ly(e.y), r = Math.max(5, e.r * U * 0.85), img = art(e.kind === 'boss' ? 'boss-' + Z.id : `enemy-${Z.id}-${e.kind}`);
+    const az = Z.id === 'deep' && e.kind !== 'boss' ? ['foundry', 'mines', 'tower'][Math.floor(e.max) % 3] : Z.id;
+    const x = lx(e.x), y = ly(e.y), r = Math.max(5, e.r * U * 0.85), img = art(e.kind === 'boss' ? 'boss-' + Z.id : `enemy-${az}-${e.kind}`);
     shadowAt(x, y, r);
     if (img) {
       const s2 = r * (e.kind === 'boss' ? 2.8 : 2.9), wob = Math.sin(t * 7 + e.x) * r * 0.06;
@@ -513,7 +549,24 @@
       g.fillStyle = '#fff'; g.beginPath(); g.arc(x - r * 0.32, y + r * 0.1, r * 0.22, 0, TAU); g.arc(x + r * 0.32, y + r * 0.1, r * 0.22, 0, TAU); g.fill();
       g.fillStyle = '#1a0f08'; g.beginPath(); g.arc(x - r * 0.32, y + r * 0.18, r * 0.11, 0, TAU); g.arc(x + r * 0.32, y + r * 0.18, r * 0.11, 0, TAU); g.fill();
     }
-    if (e.hp < e.max && e.kind !== 'boss') bar(x - r, y - r - 7, r * 2, 3, e.hp / e.max, '#ff6a4a');
+    if (e.hp < e.max && e.kind !== 'boss') bar(x - r, y - r - 7, r * 2, 3, e.hp / e.max, e.elite ? '#c77dff' : '#ff6a4a');
+    if (e.elite) { // Diablo-style champion: a pulsing aura ring and its name
+      const pc = e.elite.includes('molten') ? '#ff6a2a' : e.elite.includes('warding') ? '#7fd8ff' : e.elite.includes('vampiric') ? '#ff3a5a' : '#c77dff';
+      g.strokeStyle = pc; g.globalAlpha = 0.55 + 0.3 * Math.sin(t * 6 + e.x); g.lineWidth = 2.5; g.beginPath(); g.ellipse(x, y + r * 0.6, r * 1.05, r * 0.42, 0, 0, TAU); g.stroke(); g.globalAlpha = 1;
+      if (e.elite.includes('warding')) { g.strokeStyle = '#7fd8ff30'; g.lineWidth = 1; g.beginPath(); g.arc(x, y, 6 * U, 0, TAU); g.stroke(); }
+      g.font = '800 9px Nunito, system-ui'; g.textAlign = 'center'; g.fillStyle = pc; g.strokeStyle = '#000'; g.lineWidth = 2.5; g.strokeText(e.name, x, y - r - 11); g.fillText(e.name, x, y - r - 11);
+    }
+  }
+  function drawGremlin(gr, U, t) {
+    const x = lx(gr.x), y = ly(gr.y), r = 1.1 * U, img = art('enemy-gremlin');
+    glow(x, y, r * 3, '#ffe28a'); shadowAt(x, y, r);
+    if (img) { const s2 = r * 3.2; g.save(); g.translate(x, y + Math.abs(Math.sin(t * 14)) * -3); if (gr.dir < 0) g.scale(-1, 1); g.drawImage(img, -s2 / 2, -s2 / 2, s2, s2); g.restore(); }
+    else {
+      g.fillStyle = gr.hit > 0 ? '#fff6c8' : '#c99a3a'; g.beginPath(); g.ellipse(x, y, r, r * 0.85, 0, 0, TAU); g.fill(); g.strokeStyle = '#3a2614'; g.lineWidth = 1.5; g.stroke();
+      g.fillStyle = '#8a5a2a'; g.beginPath(); g.arc(x - gr.dir * r * 0.9, y - r * 0.2, r * 0.7, 0, TAU); g.fill(); g.fillStyle = '#ffe28a'; g.fillRect(x - gr.dir * r * 0.9 - 2, y - r * 0.5, 4, 3);
+      g.fillStyle = '#fff'; g.beginPath(); g.arc(x + gr.dir * r * 0.3, y - r * 0.2, r * 0.22, 0, TAU); g.fill(); g.fillStyle = '#000'; g.beginPath(); g.arc(x + gr.dir * r * 0.36, y - r * 0.2, r * 0.1, 0, TAU); g.fill();
+    }
+    bar(x - r * 1.2, y - r * 1.6, r * 2.4, 4, gr.hp / gr.max, '#ffe28a');
   }
   let stripU = null, stripK = '';
   function stripUnder() {
@@ -569,6 +622,7 @@
       else if (f.k === 'fly') { const x = f.x + (W - 60 - f.x) * q * q, y = f.y + (20 - f.y) * q * q; g.fillStyle = '#e8c05a'; g.beginPath(); g.arc(x, y, 3, 0, TAU); g.fill(); }
       else if (f.k === 'text') { g.fillStyle = f.c; g.font = `900 ${f.big ? 18 : 13}px Cinzel, serif`; g.textAlign = 'center'; g.strokeStyle = '#000'; g.lineWidth = 3; g.strokeText(f.s, f.x, f.y - 24 * q); g.fillText(f.s, f.x, f.y - 24 * q); }
       else if (f.k === 'ring') { g.strokeStyle = f.c; g.lineWidth = 3 * (1 - q) + 1; g.beginPath(); g.arc(f.x, f.y, f.r * (0.2 + q), 0, TAU); g.stroke(); }
+      else if (f.k === 'arc') { const p = Math.min(1, q * 1.6), x = f.x1 + (f.x2 - f.x1) * p, y = f.y1 + (f.y2 - f.y1) * p - Math.sin(p * Math.PI) * 60; if (p < 1) { g.fillStyle = '#3a2a1a'; g.beginPath(); g.arc(x, y, 4, 0, TAU); g.fill(); } else { glow(f.x2, f.y2, f.r * 1.2, '#ff9a3c'); } }
       else if (f.k === 'spark') { g.globalCompositeOperation = 'lighter'; g.fillStyle = '#fff2a8'; const sx = f.x + (f.vx || 0) * f.t, sy = f.y + (f.vy || 0) * f.t; g.fillRect(sx - 1.5, sy - 1.5, 3, 3); g.globalCompositeOperation = 'source-over'; }
       else if (f.k === 'flash') { g.fillStyle = f.c; g.globalAlpha = 0.3 * (1 - q); g.fillRect(0, 0, W, H); }
     }
@@ -607,6 +661,7 @@
     if (r.outcome !== 'win') lines.push(r.outcome === 'door' ? 'Upgrade the door, troop health, or put a Tinker on the bench.' : `Gate ${Math.round(r.gate * 100)}% left. More troops, more damage, or a longer Shift will get it.`);
     if (r.outcome === 'win' && st.boss && st.depth === 10 && save.overhauls === 0) lines.push('You can now Overhaul from the Upgrades tab for permanent Blueprints.');
     showModal(`<h2>${title}</h2>${lines.map((l) => `<p>${l}</p>`).join('')}
+      ${r.stones && r.stones.length ? `<p>${r.stones.map(([ty, ti]) => `<span style="color:${D.STONES[ty].color}">◆ ${D.STONE_TIERS[ti]} ${D.STONES[ty].name}</span>`).join(' · ')}</p>` : ''}
       ${items.length ? `<div class="loot">${items.map((it) => `<div style="color:${rarity(it.rarity).color === '#b9b3a6' ? '#5a4c3a' : rarity(it.rarity).color};${it.rarity === 'legendary' ? 'background:#2a1a08' : ''}">⚙ ${it.name} <small>(ilvl ${it.ilvl})</small></div>`).join('')}</div>` : ''}
       <div class="row"><button class="alt" data-a="bench">Bench</button><button data-a="again">${r.opened ? 'Go deeper' : 'Again'}</button></div>`, (a) => {
       hideModal(); endShift();
@@ -702,7 +757,7 @@
 
   // ------------------------------------------------------------------ Codex (DOM page)
   function renderCodex() {
-    const st = stats, odds = M.dropOdds(st), R = M.idleRates(save, st), cx = save.codex;
+    const st = { ...stats, ...M.trainStats(stats, board) }, odds = M.dropOdds(st), R = M.idleRates(save, st), cx = save.codex;
     const legs = Object.entries(D.LEGENDARIES), sets = Object.entries(D.SETS);
     page.innerHTML = `
       <h2>How to play</h2>
@@ -719,12 +774,14 @@
       <tr><td>Paid while away${R.capped ? ' (capped below your active rate)' : ''}</td><td>${R.total.toFixed(2)} scrap/s</td></tr>
       <tr><td>Your recent active rate</td><td>${R.active ? R.active.toFixed(2) + ' scrap/s' : 'play a Shift first'}</td></tr>
       <tr><td>Builds for up to</td><td>${st.offlineCap / 3600} h</td></tr></table>
+      <h2>Milestones (${Object.keys(save.milestones || {}).length}/${D.MILESTONES.length})</h2>
+      <table>${D.MILESTONES.map((m) => `<tr><td class="${(save.milestones || {})[m.id] ? 'leg' : 'unk'}">${(save.milestones || {})[m.id] ? '🏅' : '○'} ${m.name}<br><span style="font-weight:600;font-size:12px;color:var(--dim)">${m.desc}</span></td><td style="font-size:12px">${m.brass ? m.brass + ' 🔩' : ''}${m.bp ? ' ' + m.bp + ' 📜' : ''}</td></tr>`).join('')}</table>
       <h2>Legendaries</h2>
       <table>${legs.map(([k, L]) => `<tr><td class="${cx[k] ? 'leg' : 'unk'}">${cx[k] ? L.name : '???'}</td><td style="font-weight:600;font-size:12px;text-align:left">${cx[k] ? L.power : 'Not found yet'}</td></tr>`).join('')}</table>
       <h2>Sets</h2>
       ${sets.map(([k, s]) => `<p><b style="color:#3fcf74">${s.name}</b>: ${Object.values(s.pieces).join(', ')}<br>${s.bonus.slice(2).join('<br>')}</p>`).join('')}
       <h2>Your workshop</h2>
-      <table><tr><td>Shifts</td><td>${save.stats.shifts}</td></tr><tr><td>Kills</td><td>${fmt(save.stats.kills)}</td></tr><tr><td>Deepest cleared</td><td>${save.best}</td></tr>
+      <table><tr><td>Shifts</td><td>${save.stats.shifts}</td></tr><tr><td>Kills</td><td>${fmt(save.stats.kills)}</td></tr><tr><td>Deepest cleared (ever)</td><td>${save.stats.deepest || save.best}</td></tr><tr><td>Deepest this Overhaul</td><td>${save.best}</td></tr>
       <tr><td>Bosses beaten</td><td>${save.stats.bossKills || 0}</td></tr><tr><td>Overhauls</td><td>${save.overhauls}</td></tr><tr><td>Time in Shifts</td><td>${dur(save.stats.playSecs)}</td></tr>
       <tr><td>Scrap earned</td><td>${fmt(save.stats.scrapTotal)}</td></tr></table>
       <h2>Settings</h2>

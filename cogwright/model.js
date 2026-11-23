@@ -7,8 +7,8 @@
 (function (root) {
   'use strict';
   const D = typeof module !== 'undefined' ? require('./data.js') : root.CogData;
-  const { SIZES, MAIN_TEETH, GEARS, TROOPS, ENEMY_KINDS, ZONES, MAX_DEPTH, RARITIES, AFFIXES, LEGENDARIES, SETS, TREE, BLUEPRINTS } = D;
-  const SAVE_V = 1;
+  const { STONES, STONE_TIERS, SIZES, MAIN_TEETH, GEARS, TROOPS, ENEMY_KINDS, ZONES, MAX_DEPTH, RARITIES, AFFIXES, LEGENDARIES, SETS, TREE, BLUEPRINTS } = D;
+  const SAVE_V = 2;
   // difficulty knobs (the balance bots in test.js tune these)
   const TUNE = { enemyGrowth: 1.5, enemyDmgGrowth: 1.4, armorGrowth: 1.3, gateBase: 400, scrapGrowth: 1.10, spawnBase: 0.55, spawnStep: 0.06, wrenchGrowth: 1.1, itemGrowth: 1.12 };
   const LANE = { L: 60, W: 26 };
@@ -93,6 +93,7 @@
     if (o.rarity === 'set') it.set = o.set;
     const R = rarityOf(o.rarity), n = r.int(R.affixes[0], R.affixes[1]);
     for (let i = 0; i < n; i++) { const a = rollAffix(r, it.base, it.ilvl, it.affixes.map((x) => x[0])); if (a) it.affixes.push(a); }
+    it.sockets = socketSlots(it);
     it.name = itemName(it, r);
     save.items[it.id] = it;
     return it;
@@ -105,10 +106,11 @@
     if (it.rarity === 'magic' && it.affixes[0]) return `${PREFIX[it.affixes[0][0]]} ${g.name}`;
     return `${SIZES[it.size].name} ${g.name}`;
   }
-  const BASE_W = [['grunt', 1.3], ['archer', 1.2], ['brute', 1.0], ['tinker', 0.8], ['haste', 0.7], ['overcharge', 0.7], ['lightning', 0.8], ['shield', 0.6], ['engine', 0.7], ['collector', 0.8]];
+  const BASE_W = [['grunt', 1.3], ['archer', 1.2], ['brute', 1.0], ['tinker', 0.8], ['haste', 0.7], ['overcharge', 0.7], ['lightning', 0.8], ['shield', 0.6], ['engine', 0.7], ['collector', 0.8], ['mortar', 0.8], ['mender', 0.6], ['magnet', 0.6]];
   function rollDrop(save, r, il, st, force) {
     const mf = st.mf;
-    let rar = force || r.weighted(RARITIES.map((R) => [R.id, R.weight * (R.id === 'common' ? 1 : R.id === 'magic' ? 1 + mf * 0.5 : 1 + mf)]));
+    let rar = force && force !== 'magic+' ? force : r.weighted(RARITIES.filter((R) => !(force === 'magic+' && R.id === 'common')).map((R) => [R.id, R.weight * (R.id === 'common' ? 1 : R.id === 'magic' ? 1 + mf * 0.5 : 1 + mf)]));
+    if (force === 'magic+') force = null;
     save.pity = (save.pity || 0) + 1;
     if (!force && !save.stats.legendaries && save.pity >= 20) rar = 'legendary'; // a first legendary always shows up early
     if (rar === 'legendary') { save.pity = 0; save.stats.legendaries = (save.stats.legendaries || 0) + 1; return makeItem(save, r, { rarity: rar, ilvl: il, leg: r.pick(Object.keys(LEGENDARIES)) }); }
@@ -138,6 +140,10 @@
   }
 
   // ------------------------------------------------------------------ the gear train
+  function trainStats(st, board) { // bonuses a turning gear lends to the whole workshop
+    let mf = 0, wr = 0; for (const n of board.spinning) { mf += affix(n.item, 'mf'); wr += affix(n.item, 'wrench'); }
+    return { mf: st.mf + mf / 100, wrenchDmg: st.wrenchDmg * (1 + wr / 100) };
+  }
   function solve(save, st = stats(save)) {
     const R = st.boardR, inBoard = new Set(cells(R));
     const at = (k) => (k === '0,0' ? 'main' : inBoard.has(k) && save.board[k] ? save.items[save.board[k]] : null);
@@ -175,7 +181,11 @@
     const list = Object.values(G);
     return { main, gears: list, byCell: G, sets, spinning: list.filter((n) => n.state === 'spin'), jammed: list.filter((n) => n.state === 'jam') };
   }
-  const affix = (it, k) => it.affixes.reduce((a, [kk, v]) => a + (kk === k ? v : 0), 0);
+  const socketSlots = (it) => new Array(it.rarity === 'legendary' ? 2 : it.rarity === 'rare' || it.rarity === 'set' ? 1 : 0).fill(null);
+  const stoneVal = (it, type) => (it.sockets || []).reduce((a, x) => a + (x && x[0] === type ? STONES[type].v[x[1]] : 0), 0);
+  // affixes and socketed stones both count: affix(it, 'dmg') includes rubies, etc.
+  const STONE_FOR = { dmg: 'ruby', potency: 'ruby', hp: 'sapphire', rpm: 'emerald', scrap: 'topaz', mf: 'amethyst' };
+  const affix = (it, k) => it.affixes.reduce((a, [kk, v]) => a + (kk === k ? v : 0), 0) + (STONE_FOR[k] ? stoneVal(it, STONE_FOR[k]) : 0);
   function engineFactor(it, st) { return ({ S: 1.4, M: 1.5, L: 1.6 })[it.size] + st.engineBonus + affix(it, 'factor') + 0.1 * (it.rank - 1); }
   function driveMult(p, st) {
     if (p.main) return 1;
@@ -199,12 +209,15 @@
       out.leech = affix(it, 'leech') / 100; out.crit = affix(it, 'crit') / 100; out.twin = affix(it, 'twin') / 100; out.thorns = affix(it, 'thorns') / 100;
       out.shield = affix(it, 'spshield') * rankMult(it.rank) + (sets && sets.choir >= 3 ? 20 * ilvlMult(it.ilvl) : 0);
       out.range = T.range; out.r = T.r * (it.size === 'L' ? 1.3 : it.size === 'S' ? 0.85 : 1);
+      if (T.splash) out.splash = T.splash * (sets && sets.battery >= 3 ? 1.5 : 1);
+      if (sets && sets.battery >= 2 && (it.base === 'archer' || it.base === 'mortar')) out.dmg *= 1.3;
       if (T.heal) { out.heal = T.heal * scale; out.repair = T.repair * scale; }
     } else if (fam === 'spell') {
       const p = st.spellPower * (1 + affix(it, 'potency') / 100) * (1 + 0.15 * (it.rank - 1)) * ({ S: 0.85, M: 1, L: 1.2 })[it.size];
       out.p = p; out.s = scale * st.spellPower * (1 + affix(it, 'potency') / 100); out.every = Math.max(1, GEARS[it.base].every - affix(it, 'quick'));
       out.chains = 3 + affix(it, 'chain');
     } else if (fam === 'engine') out.factor = engineFactor(it, st);
+    else if (fam === 'magnet') out.pull = it.leg === 'lodestone' ? 3 : 1 + Math.floor((it.rank - 1) / 2);
     else out.yield = 1.0 * scale * (1 + affix(it, 'yield') / 100);
     out.bolt = affix(it, 'bolt') * rankMult(it.rank); out.scrap = affix(it, 'scrap'); out.repairTurn = affix(it, 'repair'); out.door = affix(it, 'door');
     return out;
@@ -218,9 +231,11 @@
     if (P.fam === 'unit') lines.push(`Each turn: one ${TROOPS[g.troop].name} (${Math.round(P.hp)} hp, ${P.dmg.toFixed(1)} dmg every ${P.every.toFixed(2)} s)`);
     else if (P.fam === 'spell') lines.push(g.desc(P.p, P.s));
     else if (P.fam === 'engine') lines.push(g.desc(P.factor));
+    else if (P.fam === 'magnet') lines.push(g.desc(P.pull));
     else lines.push(g.desc(P.yield));
     const aff = it.affixes.map(([k, v]) => ({ k, txt: AFFIXES[k].txt(v), dim: (k === 'cw' && n && n.dir !== 1) || (k === 'ccw' && n && n.dir !== -1) }));
-    return { name: it.name, rarity: R, lines, affixes: aff, power: it.leg ? LEGENDARIES[it.leg].power : null,
+    const sockets = (it.sockets || []).map((x) => (x ? { type: x[0], tier: x[1], name: `${STONE_TIERS[x[1]]} ${STONES[x[0]].name}`, txt: STONES[x[0]].txt(STONES[x[0]].v[x[1]]), color: STONES[x[0]].color } : null));
+    return { sockets, name: it.name, rarity: R, lines, affixes: aff, power: it.leg ? LEGENDARIES[it.leg].power : null,
       set: it.set ? { name: SETS[it.set].name, have: sets ? sets[it.set] : 0, bonus: SETS[it.set].bonus.slice(2) } : null };
   }
 
@@ -262,13 +277,13 @@
   function merge(save, src, dst) { // dst keeps its affixes and rises a rank; src is used up
     const e = canMerge(save, src, dst); if (e) return e;
     const k = Object.keys(save.board).find((c) => save.board[c] === src); if (k) delete save.board[k];
-    delete save.items[src]; save.items[dst].rank++; return '';
+    freeStones(save, save.items[src]); delete save.items[src]; save.items[dst].rank++; return '';
   }
   function salvage(save, id) {
     const it = save.items[id]; if (!it) return 'no such gear';
     if (it.vault) return 'take it out of the Vault first';
     const k = Object.keys(save.board).find((c) => save.board[c] === id); if (k) delete save.board[k];
-    save.brass += salvageValue(save, it, stats(save)); delete save.items[id]; return '';
+    save.brass += salvageValue(save, it, stats(save)); freeStones(save, it); delete save.items[id]; return '';
   }
   const rerollCost = (it) => Math.round(5 * (RARITIES.findIndex((r) => r.id === it.rarity) + 1) * (1 + it.ilvl / 10));
   function reroll(save, id, idx) {
@@ -279,7 +294,7 @@
     save.brass -= c; it.affixes[idx] = a; return '';
   }
   const temperCost = (it, to) => Math.round(4 * (to - it.ilvl) * (RARITIES.findIndex((r) => r.id === it.rarity) + 1));
-  const maxIlvl = (save) => Math.min(MAX_DEPTH + 3, save.unlocked + stats(save).ilvlBonus);
+  const maxIlvl = (save) => save.unlocked + stats(save).ilvlBonus;
   function temper(save, id) {
     const it = save.items[id]; if (!it) return 'no such gear';
     const to = maxIlvl(save); if (it.ilvl >= to) return 'already at your best item level';
@@ -289,6 +304,27 @@
     for (const a of it.affixes) { const A = AFFIXES[a[0]]; if (A.flat) a[1] = Math.round(a[1] * (1 + 0.12 * (to - 1)) / (1 + 0.12 * (it.ilvl - 1)) * 100) / 100; }
     it.ilvl = to; return '';
   }
+  // ---- Cogstones: save.pouch = {ruby: [count per tier]}
+  const pouchAdd = (save, type, tier, n = 1) => { save.pouch = save.pouch || {}; const p = (save.pouch[type] = save.pouch[type] || [0, 0, 0, 0, 0]); p[tier] += n; };
+  const combineCost = (tier) => 5 * (tier + 1) * (tier + 1);
+  function combineStones(save, type, tier) {
+    const p = (save.pouch || {})[type]; if (!p || tier >= 4) return 'nothing to combine'; if (p[tier] < 3) return 'needs three of the same stone';
+    const c = combineCost(tier); if (save.brass < c) return 'not enough brass';
+    save.brass -= c; p[tier] -= 3; p[tier + 1]++; return '';
+  }
+  function socket(save, id, slot, type, tier) {
+    const it = save.items[id]; if (!it || !it.sockets || slot >= it.sockets.length) return 'no socket there';
+    const p = (save.pouch || {})[type]; if (!p || !p[tier]) return 'you have none of those';
+    if (it.sockets[slot]) unsocket(save, id, slot, true);
+    p[tier]--; it.sockets[slot] = [type, tier]; return '';
+  }
+  const unsocketCost = (tier) => 2 + 2 * tier;
+  function unsocket(save, id, slot, free) {
+    const it = save.items[id], x = it && it.sockets && it.sockets[slot]; if (!x) return 'empty socket';
+    if (!free) { const c = unsocketCost(x[1]); if (save.brass < c) return 'not enough brass'; save.brass -= c; }
+    pouchAdd(save, x[0], x[1]); it.sockets[slot] = null; return '';
+  }
+  const freeStones = (save, it) => { for (const x of it.sockets || []) if (x) pouchAdd(save, x[0], x[1]); };
   function toggleVault(save, id) {
     const it = save.items[id]; if (!it) return 'no such gear';
     if (!it.vault && vaultCount(save) >= stats(save).vault) return 'the Vault is full';
@@ -305,8 +341,8 @@
   }
   function newSave(seed = 12345, now = 0) {
     const save = { v: SAVE_V, rng: seed >>> 0, scrap: 0, brass: 0, blueprints: 0, tree: { root: 1 }, bp: {}, board: {}, items: {}, nextId: 1,
-      depth: 1, unlocked: 1, best: 0, overhauls: 0, pity: 0,
-      stats: { shifts: 0, kills: 0, legendaries: 0, playSecs: 0, firstLegendaryAt: 0, bossKills: 0, scrapTotal: 0 },
+      depth: 1, unlocked: 1, best: 0, cycleStart: 0, overhauls: 0, pity: 0, milestones: {}, pouch: {},
+      stats: { shifts: 0, kills: 0, legendaries: 0, playSecs: 0, firstLegendaryAt: 0, bossKills: 0, scrapTotal: 0, deepest: 0 },
       avg: { scrap: 0, drops: 0, secs: 0, n: 0 }, lastSeen: now, settings: { muted: false }, codex: {} };
     starterKit(save);
     return save;
@@ -314,12 +350,15 @@
   function load(json, now) { // tolerant: a corrupt or foreign save gives a fresh one
     let s; try { s = typeof json === 'string' ? JSON.parse(json) : json; } catch { s = null; }
     if (!s || typeof s !== 'object' || !s.items || !s.board) return newSave((now * 7919) >>> 0 || 1, now);
-    if ((s.v || 0) < SAVE_V) { /* future migrations go here */ s.v = SAVE_V; }
+    if ((s.v || 0) < 2) { s.cycleStart = 0; s.stats = s.stats || {}; s.stats.deepest = Math.max(s.stats.deepest || 0, s.best || 0); }
+    s.v = SAVE_V;
     const fresh = newSave(1, now);
     for (const k of Object.keys(fresh)) if (s[k] === undefined) s[k] = fresh[k];
     for (const k of Object.keys(fresh.stats)) if (s.stats[k] === undefined) s.stats[k] = fresh.stats[k];
     if (!s.tree.root) s.tree.root = 1;
     for (const k of Object.keys(s.board)) if (!s.items[s.board[k]]) delete s.board[k];
+    for (const it of Object.values(s.items)) if (!it.sockets) it.sockets = socketSlots(it);
+    s.pouch = s.pouch || {}; s.milestones = s.milestones || {};
     return s;
   }
 
@@ -339,12 +378,16 @@
     const seed = withRng(save, (r) => Math.floor(r.next() * 4294967296));
     const r = rngFrom(seed);
     const board = solve(save, st), sets = board.sets;
+    Object.assign(st, trainStats(st, board));
     const es = enemyScale(depth), boss = isBossDepth(depth);
     const S = { t: 0, time: st.shiftTime, depth, zone, boss, over: false, outcome: null,
       door: { hp: st.doorHp, max: st.doorHp }, gate: { hp: gateHp(depth), max: gateHp(depth) },
       troops: [], enemies: [], drops: [], shots: [], events: [], scrap: 0, brass: 0, kills: 0, items: [], salvaged: 0,
       cranks: st.cranks, crankT: 0, buffs: { haste: 0, hasteM: 0, over: 0, overM: 0 }, wrench: null, sprite: { a: 0, x: 13, y: 30 },
-      bossSpawned: false, bossDead: false, spawnAcc: 0, surge: 0, held: 0, stats: st, sets };
+      bossSpawned: false, bossDead: false, spawnAcc: 0, surge: 0, held: 0, stats: st, sets, gremlin: null, elitesKilled: 0, gremlinKilled: false, stones: [] };
+    const has = (leg) => board.spinning.some((n) => n.item.leg === leg);
+    const pierce = has('piercer'), siege = has('siegebreaker'), heartwood = has('heartwood'), clocksmith = has('clocksmith');
+    S.gremlinAt = (has('gremlinbait') || (depth >= 2 && r.next() < 0.3)) ? 12 + r.next() * 30 : -1;
     // per-gear runtime
     const esc = board.spinning.some((n) => n.item.leg === 'escapement');
     const heart = board.spinning.some((n) => n.item.leg === 'heart');
@@ -358,33 +401,61 @@
       const P = g.P, T = TROOPS[GEARS[g.item.base].troop];
       if (S.troops.length >= st.troopCap) return;
       const tr = { side: 1, kind: g.item.base, x: 3 + r.next() * (LANE.W - 6), y: 1.5, hp: P.hp, max: P.hp, dmg: P.dmg * mult, every: P.every, cd: r.next() * 0.3, speed: P.speed, range: P.range, r: P.r,
-        leech: P.leech, crit: P.crit, thorns: P.thorns, shield: P.shield, heal: P.heal || 0, size: g.item.size, rarity: g.item.rarity, ranged: T.range > 3, hit: 0 };
+        leech: P.leech, crit: P.crit, thorns: P.thorns, shield: P.shield, heal: P.heal || 0, size: g.item.size, rarity: g.item.rarity, ranged: T.range > 3, hit: 0,
+        splash: P.splash || 0, pierce: pierce && g.item.base === 'archer', siege: siege && g.item.base === 'mortar' };
       if (P.repair) S.door.hp = Math.min(S.door.max, S.door.hp + P.repair);
       S.troops.push(tr);
       if (r.next() < P.twin && S.troops.length < st.troopCap) S.troops.push({ ...tr, x: Math.min(LANE.W - 2, tr.x + 1.5) });
       ev('spawn', { x: tr.x, kind: tr.kind });
     }
-    function spawnEnemy(kind) {
+    const ELITE = { swift: 'Swift', armored: 'Armoured', vampiric: 'Vampiric', splitter: 'Splitting', warding: 'Warding', molten: 'Molten' };
+    function makeElite(e) {
+      const ks = Object.keys(ELITE), a = [r.pick(ks)]; if (depth >= 12 && r.next() < 0.5) { const b = r.pick(ks.filter((k) => k !== a[0])); a.push(b); }
+      e.elite = a; e.hp = e.max = e.hp * 4; e.dmg *= 1.5; e.r *= 1.25; e.scrap *= 5; e.odds *= 6;
+      if (a.includes('swift')) e.speed *= 1.6; if (a.includes('armored')) e.armor = (e.armor || 0) + 3 * Math.pow(TUNE.armorGrowth, depth - 1);
+      e.name = a.map((k) => ELITE[k]).join(' ') + ' ' + zone.names[e.kind]; ev('elite', { name: e.name });
+    }
+    function spawnEnemy(kind, small) {
       if (S.enemies.length >= 140) return;
       const K = ENEMY_KINDS[kind], m = kind === 'boss' ? es * 1.0 : es;
-      S.enemies.push({ side: -1, kind, x: kind === 'boss' ? LANE.W / 2 : 2 + r.next() * (LANE.W - 4), y: LANE.L - 1, hp: K.hp * m, max: K.hp * m, dmg: K.dmg * Math.pow(TUNE.enemyDmgGrowth, depth - 1), every: K.every,
-        cd: r.next() * 0.5, speed: K.speed, range: K.range, r: K.r, armor: (K.armor || 0) * Math.pow(TUNE.armorGrowth, depth - 1), ranged: K.range > 3, scrap: K.scrap, odds: K.gearOdds, hit: 0, shield: 0 });
+      const e = { side: -1, kind, x: kind === 'boss' ? LANE.W / 2 : 2 + r.next() * (LANE.W - 4), y: LANE.L - 1, hp: K.hp * m, max: K.hp * m, dmg: K.dmg * Math.pow(TUNE.enemyDmgGrowth, depth - 1), every: K.every,
+        cd: r.next() * 0.5, speed: K.speed, range: K.range, r: K.r, armor: (K.armor || 0) * Math.pow(TUNE.armorGrowth, depth - 1), ranged: K.range > 3, scrap: K.scrap, odds: K.gearOdds, hit: 0, shield: 0 };
+      if (kind !== 'boss' && !small && depth >= 3 && r.next() < Math.min(0.12, 0.03 + 0.004 * depth)) makeElite(e);
+      if (small) { e.hp = e.max = e.hp * 0.35; e.r *= 0.7; e.scrap *= 0.3; e.odds *= 0.3; e.x = small.x + (r.next() - 0.5) * 3; e.y = small.y; }
+      S.enemies.push(e);
       if (kind === 'boss') { S.bossSpawned = true; ev('boss'); }
     }
+    function dropStone(x, y, tier) { S.drops.push({ kind: 'stone', type: r.pick(Object.keys(STONES)), tier, x: Math.max(1, Math.min(LANE.W - 1, x)), y, t: 0 }); }
     function dropScrap(x, y, v) { if (S.drops.length < 400) S.drops.push({ kind: 'scrap', x, y, v, t: 0 }); else S.scrap += v * 0.5; }
+    function gremlinPop(gr) {
+      gr.dead = true; gr.gone = true; S.gremlinKilled = true; ev('gremlinkill', { x: gr.x, y: gr.y });
+      const il = depth + st.ilvlBonus + 1, v = 12 * Math.pow(TUNE.scrapGrowth, depth - 1) * st.scrapMult;
+      for (let i = 0; i < 8; i++) dropScrap(Math.max(1, Math.min(LANE.W - 1, gr.x + (r.next() - 0.5) * 8)), gr.y + (r.next() - 0.5) * 6, v);
+      for (let i = 0; i < 3; i++) S.drops.push({ kind: 'gear', x: Math.max(1, Math.min(LANE.W - 1, gr.x + (i - 1) * 3)), y: gr.y, il, t: 0, force: i === 0 ? 'magic+' : null });
+      dropStone(gr.x, gr.y - 2, 0);
+    }
     function kill(e) {
       e.dead = true; S.kills++; ev('kill', { x: e.x, y: e.y, kind: e.kind });
       let v = e.scrap * Math.pow(TUNE.scrapGrowth, depth - 1) * st.scrapMult * (sets.furnace >= 3 ? 1.5 : 1);
       dropScrap(e.x, e.y, v);
-      const il = Math.min(MAX_DEPTH + 3, depth + st.ilvlBonus + (r.next() < 0.3 ? 1 : 0));
+      const il = depth + st.ilvlBonus + (r.next() < 0.3 ? 1 : 0);
       if (e.kind === 'boss') {
         S.bossDead = true;
         const first = !(save.stats.bossKills > 0);
         for (let i = 0; i < 3; i++) S.drops.push({ kind: 'gear', x: e.x + (i - 1) * 3, y: e.y, il, force: i === 0 && first ? 'legendary' : i === 0 ? 'rare' : null, t: 0 });
-      } else if (r.next() < 0.025 * e.odds * st.dropRate) S.drops.push({ kind: 'gear', x: e.x, y: e.y, il, t: 0 });
+        dropStone(e.x - 2, e.y - 2, r.next() < 0.5 ? 1 : 0); dropStone(e.x + 2, e.y - 2, 0);
+      } else if (r.next() < 0.025 * e.odds * st.dropRate) S.drops.push({ kind: 'gear', x: e.x, y: e.y, il, t: 0, force: e.elite && r.next() < 0.5 ? 'magic+' : null });
+      if (e.elite) {
+        S.elitesKilled++;
+        if (r.next() < 0.2) dropStone(e.x, e.y, 0);
+        if (e.elite.includes('splitter')) for (let i = 0; i < 3; i++) spawnEnemy('basic', e);
+        if (e.elite.includes('molten')) { ev('blast', { x: e.x, y: e.y, r: 4 }); for (const t of S.troops) if (!t.dead && Math.hypot(t.x - e.x, t.y - e.y) < 4) hurt(t, t.max * 0.3); }
+      }
     }
     function hurt(u, dmg, src) {
       if (u.dead) return 0;
+      if (u.side === -1 && u.warded) dmg *= 0.6;
+      if (src && src.elite && src.elite.includes('vampiric')) src.hp = Math.min(src.max, src.hp + dmg * 0.3);
       if (u.side === -1 && u.armor) dmg = Math.max(dmg * 0.25, dmg - u.armor);
       if (u.shield > 0) { const a = Math.min(u.shield, dmg); u.shield -= a; dmg -= a; }
       u.hp -= dmg; u.hit = 0.12;
@@ -412,13 +483,16 @@
         else if (b === 'overcharge') { S.buffs.overM = Math.max(S.buffs.over > 0 ? S.buffs.overM : 0, 0.5 * P.p); S.buffs.over = 3; }
         else if (b === 'lightning') lightning(g);
         else if (b === 'shield') for (const t of S.troops) t.shield = Math.min(t.max * 1.5, (t.shield || 0) + 12 * P.s);
+        else if (b === 'mender') { for (const t of S.troops) t.hp = Math.min(t.max, t.hp + 15 * P.s); if (heartwood) S.door.hp = Math.min(S.door.max, S.door.hp + S.door.max * 0.03); }
       } else if (f === 'collector') { S.scrap += P.yield; ev('coin', { k: g.k }); }
+      else if (f === 'magnet') { const loose = S.drops.filter((d) => !d.gone).sort((a, b) => a.y - b.y); for (const d of loose.slice(0, P.pull)) { ev('pull', { x: d.x, y: d.y }); collect(d); } }
       if (P.bolt && g.done % 8 === 0) { const e = S.enemies.filter((x) => !x.dead).sort((a, b) => a.y - b.y)[0]; if (e) { hurt(e, P.bolt); ev('bolt', { x1: e.x, y1: 0, x2: e.x, y2: e.y }); } }
       if (P.scrap) S.scrap += P.scrap;
       if (P.repairTurn) S.door.hp = Math.min(S.door.max, S.door.hp + P.repairTurn);
     }
     function collect(d) {
       if (d.kind === 'scrap') { S.scrap += d.v; ev('pick', { x: d.x, y: d.y }); }
+      else if (d.kind === 'stone') { S.stones.push([d.type, d.tier]); pouchAdd(save, d.type, d.tier); ev('stone', { x: d.x, y: d.y, type: d.type, tier: d.tier }); }
       else {
         const it = withRng(save, (rr) => rollDrop(save, rr, d.il, st, d.force)); const res = addLoot(save, it, st);
         if (res.kept) { S.items.push(it.id); ev('loot', { x: d.x, y: d.y, rarity: it.rarity, name: it.name }); }
@@ -443,10 +517,13 @@
           const done = hurt(best, dmg, u);
           if (u.leech) u.hp = Math.min(u.max, u.hp + done * u.leech);
           if (!u.ranged && best.thorns) hurt(u, done * best.thorns);
-          if (u.ranged) ev('shot', { x1: u.x, y1: u.y, x2: best.x, y2: best.y, side: u.side });
+          if (u.splash) { for (const f of foes) if (f !== best && !f.dead && Math.hypot(f.x - best.x, f.y - best.y) < u.splash) hurt(f, dmg * 0.7, u); ev('shell', { x1: u.x, y1: u.y, x2: best.x, y2: best.y, r: u.splash }); }
+          else if (u.ranged) ev('shot', { x1: u.x, y1: u.y, x2: best.x, y2: best.y, side: u.side });
+          if (u.pierce) { const nx = foes.find((f) => f !== best && !f.dead && Math.abs(f.x - best.x) < 2 && f.y > best.y && f.y - best.y < 4); if (nx) hurt(nx, dmg * 0.8, u); }
         }
         return; // in range: stand and fight
       }
+      if (u.siege && u.y >= LANE.L - u.range && (!best || bd > u.range)) { if (u.cd <= 0) { u.cd = u.every; const gd = u.dmg * 3 * st.gateDmg * (1 + overM); if (!(S.boss && !S.bossDead)) S.gate.hp -= gd; ev('shell', { x1: u.x, y1: u.y, x2: u.x, y2: LANE.L, r: 2 }); } return; }
       if (atGate) { if (u.cd <= 0) { u.cd = u.every; const g = u.dmg * st.gateDmg * (1 + overM); if (!(S.boss && !S.bossDead)) S.gate.hp -= g; else S.gate.hp = Math.max(S.gate.max * 0.02, S.gate.hp - g * 0.2); ev('gatehit'); } return; }
       if (atDoor) { if (u.cd <= 0) { u.cd = u.every; S.door.hp -= u.dmg * (1 - st.doorArmor); ev('doorhit'); } return; }
       u.y += u.side * u.speed * spdM * dt;
@@ -458,7 +535,7 @@
       if (S.over) return;
       dt = Math.min(dt, 0.1);
       S.t += dt; S.events.length = 0;
-      const crank = S.crankT > 0 ? 3 : 1; S.crankT = Math.max(0, S.crankT - dt);
+      const crank = (S.crankT > 0 ? 3 : 1) * (clocksmith && S.buffs.haste > 0 ? 1.25 : 1); S.crankT = Math.max(0, S.crankT - dt);
       S.mainAngle += (st.mainRpm / 60) * crank * dt * 6.283;
       for (const g of S.train) {
         g.pulse = Math.max(0, g.pulse - dt);
@@ -474,6 +551,14 @@
       while (S.spawnAcc >= 1) { S.spawnAcc--; spawnEnemy(r.weighted(enemyMix(depth))); }
       if (S.t - S.surge >= 20) { S.surge = S.t; for (let i = 0; i < 4 + Math.floor(depth / 3); i++) spawnEnemy(r.weighted(enemyMix(depth))); ev('surge'); }
       if (boss && !S.bossSpawned && S.t >= 12) spawnEnemy('boss');
+      // elite auras: warding elites shield enemies near them
+      const wards = S.enemies.filter((e) => e.elite && e.elite.includes('warding') && !e.dead);
+      for (const e of S.enemies) e.warded = wards.length > 0 && wards.some((w) => w !== e && Math.hypot(w.x - e.x, w.y - e.y) < 6);
+      if (sets.hospital >= 2) for (const t of S.troops) t.hp = Math.min(t.max, t.hp + t.max * 0.02 * dt);
+      if (sets.hospital >= 3) S.door.hp = Math.min(S.door.max, S.door.hp + S.door.max * 0.01 * dt);
+      // the Scrap Gremlin: only the Wrench can catch it
+      if (S.gremlinAt >= 0 && S.t >= S.gremlinAt && !S.gremlin) { const fromLeft = r.next() < 0.5; S.gremlin = { x: fromLeft ? 0 : LANE.W, y: LANE.L * (0.35 + r.next() * 0.3), dir: fromLeft ? 1 : -1, hp: 7 * st.wrenchDmg * Math.pow(TUNE.wrenchGrowth, depth - 1), max: 0, t: 0, hit: 0 }; S.gremlin.max = S.gremlin.hp; S.gremlinAt = -1; ev('gremlin'); }
+      if (S.gremlin && !S.gremlin.gone) { const gr = S.gremlin; gr.t += dt; gr.hit = Math.max(0, gr.hit - dt); gr.x += gr.dir * 2.4 * dt; gr.y += Math.sin(gr.t * 3) * 3 * dt; if (gr.x < -1 || gr.x > LANE.W + 1) { gr.gone = true; ev('gremlinaway'); } }
       // fighting
       for (const t of S.troops) fight(t, S.enemies, dt, hasteM, overM);
       for (const e of S.enemies) fight(e, S.troops, dt, 0, 0);
@@ -482,6 +567,7 @@
       S.wrench = input.wrench || null;
       const wdps = st.wrenchDmg * Math.pow(TUNE.wrenchGrowth, depth - 1);
       const zap = (x, y, rad, dps, pick, heal) => {
+        const gr = S.gremlin; if (gr && !gr.gone && !gr.dead && Math.hypot(gr.x - x, gr.y - y) < rad + 1) { gr.hp -= dps * dt; gr.hit = 0.1; if (gr.hp <= 0) gremlinPop(gr); }
         for (const e of S.enemies) if (!e.dead && Math.hypot(e.x - x, e.y - y) < rad + e.r) { let d = dps * dt; if (r.next() < st.wrenchCrit) d *= 2; hurt(e, d); }
         for (const d of S.drops) if (!d.gone && Math.hypot(d.x - x, d.y - y) < pick) collect(d);
         if (heal) for (const t of S.troops) if (!t.dead && Math.hypot(t.x - x, t.y - y) < rad + t.r) t.hp = Math.min(t.max, t.hp + heal * dt);
@@ -512,17 +598,17 @@
     function quit() { finish('timeout'); }
     function result() { // bank it into the save; call once after over
       const scrap = Math.round(S.scrap);
-      save.scrap += scrap; save.brass += S.brass; save.stats.shifts++; save.stats.kills += S.kills; save.stats.scrapTotal += scrap; save.stats.playSecs += S.t;
+      save.scrap += scrap; save.brass += S.brass; save.stats.shifts++; save.stats.kills += S.kills; save.stats.elites = (save.stats.elites || 0) + S.elitesKilled; if (S.gremlinKilled) save.stats.gremlins = (save.stats.gremlins || 0) + 1; save.stats.scrapTotal += scrap; save.stats.playSecs += S.t;
       if (save.stats.legendaries && !save.stats.firstLegendaryAt) save.stats.firstLegendaryAt = save.stats.playSecs;
       let opened = false;
       if (S.outcome === 'win') {
         if (S.boss) save.stats.bossKills = (save.stats.bossKills || 0) + 1;
-        save.best = Math.max(save.best, depth);
-        if (depth === save.unlocked && save.unlocked < MAX_DEPTH) { save.unlocked++; opened = true; }
+        save.best = Math.max(save.best, depth); save.stats.deepest = Math.max(save.stats.deepest || 0, depth);
+        if (depth === save.unlocked) { save.unlocked++; opened = true; } // past Depth 30 the Deep Works go on forever
       }
       const a = save.avg, w = a.n < 5 ? 1 / (a.n + 1) : 0.2; // recent average, for Night Shift
       a.scrap += (scrap - a.scrap) * w; a.drops += (S.items.length + (S.brass > 0 ? 1 : 0) - a.drops) * w; a.secs += (S.t - a.secs) * w; a.n++;
-      return { outcome: S.outcome, depth, scrap, brass: S.brass, items: S.items.slice(), kills: S.kills, opened, secs: S.t, door: S.door.hp / S.door.max, gate: Math.max(0, S.gate.hp / S.gate.max) };
+      return { stones: S.stones.slice(), outcome: S.outcome, depth, scrap, brass: S.brass, items: S.items.slice(), kills: S.kills, opened, secs: S.t, door: S.door.hp / S.door.max, gate: Math.max(0, S.gate.hp / S.gate.max) };
     }
     return { S, update, crank: crankBurst, quit, result, LANE };
   }
@@ -556,29 +642,38 @@
     const scrap = Math.floor(R.total * secs);
     save.scrap += scrap; save.stats.scrapTotal += scrap;
     let items = [], brass = 0;
+    Object.assign(st, trainStats(st, solve(save, st)));
     if (R.night > 0 && save.avg.n) {
       const n = Math.min(15, Math.floor((secs / (save.avg.secs + 20)) * save.avg.drops * st.nightEff));
-      withRng(save, (r) => { for (let i = 0; i < n; i++) { const it = rollDrop(save, r, Math.min(MAX_DEPTH, save.depth + st.ilvlBonus), st); const res = addLoot(save, it, st); if (res.kept) items.push(it.id); else brass += res.salvaged; } });
+      withRng(save, (r) => { for (let i = 0; i < n; i++) { const it = rollDrop(save, r, save.depth + st.ilvlBonus, st); const res = addLoot(save, it, st); if (res.kept) items.push(it.id); else brass += res.salvaged; } });
     }
     return { secs, capped, scrap, items, brass, rates: R };
   }
 
   // ------------------------------------------------------------------ Overhaul (prestige)
-  const overhaulGain = (save) => (save.best < 10 ? 0 : 3 + (save.best - 10) + 4 * (Math.floor(save.best / 10) - 1));
+  // Blueprints pay for depths actually cleared this cycle, beyond any Head Start: 10 → 10, 15 → 19, 20 → 29, 30 → 54 (from scratch)
+const bpCurve = (d) => Math.pow(d, 1.5) / 3;
+const overhaulGain = (save) => (save.best < 10 || save.best <= (save.cycleStart || 0) ? 0 : Math.max(1, Math.floor((bpCurve(save.best) - bpCurve(save.cycleStart || 0)) * (1 + 0.25 * (save.bp.bp_deep || 0)))));
   function overhaul(save) {
     const gain = overhaulGain(save); if (!gain) return 'clear Depth 10 first';
     const keep = Object.values(save.items).filter((it) => it.vault);
     save.blueprints += gain; save.overhauls++;
-    save.scrap = 0; save.brass = 0; save.tree = { root: 1 }; save.board = {}; save.items = {}; save.pity = 0;
+    save.scrap = 0; save.brass = 0; save.tree = { root: 1 }; save.board = {}; save.items = {}; save.pity = 0; save.pouch = {};
     for (const it of keep) { it.loc = 'inv'; save.items[it.id] = it; }
     starterKit(save);
     const st = stats(save);
-    save.unlocked = Math.min(MAX_DEPTH, 1 + st.headStart); save.depth = save.unlocked; save.best = Math.max(0, save.unlocked - 1);
+    save.unlocked = Math.min(MAX_DEPTH, 1 + st.headStart); save.depth = save.unlocked; save.best = 0; save.cycleStart = save.unlocked - 1;
     save.avg = { scrap: 0, drops: 0, secs: 0, n: 0 };
     return '';
   }
 
-  const api = { TUNE, SAVE_V, LANE, rngFrom, key, unkey, cells, neighbours, hexDist, NEI, stats, baseStats, nodeCost, nodeOpen, canBuyNode, buyNode, buyBlueprint,
+  function checkMilestones(save, board) { // -> newly earned milestones, rewards paid
+    save.milestones = save.milestones || {}; const got = [];
+    const ctx = { board: board || solve(save) };
+    for (const m of D.MILESTONES) if (!save.milestones[m.id]) { let ok = false; try { ok = m.check(save, ctx); } catch { ok = false; } if (ok) { save.milestones[m.id] = 1; save.brass += m.brass; save.blueprints += m.bp; got.push(m); } }
+    return got;
+  }
+  const api = { trainStats, socketSlots, pouchAdd, combineStones, combineCost, socket, unsocket, unsocketCost, checkMilestones, TUNE, SAVE_V, LANE, rngFrom, key, unkey, cells, neighbours, hexDist, NEI, stats, baseStats, nodeCost, nodeOpen, canBuyNode, buyNode, buyBlueprint,
     makeItem, rollDrop, dropOdds, describe, gearPower, solve, affix, place, unplace, canMerge, merge, mergeKeepBest, salvage, salvageValue, reroll, rerollCost, temper, temperCost,
     maxIlvl, toggleVault, invItems, vaultCount, newSave, load, zoneOf, isBossDepth, enemyScale, gateHp, createShift, idleRates, applyOffline, overhaulGain, overhaul, withRng, addLoot };
   if (typeof module !== 'undefined') module.exports = api; else root.CogModel = api;

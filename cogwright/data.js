@@ -18,6 +18,9 @@
     lightning: { fam: 'spell', name: 'Lightning Gear', every: 2, icon: '⚡', color: '#8a7bf0', desc: (p, s) => `Every 2 turns: a bolt hits the front enemy for ${Math.round(18 * s)}, chaining ${3} times` },
     shield:    { fam: 'spell', name: 'Shield Gear', every: 3, icon: '◈', color: '#5fb3c9', desc: (p, s) => `Every 3 turns: every troop gains ${Math.round(12 * s)} shield` },
     engine:    { fam: 'engine', name: 'Engine Gear', icon: '⟳', color: '#8c8f99', desc: (f) => `Gears it drives spin ×${f.toFixed(2)} (boosts don't stack: a gear takes the biggest on its way to the Mainspring)` },
+    mortar:    { fam: 'unit', name: 'Mortar Gear', troop: 'mortar', icon: '☄', color: '#8a6a4a' },
+    mender:    { fam: 'spell', name: 'Mender Gear', every: 3, icon: '✚', color: '#d77a9a', desc: (p, s) => `Every 3 turns: every troop heals ${Math.round(15 * s)} hp` },
+    magnet:    { fam: 'magnet', name: 'Magnet Gear', icon: '⊂', color: '#b04848', desc: (n) => `Each turn: pulls in the nearest ${n > 1 ? n + ' loose drops' : 'loose drop'} on the field` },
     collector: { fam: 'collector', name: 'Collector Gear', icon: '⛁', color: '#c4a64a', desc: (y) => `+${y.toFixed(1)} scrap per turn (and while you're away)` },
   };
 
@@ -25,6 +28,7 @@
     grunt:  { name: 'Grunt', hp: 30, dmg: 6, every: 0.8, range: 1.3, speed: 4.2, r: 0.9 },
     archer: { name: 'Archer', hp: 16, dmg: 5, every: 1.0, range: 8, speed: 3.6, r: 0.8 },
     brute:  { name: 'Brute', hp: 85, dmg: 10, every: 1.4, range: 1.5, speed: 2.8, r: 1.25 },
+    mortar: { name: 'Mortar', hp: 18, dmg: 9, every: 2.2, range: 14, speed: 2.5, r: 0.9, splash: 2.6 },
     tinker: { name: 'Tinker', hp: 20, dmg: 3, every: 1.0, range: 1.3, speed: 3.4, r: 0.85, heal: 3, repair: 1.5 },
   };
 
@@ -46,6 +50,9 @@
     { id: 'tower', name: 'The Clocktower', depths: [21, 30], bg: '#2a2436', lane: '#383047', accent: '#c9a8ff',
       names: { basic: 'Tick', tank: 'Pendulum Knight', ranged: 'Cuckoo', armor: 'Bell Golem', boss: 'The Horologist' },
       colors: { basic: '#9a87c8', tank: '#6b5c8c', ranged: '#f2d36b', armor: '#77708a', boss: '#d36bff' } },
+    { id: 'deep', name: 'The Deep Works', depths: [31, 1e9], bg: '#141a22', lane: '#1d2631', accent: '#9fd8ff', endless: true,
+      names: { basic: 'Hollow Tick', tank: 'Iron Revenant', ranged: 'Wisp Lantern', armor: 'Bulkhead', boss: 'The Engine Below' },
+      colors: { basic: '#6f8aa8', tank: '#4a5a70', ranged: '#bfe6ff', armor: '#5c6878', boss: '#9fd8ff' } },
   ];
   const MAX_DEPTH = 30;
 
@@ -70,14 +77,14 @@
     spshield:{ fam: ['unit'], v: [4, 10], flat: true, txt: (v) => `Troops spawn with ${v} shield` },
     cw:      { fam: ['unit'], v: [20, 40], txt: (v) => `Turning clockwise: +${v}% damage` },
     ccw:     { fam: ['unit'], v: [25, 50], txt: (v) => `Turning counter-clockwise: +${v}% health` },
-    rpm:     { fam: ['unit', 'spell', 'engine', 'collector'], v: [6, 15], txt: (v) => `+${v}% RPM (this gear)` },
-    drive:   { fam: ['unit', 'spell', 'engine', 'collector'], v: [5, 10], txt: (v) => `+${v}% RPM to the gears it drives` },
-    bolt:    { fam: ['unit', 'spell', 'engine', 'collector'], v: [8, 16], flat: true, txt: (v) => `Every 8th turn: a ${v}-damage bolt` },
-    scrap:   { fam: ['unit', 'spell', 'engine', 'collector'], v: [2, 6], flat: true, scale: 0.1, txt: (v) => `+${v.toFixed(1)} scrap per turn` },
-    mf:      { fam: ['unit', 'spell', 'engine', 'collector'], v: [5, 12], txt: (v) => `+${v}% magic find` },
-    wrench:  { fam: ['unit', 'spell', 'engine', 'collector'], v: [6, 14], txt: (v) => `+${v}% Wrench damage` },
-    repair:  { fam: ['unit', 'spell', 'engine', 'collector'], v: [3, 10], flat: true, scale: 0.1, txt: (v) => `Repairs the door ${v.toFixed(1)} per turn` },
-    door:    { fam: ['unit', 'spell', 'engine', 'collector'], v: [5, 15], flat: true, txt: (v) => `+${v} door health` },
+    rpm:     { fam: ['unit', 'spell', 'engine', 'collector', 'magnet'], v: [6, 15], txt: (v) => `+${v}% RPM (this gear)` },
+    drive:   { fam: ['unit', 'spell', 'engine', 'collector', 'magnet'], v: [5, 10], txt: (v) => `+${v}% RPM to the gears it drives` },
+    bolt:    { fam: ['unit', 'spell', 'engine', 'collector', 'magnet'], v: [8, 16], flat: true, txt: (v) => `Every 8th turn: a ${v}-damage bolt` },
+    scrap:   { fam: ['unit', 'spell', 'engine', 'collector', 'magnet'], v: [2, 6], flat: true, scale: 0.1, txt: (v) => `+${v.toFixed(1)} scrap per turn` },
+    mf:      { fam: ['unit', 'spell', 'engine', 'collector', 'magnet'], v: [5, 12], txt: (v) => `+${v}% magic find` },
+    wrench:  { fam: ['unit', 'spell', 'engine', 'collector', 'magnet'], v: [6, 14], txt: (v) => `+${v}% Wrench damage` },
+    repair:  { fam: ['unit', 'spell', 'engine', 'collector', 'magnet'], v: [3, 10], flat: true, scale: 0.1, txt: (v) => `Repairs the door ${v.toFixed(1)} per turn` },
+    door:    { fam: ['unit', 'spell', 'engine', 'collector', 'magnet'], v: [5, 15], flat: true, txt: (v) => `+${v} door health` },
     potency: { fam: ['spell'], v: [10, 25], txt: (v) => `+${v}% spell power` },
     quick:   { fam: ['spell'], v: [1, 1], txt: () => `Pulses one turn sooner` },
     chain:   { fam: ['spell'], only: ['lightning'], v: [1, 2], txt: (v) => `+${v} lightning chain${v > 1 ? 's' : ''}` },
@@ -93,6 +100,12 @@
     heart:       { name: "Tinker's Heart", base: 'tinker', size: 'M', power: 'Your Wrench heals the troops it passes over' },
     perpetual:   { name: 'Perpetual Motion', base: 'collector', size: 'L', power: 'Earnings while you are away are doubled' },
     stormcoil:   { name: 'Stormcoil', base: 'lightning', size: 'S', power: 'Lightning keeps chaining while targets are close (up to 12 hops)' },
+    siegebreaker:{ name: 'Siegebreaker', base: 'mortar', size: 'L', power: 'Mortars shell the gate from range for triple damage when no enemy is near' },
+    lodestone:   { name: 'Lodestone', base: 'magnet', size: 'M', power: 'Each turn pulls in three drops instead of one' },
+    heartwood:   { name: 'Heartwood Valve', base: 'mender', size: 'L', power: 'Each mending pulse also repairs 3% of the door' },
+    clocksmith:  { name: "Clocksmith's Pace", base: 'haste', size: 'S', power: 'While Haste is active the whole gear train turns 25% faster' },
+    piercer:     { name: 'The Long Bolt', base: 'archer', size: 'L', power: 'Archer shots pierce and also hit the next enemy behind' },
+    gremlinbait: { name: 'Gremlin Bait', base: 'collector', size: 'S', power: 'A Scrap Gremlin shows up in every Shift' },
   };
 
   const SETS = {
@@ -100,6 +113,10 @@
       bonus: ['', '', '2 meshed: +25% troop damage', '3 meshed: troops spawn with 20 shield'] },
     furnace: { name: 'Foundry Heart', pieces: { engine: 'Heart Bellows', collector: 'Heart Coffer', overcharge: 'Heart Spark' },
       bonus: ['', '', '2 meshed: +20% RPM for the whole train', '3 meshed: +50% scrap from kills'] },
+    battery: { name: 'Siege Battery', pieces: { mortar: 'Battery Howitzer', archer: 'Battery Spotter', overcharge: 'Battery Powder' },
+      bonus: ['', '', '2 meshed: +30% damage for archers and mortars', '3 meshed: mortar blasts 50% wider'] },
+    hospital: { name: 'Field Hospital', pieces: { tinker: 'Hospital Orderly', mender: 'Hospital Tonic', shield: 'Hospital Screen' },
+      bonus: ['', '', '2 meshed: troops regenerate 2% health a second', '3 meshed: the door repairs 1% a second'] },
   };
 
   // Upgrade tree (scrap). Positions are on a loose grid, centre = root. fx mutates the stats object, level = levels owned.
@@ -150,16 +167,64 @@
 
   // Blueprint tree (permanent, bought with Blueprints from Overhauls)
   const BLUEPRINTS = [
-    { id: 'bp_scrap', name: 'Ledger of Scraps', icon: '📜', cost: 1, grow: 1.6, max: 10, desc: (l) => `+30% scrap from everything per level (now +${30 * l}%)`, fx: (s, l) => { s.scrapMult *= 1 + 0.3 * l; s.idleMult *= 1 + 0.3 * l; } },
-    { id: 'bp_power', name: 'Tempered Alloys', icon: '⚒', cost: 1, grow: 1.6, max: 10, desc: (l) => `+20% troop damage and health per level (now +${20 * l}%)`, fx: (s, l) => { s.troopDmg *= 1 + 0.2 * l; s.troopHp *= 1 + 0.2 * l; } },
+    { id: 'bp_scrap', name: 'Ledger of Scraps', icon: '📜', cost: 1, grow: 1.5, max: 15, desc: (l) => `Scrap from everything ×1.3 per level, compounding (now ×${Math.pow(1.3, l).toFixed(2)})`, fx: (s, l) => { s.scrapMult *= Math.pow(1.3, l); s.idleMult *= Math.pow(1.3, l); } },
+    { id: 'bp_power', name: 'Tempered Alloys', icon: '⚒', cost: 1, grow: 1.45, max: 25, desc: (l) => `Troop damage and health ×1.35 per level, compounding (now ×${Math.pow(1.35, l).toFixed(2)})`, fx: (s, l) => { s.troopDmg *= Math.pow(1.35, l); s.troopHp *= Math.pow(1.35, l); } },
     { id: 'bp_mf', name: 'Treasure Maps', icon: '🗺', cost: 2, grow: 1.7, max: 6, desc: (l) => `+25% magic find and +15% drop rate per level`, fx: (s, l) => { s.mf += 0.25 * l; s.dropRate *= 1 + 0.15 * l; } },
     { id: 'bp_vault', name: 'Deep Vault', icon: '🔐', cost: 3, grow: 2, max: 3, desc: (l) => `+1 Vault slot per level (now +${l})`, fx: (s, l) => { s.vault += l; } },
-    { id: 'bp_start', name: 'Head Start', icon: '⏩', cost: 2, grow: 2.2, max: 3, desc: (l) => `Start each Overhaul with the first ${3 * l} depths already open`, fx: (s, l) => { s.headStart = 3 * l; } },
-    { id: 'bp_wrench', name: 'Master Wrench', icon: '🔧', cost: 1, grow: 1.6, max: 8, desc: (l) => `+40% Wrench damage per level (now +${40 * l}%)`, fx: (s, l) => { s.wrenchDmg *= 1 + 0.4 * l; } },
+    { id: 'bp_start', name: 'Head Start', icon: '⏩', cost: 2, grow: 1.8, max: 5, desc: (l) => `Start each Overhaul with the first ${3 * l} depths already open`, fx: (s, l) => { s.headStart = 3 * l; } },
+    { id: 'bp_wrench', name: 'Master Wrench', icon: '🔧', cost: 1, grow: 1.5, max: 20, desc: (l) => `Wrench damage ×1.4 per level, compounding (now ×${Math.pow(1.4, l).toFixed(2)})`, fx: (s, l) => { s.wrenchDmg *= Math.pow(1.4, l); } },
     { id: 'bp_time', name: 'Overtime', icon: '⌛', cost: 2, grow: 2, max: 3, desc: (l) => `Shifts last 15 s longer per level`, fx: (s, l) => { s.shiftTime += 15 * l; } },
+    { id: 'bp_deep', name: 'Deep Charts', icon: '🪜', cost: 3, grow: 2, max: 4, desc: (l) => `Overhauls pay 25% more Blueprints per level (now +${25 * l}%)`, fx: () => {} },
     { id: 'bp_idle', name: 'Dream Factory', icon: '🌜', cost: 2, grow: 1.8, max: 5, desc: (l) => `+40% earnings while away per level`, fx: (s, l) => { s.idleMult *= 1 + 0.4 * l; } },
   ];
 
-  const data = { SIZES, MAIN_TEETH, GEARS, TROOPS, ENEMY_KINDS, ZONES, MAX_DEPTH, RARITIES, AFFIXES, LEGENDARIES, SETS, TREE, BLUEPRINTS };
+  // Milestones: lifetime goals (kept through Overhauls). check(save, ctx) where ctx = {board} from solve()
+  const ms = (id, name, desc, check, brass, bp = 0) => ({ id, name, desc, check, brass, bp });
+  const anySet = (c, n) => Object.values(c.board.sets).some((v) => v >= n);
+  const items = (s) => Object.values(s.items);
+  const MILESTONES = [
+    ms('clockin', 'Clocked In', 'Finish your first Shift', (s) => s.stats.shifts >= 1, 10),
+    ms('gate', 'Gatecrasher', 'Break your first gate', (s) => s.stats.deepest >= 1, 15),
+    ms('d5', 'Five Floors Down', 'Clear Depth 5', (s) => s.stats.deepest >= 5, 40),
+    ms('d10', 'The Foreman Falls', 'Clear Depth 10', (s) => s.stats.deepest >= 10, 100, 2),
+    ms('d15', 'Wet Feet', 'Clear Depth 15', (s) => s.stats.deepest >= 15, 150, 1),
+    ms('d20', 'Dredged', 'Clear Depth 20', (s) => s.stats.deepest >= 20, 250, 3),
+    ms('d25', 'Tick, Tock', 'Clear Depth 25', (s) => s.stats.deepest >= 25, 350, 2),
+    ms('d30', 'Master of Time', 'Clear Depth 30', (s) => s.stats.deepest >= 30, 500, 5),
+    ms('d40', 'Into the Deep', 'Clear Depth 40', (s) => s.stats.deepest >= 40, 800, 6),
+    ms('boss3', 'Three Bells', 'Beat 3 bosses', (s) => (s.stats.bossKills || 0) >= 3, 120, 2),
+    ms('k1k', 'Scrap Heap', 'Destroy 1,000 enemies', (s) => s.stats.kills >= 1000, 30),
+    ms('k10k', 'Scrap Mountain', 'Destroy 10,000 enemies', (s) => s.stats.kills >= 10000, 120),
+    ms('k100k', 'Scrap Continent', 'Destroy 100,000 enemies', (s) => s.stats.kills >= 100000, 400, 3),
+    ms('leg1', 'Legend in Brass', 'Find a legendary gear', (s) => (s.stats.legendaries || 0) >= 1, 25),
+    ms('leg5', "Collector's Cabinet", 'Find 5 different legendaries', (s) => Object.keys(LEGENDARIES).filter((k) => (s.codex || {})[k]).length >= 5, 150, 2),
+    ms('legall', 'The Complete Works', 'Find every legendary', (s) => Object.keys(LEGENDARIES).every((k) => (s.codex || {})[k]), 500, 5),
+    ms('set2', 'In Concert', 'Mesh two pieces of a set', (s, c) => anySet(c, 2), 40),
+    ms('set3', 'Full Ensemble', 'Mesh a whole set', (s, c) => anySet(c, 3), 120, 1),
+    ms('rank3', 'Fine Fitting', 'Merge a gear up to rank 3', (s) => items(s).some((it) => it.rank >= 3), 30),
+    ms('rank5', 'Masterwork', 'Merge a gear up to rank 5', (s) => items(s).some((it) => it.rank >= 5), 150, 1),
+    ms('elite10', 'Champion Hunter', 'Defeat 10 elites', (s) => (s.stats.elites || 0) >= 10, 60),
+    ms('elite100', 'Champion Slayer', 'Defeat 100 elites', (s) => (s.stats.elites || 0) >= 100, 250, 2),
+    ms('gremlin', 'Gotcha!', 'Catch a Scrap Gremlin', (s) => (s.stats.gremlins || 0) >= 1, 40),
+    ms('gremlin10', 'Gremlin Wrangler', 'Catch 10 Scrap Gremlins', (s) => (s.stats.gremlins || 0) >= 10, 200, 2),
+    ms('jam', 'Jammed Up', 'Jam a gear (three in a triangle)', (s, c) => c.board.jammed.length > 0, 5),
+    ms('big', 'Clockwork Cathedral', 'Have 30 gears turning at once', (s, c) => c.board.spinning.length >= 30, 200, 2),
+    ms('stone', 'Jeweller', 'Socket a Cogstone', (s) => items(s).some((it) => (it.sockets || []).some(Boolean)), 30),
+    ms('perfect', 'Flawless', 'Make a Perfect Cogstone', (s) => Object.values(s.pouch || {}).some((t) => (t[4] || 0) > 0) || items(s).some((it) => (it.sockets || []).some((x) => x && x[1] >= 4)), 300, 3),
+    ms('overhaul', 'Back to the Studs', 'Overhaul the workshop', (s) => s.overhauls >= 1, 0, 2),
+    ms('night', 'Night Owl', 'Build the Night Shift', (s) => (s.tree.i_night || 0) >= 1, 80),
+  ];
+
+  // Cogstones: socketed into rare, set and legendary gears; three of a tier combine into the next
+  const STONE_TIERS = ['Chipped', 'Flawed', 'Cut', 'Polished', 'Perfect'];
+  const STONES = {
+    ruby:     { name: 'Ruby', color: '#e2453c', v: [4, 8, 14, 22, 35], txt: (v) => `+${v}% damage (troops) or spell power (spells)` },
+    sapphire: { name: 'Sapphire', color: '#3f7fe0', v: [5, 10, 17, 26, 40], txt: (v) => `+${v}% troop health` },
+    emerald:  { name: 'Emerald', color: '#3fcf74', v: [3, 6, 10, 15, 22], txt: (v) => `+${v}% RPM (this gear)` },
+    topaz:    { name: 'Topaz', color: '#f2c14e', v: [0.3, 0.6, 1.1, 1.8, 3], txt: (v) => `+${v} scrap per turn` },
+    amethyst: { name: 'Amethyst', color: '#a46bff', v: [5, 10, 16, 24, 35], txt: (v) => `+${v}% magic find` },
+  };
+
+  const data = { STONES, STONE_TIERS, MILESTONES, SIZES, MAIN_TEETH, GEARS, TROOPS, ENEMY_KINDS, ZONES, MAX_DEPTH, RARITIES, AFFIXES, LEGENDARIES, SETS, TREE, BLUEPRINTS };
   if (typeof module !== 'undefined') module.exports = data; else root.CogData = data;
 })(typeof window !== 'undefined' ? window : globalThis);

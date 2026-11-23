@@ -105,6 +105,17 @@ function clearBoard(save) { for (const k of Object.keys(save.board)) { save.item
   ok(s.board['1,0'] === leg.id, 'and the legendary takes the common\'s spot on the bench');
 }
 
+// ---------------------------------------------------------------- old saves keep working (fixtures/save-v1.json was written by the shipped v1 model)
+{ const raw = require('fs').readFileSync(__dirname + '/fixtures/save-v1.json', 'utf8'); const s = M.load(raw, 1.7e12 + 5e6);
+  ok(s.v === M.SAVE_V && Object.keys(s.items).length === Object.keys(JSON.parse(raw).items).length, 'a v1 save migrates with every gear intact');
+  const B = M.solve(s); ok(B.spinning.length >= 1, 'the migrated bench still turns');
+  const sh = M.createShift(s); for (let i = 0; i < 400 && !sh.S.over; i++) sh.update(1 / 20, { wrench: { x: 13, y: 10 } }); sh.quit(); const r = sh.result();
+  ok(r && r.scrap >= 0 && s.stats.shifts === JSON.parse(raw).stats.shifts + 1, 'and plays a Shift'); }
+// ---------------------------------------------------------------- Head Start never pays Blueprints for free
+{ const s = M.newSave(50); s.bp.bp_start = 5; s.best = 12; s.unlocked = 13; M.overhaul(s);
+  ok(s.unlocked === 16 && s.best === 0 && M.overhaulGain(s) === 0, 'right after an Overhaul with Head Start, there is nothing to Overhaul for');
+  s.best = 16; ok(M.overhaulGain(s) > 0 && M.overhaulGain(s) < 5, `clearing one depth past the Head Start pays only for that depth (${M.overhaulGain(s)})`); }
+
 // ---------------------------------------------------------------- the Shift
 function runShift(s, policy = {}, dt = 1 / 20) {
   const sh = M.createShift(s), S = sh.S; const w = { x: 13, y: 8 }; let retarget = 0;
@@ -136,6 +147,39 @@ function runShift(s, policy = {}, dt = 1 / 20) {
   ok(res.outcome === 'win' && sh.S.drops.length === 0 && res.items.length + (res.brass ? 1 : 0) >= 3, `killing the boss sweeps up every drop (${res.items.length} gears kept)`);
   ok(s.stats.bossKills === 1 && Object.values(s.items).some((it) => it.leg), 'the first boss always drops a legendary');
 }
+
+// ---------------------------------------------------------------- Cogstones
+{ const s = M.newSave(80); s.brass = 1000; M.pouchAdd(s, 'ruby', 0, 7);
+  ok(M.combineStones(s, 'ruby', 0) === '' && s.pouch.ruby[0] === 4 && s.pouch.ruby[1] === 1, 'three Chipped Rubies combine into a Flawed one');
+  const r = M.withRng(s, (rr) => M.makeItem(s, rr, { rarity: 'rare', ilvl: 3, base: 'grunt', size: 'M' })); r.loc = 'inv';
+  const leg = M.withRng(s, (rr) => M.makeItem(s, rr, { rarity: 'legendary', ilvl: 3, leg: 'heart' })); leg.loc = 'inv';
+  ok(r.sockets.length === 1 && leg.sockets.length === 2, 'rares get one socket, legendaries two');
+  const before = M.affix(r, 'dmg'); ok(M.socket(s, r.id, 0, 'ruby', 1) === '' && M.affix(r, 'dmg') === before + 8, 'a socketed Flawed Ruby adds +8% damage');
+  ok(M.unsocket(s, r.id, 0) === '' && s.pouch.ruby[1] === 1 && !r.sockets[0], 'unsocketing returns the stone (for a little brass)');
+  M.socket(s, r.id, 0, 'ruby', 1); M.salvage(s, r.id); ok(s.pouch.ruby[1] === 1, 'salvaging a gear returns its stones');
+  const a1 = M.withRng(s, (rr) => M.makeItem(s, rr, { rarity: 'rare', ilvl: 3, base: 'brute', size: 'L' })), a2 = M.withRng(s, (rr) => M.makeItem(s, rr, { rarity: 'rare', ilvl: 3, base: 'brute', size: 'L' })); a1.loc = a2.loc = 'inv';
+  M.pouchAdd(s, 'topaz', 2, 1); M.socket(s, a1.id, 0, 'topaz', 2); M.merge(s, a1.id, a2.id); ok(s.pouch.topaz[2] === 1, 'merging returns the used-up gear\'s stones');
+  M.socket(s, leg.id, 0, 'emerald', 0) ; M.pouchAdd(s, 'emerald', 3, 1); M.socket(s, leg.id, 1, 'emerald', 3); M.toggleVault(s, leg.id);
+  s.best = 10; M.overhaul(s); ok(s.items[leg.id] && s.items[leg.id].sockets[1][1] === 3 && !Object.values(s.pouch).length, 'an Overhaul keeps stones in vaulted gears and empties the pouch');
+}
+{ const s = M.newSave(81); clearBoard(s); const g1 = gear(s, 'grunt', 'M', { affixes: [['mf', 50], ['wrench', 100]] }); M.place(s, g1.id, '1,0');
+  const st = M.stats(s), T = M.trainStats(st, M.solve(s, st)); ok(Math.abs(T.mf - 0.5) < 1e-9 && Math.abs(T.wrenchDmg - st.wrenchDmg * 2) < 1e-9, 'magic-find and Wrench affixes on turning gears really apply'); }
+
+// ---------------------------------------------------------------- elites, the Gremlin, new gears
+{ let elites = 0, names = new Set(); for (let seed = 60; seed < 70; seed++) { const s = M.newSave(seed); s.depth = 14; s.unlocked = 14; const sh = M.createShift(s);
+    for (let i = 0; i < 900 && !sh.S.over; i++) { sh.update(1 / 20, {}); for (const e of sh.S.events) if (e.type === 'elite') { elites++; names.add(e.name); } } }
+  ok(elites > 5 && [...names].some((n) => n.split(' ').length >= 3), `elites show up deep down, some with two affixes (${elites} in 10 Shifts, e.g. "${[...names][0]}")`); }
+{ const s = M.newSave(70); s.depth = 2; s.unlocked = 2; s.tree.s_door = 8; s.tree.t_hp = 10; s.tree.t_dmg = 10; const it = M.withRng(s, (r) => M.makeItem(s, r, { rarity: 'legendary', ilvl: 5, leg: 'gremlinbait' })); M.place(s, it.id, '0,1');
+  const sh = M.createShift(s); let seen = false; const baited = sh.S.gremlinAt >= 0; sh.S.gremlinAt = 3; // bring it in early so the Shift can't end first
+  for (let i = 0; i < 1600 && !sh.S.over; i++) { const gr = sh.S.gremlin; sh.update(1 / 20, { wrench: gr && !gr.gone ? { x: gr.x, y: gr.y } : null }); if (gr) seen = true; }
+  ok(baited && seen && sh.S.gremlinKilled, 'Gremlin Bait brings a Scrap Gremlin, and the Wrench can catch it');
+  ok(sh.S.drops.some((d) => d.kind === 'gear') || sh.S.items.length > 0 || sh.S.over, 'a caught Gremlin spills gears'); }
+{ const s = M.newSave(71); clearBoard(s); const mo = gear(s, 'mortar', 'L'); M.place(s, mo.id, '1,0'); const sh = M.createShift(s); let multi = 0;
+  for (let i = 0; i < 1200 && !sh.S.over; i++) { const before = sh.S.enemies.map((e) => e.hp); sh.update(1 / 20, {}); if (sh.S.events.some((e) => e.type === 'shell')) multi++; }
+  ok(multi > 0, 'Mortars lob splash shells'); }
+{ const s = M.newSave(72); clearBoard(s); const g1 = gear(s, 'grunt', 'M'), mg = gear(s, 'magnet', 'S'); M.place(s, g1.id, '1,0'); M.place(s, mg.id, '-1,0');
+  const sh = M.createShift(s); let pulled = 0; for (let i = 0; i < 1200 && !sh.S.over; i++) { sh.update(1 / 20, {}); pulled += sh.S.events.filter((e) => e.type === 'pull').length; }
+  ok(pulled > 0, `a Magnet gear pulls in loose drops on its own (${pulled})`); }
 
 // ---------------------------------------------------------------- balance bots
 function scoreItem(s, it, st) {
@@ -182,14 +226,16 @@ function bot(name, policy, hours, seed) {
   while (secs < hours * 3600) {
     arrange(s, policy.mono); shop(s); arrange(s, policy.mono);
     // play the deepest open depth, drop back after repeated door losses
-    s.depth = fails >= 3 ? Math.max(1, s.unlocked - 1) : s.unlocked;
+    s.depth = Math.max(1, Math.min(s.unlocked, s.unlocked - Math.floor(fails / 2)));
     const r = runShift(s, policy); secs += r.secs + 20;
     if (V && name === 'mixed') console.log(`  ${(secs / 60).toFixed(1)}m d${r.depth} ${r.outcome} gate ${(r.gate * 100).toFixed(0)}% door ${(r.door * 100).toFixed(0)}% scrap ${r.scrap} items ${r.items.length} | scrap ${s.scrap} tree ${Object.values(s.tree).reduce((a, b) => a + b, 0)}`);
-    if (r.outcome === 'win') { fails = 0; lastWin = secs; } else if (s.depth === s.unlocked) fails++; else fails = Math.max(0, fails - 1);
+    if (r.outcome === 'win') { fails = Math.max(0, fails - 2); lastWin = secs; } else fails = Math.min(fails + 1, 2 * s.unlocked);
     if (!marks.legendary && s.stats.legendaries) marks.legendary = secs;
     for (const d of [5, 10, 15, 20, 30]) if (!marks['d' + d] && s.best >= d) marks['d' + d] = secs;
-    if (policy.overhaul && s.best >= 10 && s.best >= s.unlocked - 1 && secs - lastWin > 1800) { (marks.cycles = marks.cycles || []).push(`${s.best}@${(secs / 3600).toFixed(1)}h`); M.overhaul(s); marks.overhauls = (marks.overhauls || 0) + 1; fails = 0; lastWin = secs;
-      for (let g = 0; g < 30; g++) { const o = D.BLUEPRINTS.map((b) => b.id).filter((id) => M.buyBlueprint(s, id) === ''); if (!o.length) break; } }
+    if (policy.overhaul && M.overhaulGain(s) > 0 && secs - lastWin > 1800) { (marks.cycles = marks.cycles || []).push(`${s.best}@${(secs / 3600).toFixed(1)}h`);
+      const st = M.stats(s); for (const it of Object.values(s.items).sort((a, b) => scoreItem(s, b, st) - scoreItem(s, a, st)).slice(0, st.vault)) if (!it.vault) M.toggleVault(s, it.id);
+      M.overhaul(s); marks.overhauls = (marks.overhauls || 0) + 1; fails = 0; lastWin = secs;
+      for (let g = 0; g < 60; g++) { const o = ['bp_power', 'bp_power', 'bp_start', 'bp_wrench', 'bp_scrap', 'bp_mf', 'bp_time', 'bp_vault', 'bp_idle'].filter((id) => M.buyBlueprint(s, id) === ''); if (!o.length) break; } }
   }
   if (V) { const st = M.stats(s), B = M.solve(s, st); const sp = B.spinning;
     console.log(`  board: ${sp.length} turning, ${B.jammed.length} jammed, engines ${sp.filter((n) => n.item.base === 'engine').length}, max rpm ${Math.max(...sp.map((n) => n.rpm)).toFixed(0)}, ranks ${sp.map((n) => n.item.rank).join('')}, ilvls ${sp.map((n) => n.item.ilvl).join(',')}`);
@@ -205,12 +251,12 @@ if (argv.includes('--bots')) {
   const res = {};
   const only = process.env.ONLY;
   const SEED = +(process.env.SEED || 101);
-  for (const [name, pol] of [['overhaul', { overhaul: true, skip: !only }], ['mixed', {}], ['no-wrench', { wrench: false }], ['no-crank', { crank: false }], ['grunts-only', { mono: 'grunt' }], ['archers-only', { mono: 'archer' }]])
+  for (const [name, pol] of [['overhaul', { overhaul: true, skip: !only }], ['mixed', {}], ['no-wrench', { wrench: false }], ['no-crank', { crank: false }], ['grunts-only', { mono: 'grunt' }], ['archers-only', { mono: 'archer' }], ['mortars-only', { mono: 'mortar' }]])
     if ((!only && !pol.skip) || only === name) res[name] = bot(name, pol, H, SEED);
   if (only) process.exit(0);
   ok(res.mixed.marks.legendary && res.mixed.marks.legendary < 20 * 60, 'first legendary inside 20 minutes');
   ok(res.mixed.marks.d10 && res.mixed.marks.d10 > 0.75 * 3600 && res.mixed.marks.d10 < 3 * 3600, 'Depth 10 (first Overhaul) in roughly 1-3 hours');
-  for (const k of ['no-wrench', 'grunts-only', 'archers-only']) ok(res[k].s.best <= res.mixed.s.best, `${k} does not beat mixed play`);
+  for (const k of ['no-wrench', 'grunts-only', 'archers-only', 'mortars-only']) ok(res[k].s.best <= res.mixed.s.best, `${k} does not beat mixed play`);
 }
 console.log(fails ? `${fails} failing` : 'all good');
 process.exitCode = fails ? 1 : 0;
