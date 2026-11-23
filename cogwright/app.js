@@ -811,8 +811,9 @@
   }
 
   // ------------------------------------------------------------------ modal
-  function showModal(html, onAct) { modal.innerHTML = `<div class="card">${html}</div>`; modal.hidden = false; modal.onclick = (e) => { const b = e.target.closest('button'); if (b && b.dataset.a) onAct(b.dataset.a); }; }
-  function hideModal() { modal.hidden = true; modal.innerHTML = ''; }
+  const modalQ = []; // a second card waits for the first (e.g. welcome-back, then what's new)
+  function showModal(html, onAct, queued) { if (!modal.hidden && !queued) { modalQ.push([html, onAct]); return; } modal.innerHTML = `<div class="card">${html}</div>`; modal.hidden = false; modal.onclick = (e) => { const b = e.target.closest('button'); if (b && b.dataset.a) onAct(b.dataset.a); }; }
+  function hideModal() { modal.hidden = true; modal.innerHTML = ''; const n = modalQ.shift(); if (n) setTimeout(() => showModal(n[0], n[1], true), 120); }
   function welcomeBack(a) {
     if (!a || (!a.scrap && !a.items.length)) return;
     showModal(`<h2>Welcome back</h2><p>You were away ${dur(a.secs)}${a.capped ? ' (earnings capped)' : ''}.</p>
@@ -851,7 +852,11 @@
   }
   resize(); refresh(); requestAnimationFrame(frame);
   { const away = M.applyOffline(save, Date.now()); if (away) welcomeBack(away); }
-  if (!save.seenIntro) intro();
+  if (!save.seenIntro) { intro(); save.seenNews = M.SAVE_V; }
+  else if ((save.seenNews || 1) < M.SAVE_V) {
+    save.seenNews = M.SAVE_V; persist();
+    showModal(`<h2>New in the workshop</h2><p style="text-align:left">⚙ <b>3D gears</b>, real brass and copper you can watch turn.<br>☠ <b>Elite enemies</b> with special powers (and better loot).<br>💰 <b>Scrap Gremlins</b>: catch them with the Wrench before they run off.<br>☄ <b>Mortar, Mender and Magnet gears</b>, 6 new legendaries and 2 new sets.<br>◆ <b>Cogstones</b> to socket into rare and better gears.<br>📜 A <b>Daily Contract</b>: one special Shift a day, with a chest.<br>🏅 <b>Milestones</b> that pay brass and Blueprints.<br>🌀 The endless <b>Deep Works</b> past Depth 30.</p><button data-a="ok">Back to work</button>`, hideModal);
+  }
   persist();
 
   if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => {});

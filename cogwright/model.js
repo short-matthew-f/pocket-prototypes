@@ -350,6 +350,7 @@
   function load(json, now) { // tolerant: a corrupt or foreign save gives a fresh one
     let s; try { s = typeof json === 'string' ? JSON.parse(json) : json; } catch { s = null; }
     if (!s || typeof s !== 'object' || !s.items || !s.board) return newSave((now * 7919) >>> 0 || 1, now);
+    if ((s.v || 0) < SAVE_V) s.seenNews = Math.min(s.seenNews || 0, s.v || 0);
     if ((s.v || 0) < 2) { s.cycleStart = 0; s.stats = s.stats || {}; s.stats.deepest = Math.max(s.stats.deepest || 0, s.best || 0); }
     s.v = SAVE_V;
     const fresh = newSave(1, now);
