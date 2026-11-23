@@ -992,10 +992,10 @@
         <select data-a="sort"><option value="rarity">Sort: rarity</option><option value="type">Sort: type</option><option value="power">Sort: power</option><option value="ilvl">Sort: item level</option></select></div>
       <div class="chips">
         <button class="act" data-a="mergeall" ${plan.length ? '' : 'disabled'}>⇧ Merge duplicates${plan.length ? ` (${plan.length})` : ''}</button>
-        <button class="act" data-a="select">${ARM.select ? 'Done selecting' : '☐ Select to salvage'}</button>
+        <button class="act" data-a="select">${ARM.select ? 'Done selecting' : '☐ Select (salvage or fuse)'}</button>
         <button class="act" data-a="pouch">◆ Stones</button>
       </div>
-      ${ARM.select ? `<div class="selbar"><span>${ARM.picked.size} selected</span><button class="act" data-a="pickall">Select all shown (not vaulted)</button><button class="act danger" data-a="salv" ${ARM.picked.size ? '' : 'disabled'}>Salvage ${ARM.picked.size} for +${sv} 🔩</button></div>` : ''}
+      ${ARM.select ? `<div class="selbar"><span>${ARM.picked.size} selected</span><button class="act" data-a="pickall">Select all shown (not vaulted)</button><button class="act danger" data-a="salv" ${ARM.picked.size ? '' : 'disabled'}>Salvage ${ARM.picked.size} for +${sv} 🔩</button>${(() => { const ids = [...ARM.picked]; const e = M.canFuse(save, ids); const r0 = ids.length ? save.items[ids[0]] : null; return ids.length === 3 ? `<button class="act" data-a="fuse3" ${e ? 'disabled' : ''}>🔥 ${e ? e : `Fuse into a ${({ common: 'Magic', magic: 'Rare', rare: 'Rare, Set or Legendary' })[r0.rarity]} gear`}</button>` : '<span style="opacity:.7">Pick 3 of one rarity to fuse them</span>'; })()}</div>` : ''}
       <div class="arm-grid">${list.map((it) => {
         const R = rarity(it.rarity), ro = roleOf(it), url = iconURL(it), picked = ARM.picked.has(it.id);
         return `<button class="gcard ${picked ? 'picked' : ''}" data-a="card" data-id="${it.id}" style="--rc:${R.color};--fc:${ro.color}">
@@ -1014,6 +1014,7 @@
       if (a === 'pouch') { openPouch(); return; }
       if (a === 'card') { const id = +b.dataset.id; if (ARM.select) { if (save.items[id] && save.items[id].vault) { toast('Vaulted gears can\'t be salvaged'); return; } ARM.picked.has(id) ? ARM.picked.delete(id) : ARM.picked.add(id); renderArmory(); } else openGear(id); return; }
       if (a === 'salv') { if (!b.dataset.sure) { b.dataset.sure = 1; b.textContent = `Tap again to salvage ${ARM.picked.size}`; return; } let n = 0; const before = save.brass; for (const id of ARM.picked) if (!M.salvage(save, id)) n++; ARM.picked.clear(); ARM.select = false; sfx.clank(); toast(`Salvaged ${n} gears for +${save.brass - before} brass`); persist(); refresh(); return; }
+      if (a === 'fuse3') { const out = M.fuse(save, [...ARM.picked]); if (out.err) { toast(out.err); sfx.nope(); return; } ARM.picked.clear(); ARM.select = false; const it = save.items[out.id]; sfx.loot(it.rarity); persist(); refresh(); showModal(`<h2>Fused!</h2>${lootList([out.id])}<button data-a="ok">Nice</button>`, hideModal); return; }
       if (a === 'mergeall') { let n = 0; for (const [src, dst] of mergePlan()) if (!M.mergeKeepBest(save, src, dst).err) n++; sfx.merge(); toast(`Merged ${n} pairs`); persist(); refresh(); return; }
     };
   }
