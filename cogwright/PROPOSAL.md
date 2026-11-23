@@ -35,6 +35,13 @@ Changes from the proposal:
   - Overhauls pay only for depths cleared beyond Head Start.
   - The save format is v2, migrated from v1 and tested against a v1 fixture.
 
+Late-game pacing (Overhaul bot, 2 seeds, `ONLY=overhaul node test.js --bots --hours 30`):
+
+- The Mines boss (Depth 20) falls at about 6.5–9 hours.
+- The Clocktower boss (Depth 30) falls at about 17–19 hours.
+- By hour 30 the bot is at Depths 33–35 in the endless Deep Works, after 17–19 Overhauls.
+- Blueprint power compounds, at ×1.35 troop damage and health per level.
+
 Pacing, measured by a bot playing the real model (`node test.js --bots`):
 
 - First legendary at 3–16 minutes across three seeds. A pity timer guarantees one within 20 drops.

@@ -168,7 +168,7 @@
   // Blueprint tree (permanent, bought with Blueprints from Overhauls)
   const BLUEPRINTS = [
     { id: 'bp_scrap', name: 'Ledger of Scraps', icon: '📜', cost: 1, grow: 1.5, max: 15, desc: (l) => `Scrap from everything ×1.3 per level, compounding (now ×${Math.pow(1.3, l).toFixed(2)})`, fx: (s, l) => { s.scrapMult *= Math.pow(1.3, l); s.idleMult *= Math.pow(1.3, l); } },
-    { id: 'bp_power', name: 'Tempered Alloys', icon: '⚒', cost: 1, grow: 1.45, max: 25, desc: (l) => `Troop damage and health ×1.35 per level, compounding (now ×${Math.pow(1.35, l).toFixed(2)})`, fx: (s, l) => { s.troopDmg *= Math.pow(1.35, l); s.troopHp *= Math.pow(1.35, l); } },
+    { id: 'bp_power', name: 'Tempered Alloys', icon: '⚒', cost: 1, grow: 1.3, max: 40, desc: (l) => `Troop damage and health ×1.35 per level, compounding (now ×${Math.pow(1.35, l).toFixed(2)})`, fx: (s, l) => { s.troopDmg *= Math.pow(1.35, l); s.troopHp *= Math.pow(1.35, l); } },
     { id: 'bp_mf', name: 'Treasure Maps', icon: '🗺', cost: 2, grow: 1.7, max: 6, desc: (l) => `+25% magic find and +15% drop rate per level`, fx: (s, l) => { s.mf += 0.25 * l; s.dropRate *= 1 + 0.15 * l; } },
     { id: 'bp_vault', name: 'Deep Vault', icon: '🔐', cost: 3, grow: 2, max: 3, desc: (l) => `+1 Vault slot per level (now +${l})`, fx: (s, l) => { s.vault += l; } },
     { id: 'bp_start', name: 'Head Start', icon: '⏩', cost: 2, grow: 1.8, max: 5, desc: (l) => `Start each Overhaul with the first ${3 * l} depths already open`, fx: (s, l) => { s.headStart = 3 * l; } },
