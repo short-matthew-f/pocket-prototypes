@@ -472,7 +472,7 @@
     g.restore();
     // gate
     const gy = ly(M.LANE.L), gf = Math.max(0, st.gate.hp / st.gate.max), gimg = art('obj-gate-' + Z.id);
-    if (gimg) { const s2 = SL.w * 0.8; g.drawImage(gimg, W / 2 - s2 / 2, gy + 26 - s2 / 2, s2, s2); }
+    if (gimg) { const s2 = SL.w * 0.66; g.drawImage(gimg, W / 2 - s2 / 2, gy + 14 - s2 / 2, s2, s2); }
     else { g.fillStyle = '#00000060'; g.fillRect(SL.x, gy, SL.w, 16); g.fillStyle = Z.accent; for (let i = 0; i < 9; i++) g.fillRect(SL.x + 6 + i * (SL.w - 12) / 9, gy, (SL.w - 12) / 18, 10); }
     bar(SL.x + 40, gy + 56, SL.w - 80, 7, gf, Z.accent);
     // door
@@ -531,7 +531,7 @@
   function drawTroop(tr, U, t) {
     const x = lx(tr.x), y = ly(tr.y), r = Math.max(4, tr.r * U * 0.62), img = art('unit-' + tr.kind);
     shadowAt(x, y, r);
-    if (img) { const s2 = r * 3, bob = Math.sin(t * 10 + tr.x * 3) * r * 0.08; g.drawImage(img, x - s2 / 2, y - s2 / 2 - r * 0.25 + bob, s2, s2); if (tr.hit > 0.07) { g.globalCompositeOperation = 'lighter'; g.globalAlpha = 0.5; g.drawImage(img, x - s2 / 2, y - s2 / 2 - r * 0.25, s2, s2); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; } }
+    if (img) { const s2 = r * 3.9, bob = Math.sin(t * 10 + tr.x * 3) * r * 0.08; g.drawImage(img, x - s2 / 2, y - s2 / 2 - r * 0.25 + bob, s2, s2); if (tr.hit > 0.07) { g.globalCompositeOperation = 'lighter'; g.globalAlpha = 0.5; g.drawImage(img, x - s2 / 2, y - s2 / 2 - r * 0.25, s2, s2); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; } }
     else {
       g.fillStyle = tr.hit > 0.07 ? '#fff4dc' : D.GEARS[tr.kind].color; g.beginPath(); g.arc(x, y, r, 0, TAU); g.fill();
       g.strokeStyle = '#2a1d10'; g.lineWidth = 1.5; g.stroke();

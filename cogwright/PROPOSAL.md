@@ -15,6 +15,26 @@ Changes from the proposal:
 - **Every Shift pays something.** A timeout sweeps up 20% of loose scrap even without the Sweeper upgrade.
 - **Idle earnings are capped at 90% of your recent active rate.**
 
+### Added after the first build (2026-11-22)
+
+- **3D gears.** The Bench and the Shift strip use real-time metal gears made with three.js, which is bundled for offline play. Drawer and loot icons are 3D renders. Without WebGL the game falls back to 2D drawing.
+- **Elites.** Elite enemies come in Swift, Armoured, Vampiric, Splitting, Warding and Molten varieties, with two abilities from Depth 12. They have auras and names, and drop better loot plus Cogstones.
+- **Scrap Gremlin.** A treasure goblin that only the Wrench can hurt. It drops gears, scrap and a stone.
+- **New gears.**
+  - Mortar: a splash-damage troop.
+  - Mender: a healing pulse.
+  - Magnet: pulls loose drops in on its own.
+  - Six more legendaries (12 in total).
+  - Two more sets: Siege Battery and Field Hospital.
+- **Cogstones.** Five kinds in five tiers. They socket into rare, set and legendary gears, and three of a tier combine into the next. Stones in vaulted gears survive an Overhaul.
+- **Milestones.** 30 of them, paying brass and Blueprints.
+- **Daily Contract.** One modified Shift a day, with a chest for winning it.
+- **The Deep Works.** Endless depths past 30, with a boss every 10 depths and the Deep Charts Blueprint.
+- **Fixes:**
+  - The magic-find and Wrench affixes now apply.
+  - Overhauls pay only for depths cleared beyond Head Start.
+  - The save format is v2, migrated from v1 and tested against a v1 fixture.
+
 Pacing, measured by a bot playing the real model (`node test.js --bots`):
 
 - First legendary at 3–16 minutes across three seeds. A pity timer guarantees one within 20 drops.
