@@ -119,6 +119,7 @@ function clearBoard(save) { for (const k of Object.keys(save.board)) { save.item
 { const s = M.newSave(100); s.brass = 5000; const g = (b, r = 'common') => { const it = M.withRng(s, (rr) => M.makeItem(s, rr, { rarity: r, ilvl: 3, base: b, size: 'M' })); it.loc = 'inv'; return it; };
   const a = [g('grunt'), g('archer'), g('haste')]; const f = M.fuse(s, a.map((x) => x.id));
   ok(!f.err && s.items[f.id].rarity === 'magic' && a.every((x) => !s.items[x.id]), 'the Forge fuses three Commons into a Magic gear');
+  { const b3 = [g('grunt'), g('archer'), g('haste')]; M.place(s, b3[0].id, '0,1'); const before = s.items[b3[0].id].loc; const o = M.fuse(s, b3.map((x) => x.id)); ok(before === 'board' && !o.err && !Object.values(s.board).includes(b3[0].id), 'fusing pulls gears off the bench'); }
   ok(M.fuse(s, [g('grunt').id, g('grunt', 'magic').id, g('grunt').id]).err, 'fusing needs three of the same rarity');
   let legs = 0; for (let i = 0; i < 60; i++) { const r3 = [g('brute', 'rare'), g('brute', 'rare'), g('brute', 'rare')]; const out = M.fuse(s, r3.map((x) => x.id)); if (s.items[out.id].rarity === 'legendary') legs++; }
   ok(legs > 4 && legs < 30, `three Rares sometimes fuse into a legendary (${legs}/60)`);

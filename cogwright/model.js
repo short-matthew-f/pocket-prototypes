@@ -740,7 +740,6 @@ const overhaulGain = (save) => (save.best < 10 || save.best <= (save.cycleStart 
     if (ids.length !== 3 || new Set(ids).size !== 3) return 'pick three gears';
     const its = ids.map((id) => save.items[id]); if (its.some((it) => !it)) return 'pick three gears';
     if (its.some((it) => it.vault)) return 'take them out of the Vault first';
-    if (its.some((it) => it.loc === 'board')) return 'take them off the bench first';
     if (!RN.includes(its[0].rarity) || its.some((it) => it.rarity !== its[0].rarity)) return 'three Common, three Magic or three Rare gears';
     return '';
   }
@@ -749,7 +748,7 @@ const overhaulGain = (save) => (save.best < 10 || save.best <= (save.cycleStart 
     const its = ids.map((id) => save.items[id]), rar = its[0].rarity, st = stats(save), ml = roomLvl(save, 'merge');
     const fam = its.every((it) => GEARS[it.base].fam === GEARS[its[0].base].fam) && ml >= 2 ? GEARS[its[0].base].fam : null;
     const il = Math.max(...its.map((it) => it.ilvl)) + 1;
-    for (const it of its) { for (const x of it.sockets || []) if (x) pouchAdd(save, x[0], x[1]); delete save.items[it.id]; }
+    for (const it of its) { const k = Object.keys(save.board).find((c) => save.board[c] === it.id); if (k) delete save.board[k]; for (const x of it.sockets || []) if (x) pouchAdd(save, x[0], x[1]); delete save.items[it.id]; }
     const it = withRng(save, (r) => {
       let to = rar === 'common' ? 'magic' : rar === 'magic' ? 'rare' : r.weighted([['legendary', 20 + 5 * Math.max(0, ml - 2)], ['set', 20], ['rare', 60 - 5 * Math.max(0, ml - 2)]]);
       if (to === 'legendary') return makeItem(save, r, { rarity: to, ilvl: il, leg: r.pick(Object.keys(LEGENDARIES).filter((k) => !LEGENDARIES[k].bossOnly && (!fam || GEARS[LEGENDARIES[k].base].fam === fam))) });

@@ -764,7 +764,7 @@
     const gemList = pouchList(), troops = Object.values(save.items).filter((it) => D.GEARS[it.base].fam === 'unit').sort((a, b) => RORD.indexOf(a.rarity) - RORD.indexOf(b.rarity)), tgt = save.items[ENCH.target];
     page.innerHTML = `<h2>Workshop</h2><p class="arm-sub">Rooms stay built through Overhauls. Build and upgrade them with brass.</p>
       <section class="room">${roomHead('merge')}
-        <p class="room-d">Three junk gears of one rarity become one random gear of the next: Common → Magic → Rare → Rare, Set or <b style="color:#ff8a1f">Legendary</b>. Gears on the bench or in the Vault stay out.</p>
+        <p class="room-d">Three junk gears of one rarity become one random gear of the next: Common → Magic → Rare → Rare, Set or <b style="color:#ff8a1f">Legendary</b>. Picking here skips the bench and the Vault; to merge gears off your bench, select them in the Armory.</p>
         <div class="chips">${['common', 'magic', 'rare'].map((rr) => { const n = fuseCandidates(rr).length; return `<button class="chip" data-a="auto3" data-r="${rr}" ${n >= 3 ? '' : 'disabled'}>Pick 3 ${rarity(rr).name} (${n})</button>`; }).join('')}</div>
         <div class="fuse">${[0, 1, 2].map((i) => { const it = pickedIts[i]; return it ? `<button class="slot" data-a="unpick" data-id="${it.id}" style="border-color:${rarity(it.rarity).color}">${iconURL(it) ? `<img src="${iconURL(it)}">` : roleOf(it).glyph}<small>${it.name}</small></button>` : '<span class="slot empty">+</span>'; }).join('')}
           <button class="act" data-a="fuse" ${fuseErr ? 'disabled' : ''}>⇧ Merge</button></div>
@@ -1038,7 +1038,7 @@
       if (a === 'pouch') { openPouch(); return; }
       if (a === 'card') { const id = +b.dataset.id; if (ARM.select) { if (save.items[id] && save.items[id].vault) { toast('Vaulted gears can\'t be salvaged'); return; } ARM.picked.has(id) ? ARM.picked.delete(id) : ARM.picked.add(id); renderArmory(); } else openGear(id); return; }
       if (a === 'salv') { if (!b.dataset.sure) { b.dataset.sure = 1; b.textContent = `Tap again to salvage ${ARM.picked.size}`; return; } let n = 0; const before = save.brass; for (const id of ARM.picked) if (!M.salvage(save, id)) n++; ARM.picked.clear(); ARM.select = false; sfx.clank(); toast(`Salvaged ${n} gears for +${save.brass - before} brass`); persist(); refresh(); return; }
-      if (a === 'fuse3') { const out = M.fuse(save, [...ARM.picked]); if (out.err) { toast(out.err); sfx.nope(); return; } ARM.picked.clear(); ARM.select = false; const it = save.items[out.id]; sfx.loot(it.rarity); persist(); refresh(); showModal(`<h2>Merged!</h2>${lootList([out.id])}<button data-a="ok">Nice</button>`, hideModal); return; }
+      if (a === 'fuse3') { const onB = [...ARM.picked].filter((id) => save.items[id] && save.items[id].loc === 'board').length; if (onB && !b.dataset.sure) { b.dataset.sure = 1; b.textContent = `Tap again: ${onB} ${onB > 1 ? 'are' : 'is'} on your bench`; return; } const out = M.fuse(save, [...ARM.picked]); if (out.err) { toast(out.err); sfx.nope(); return; } ARM.picked.clear(); ARM.select = false; const it = save.items[out.id]; sfx.loot(it.rarity); persist(); refresh(); showModal(`<h2>Merged!</h2>${lootList([out.id])}<button data-a="ok">Nice</button>`, hideModal); return; }
       if (a === 'mergeall') { let n = 0; for (const [src, dst] of mergePlan()) if (!M.mergeKeepBest(save, src, dst).err) n++; sfx.merge(); toast(`Merged ${n} pairs`); persist(); refresh(); return; }
     };
   }
