@@ -195,6 +195,8 @@
     return invOrder.map((id) => save.items[id]);
   }
   // the wood + engraved hex sockets under the 3D gears (redrawn only when the layout or art changes)
+  const placedAt = {};
+  const popScale = (id) => { const t0 = placedAt[id]; if (t0 == null) return 1; const q = (clock - t0) / 0.35; if (q >= 1) { delete placedAt[id]; return 1; } return 1 + 0.25 * Math.sin(q * Math.PI) * (1 - q); };
   let underC = null, underK = '';
   function benchUnder() {
     const k = `${W}x${H}:${stats.boardR}:${artVer}:${BL.slots}`; if (k === underK) return underC;
@@ -246,7 +248,7 @@
       for (const n of board.gears) {
         if (drag && drag.live && drag.fromCell === n.k) continue;
         const p = hexPx(n.k), shake = n.state === 'jam' ? Math.sin(t * 40) * 1.2 : 0;
-        gears.push({ id: 'b' + n.item.id, x: p.x + shake, y: p.y, R: radOf(n.item, inr), angle: angOf(n), sel: sel === n.item.id, ...iconSpec(n.item, n.state) });
+        gears.push({ id: 'b' + n.item.id, x: p.x + shake, y: p.y, R: radOf(n.item, inr) * popScale(n.item.id), lift: (popScale(n.item.id) - 1) * 80, angle: angOf(n), sel: sel === n.item.id, ...iconSpec(n.item, n.state) });
       }
       window.CogGL.frame({ W, H, dpr: DPR, under: benchUnder(), underKey: underK, gears });
     } else {
@@ -305,7 +307,7 @@
     const h = benchHit(x, y - 30), it = save.items[d.id];
     let err = '';
     if (h.id && h.id !== d.id && M.canMerge(save, d.id, h.id) === '') { const m = M.mergeKeepBest(save, d.id, h.id); err = m.err; if (!err) { sfx.merge(); toast(`Merged: ${save.items[m.id].name} is now rank ${save.items[m.id].rank}`); } }
-    else if (y - 30 < BL.bh && h.cell) { if (h.cell === '0,0') err = 'The Mainspring stays put'; else if (!M.cells(stats.boardR).includes(h.cell)) err = ''; else { err = M.place(save, d.id, h.cell); if (!err) sfx.tick(); } }
+    else if (y - 30 < BL.bh && h.cell) { if (h.cell === '0,0') err = 'The Mainspring stays put'; else if (!M.cells(stats.boardR).includes(h.cell)) err = ''; else { err = M.place(save, d.id, h.cell); if (!err) { sfx.clank(); placedAt[d.id] = clock; } } }
     else if (h.drawer && d.fromCell) { err = M.unplace(save, d.fromCell); if (!err) sfx.tick(); }
     if (err) { toast(err); sfx.nope(); }
     void it; persist(); refresh();
@@ -391,6 +393,7 @@
     const U = unit();
     switch (e.type) {
       case 'kill': fx.push({ k: 'burst', x: lx(e.x), y: ly(e.y), t: 0, life: 0.45, c: S().zone.colors[e.kind] || '#cc5555' }); sfx.pop(); if (e.kind === 'boss') shake(14); break;
+      case 'spawn': if (Math.random() < 0.5) fx.push({ k: 'ring', x: lx(e.x), y: ly(1.5), r: 14, c: '#f3e6c6', t: 0, life: 0.3 }); break;
       case 'die': fx.push({ k: 'burst', x: lx(e.x), y: ly(e.y), t: 0, life: 0.35, c: '#d4a94e' }); break;
       case 'shot': fx.push({ k: 'line', x1: lx(e.x1), y1: ly(e.y1), x2: lx(e.x2), y2: ly(e.y2), c: e.side === 1 ? '#f3e6c6' : '#ff9a6a', t: 0, life: 0.15 }); break;
       case 'bolt': fx.push({ k: 'bolt', x1: lx(e.x1), y1: ly(e.y1), x2: lx(e.x2), y2: ly(e.y2), t: 0, life: 0.25, seed: Math.random() }); sfx.bolt(); break;
