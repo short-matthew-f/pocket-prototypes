@@ -7,7 +7,7 @@
 (function (root) {
   'use strict';
   const D = typeof module !== 'undefined' ? require('./data.js') : root.CogData;
-  const { ROOMS, RESEARCH, TROPHIES, STONES, STONE_TIERS, SIZES, MAIN_TEETH, GEARS, TROOPS, ENEMY_KINDS, ZONES, MAX_DEPTH, RARITIES, AFFIXES, LEGENDARIES, SETS, TREE, BLUEPRINTS } = D;
+  const { ENCHANTS, ROOMS, RESEARCH, TROPHIES, STONES, STONE_TIERS, SIZES, MAIN_TEETH, GEARS, TROOPS, ENEMY_KINDS, ZONES, MAX_DEPTH, RARITIES, AFFIXES, LEGENDARIES, SETS, TREE, BLUEPRINTS } = D;
   const SAVE_V = 3;
   // difficulty knobs (the balance bots in test.js tune these)
   const TUNE = { enemyGrowth: 1.5, enemyDmgGrowth: 1.4, armorGrowth: 1.3, gateBase: 400, scrapGrowth: 1.10, spawnBase: 0.55, spawnStep: 0.06, wrenchGrowth: 1.1, itemGrowth: 1.12 };
@@ -238,7 +238,8 @@
     else lines.push(g.desc(P.yield));
     const aff = it.affixes.map(([k, v]) => ({ k, txt: AFFIXES[k].txt(v), dim: (k === 'cw' && n && n.dir !== 1) || (k === 'ccw' && n && n.dir !== -1) }));
     const sockets = (it.sockets || []).map((x) => (x ? { type: x[0], tier: x[1], name: `${STONE_TIERS[x[1]]} ${STONES[x[0]].name}`, txt: STONES[x[0]].txt(STONES[x[0]].v[x[1]]), color: STONES[x[0]].color } : null));
-    return { sockets, name: it.name, rarity: R, lines, affixes: aff, power: it.leg ? LEGENDARIES[it.leg].power : null,
+    const ench = it.ench ? { ...ENCHANTS[it.ench[0]], tier: it.ench[1], line: ENCHANTS[it.ench[0]].txt(1 + 0.5 * it.ench[1]) } : null;
+    return { ench, sockets, name: it.name, rarity: R, lines, affixes: aff, power: it.leg ? LEGENDARIES[it.leg].power : null,
       set: it.set ? { name: SETS[it.set].name, have: sets ? sets[it.set] : 0, bonus: SETS[it.set].bonus.slice(2) } : null };
   }
 
@@ -280,6 +281,7 @@
   function merge(save, src, dst) { // dst keeps its affixes and rises a rank; src is used up
     const e = canMerge(save, src, dst); if (e) return e;
     const k = Object.keys(save.board).find((c) => save.board[c] === src); if (k) delete save.board[k];
+    if (!save.items[dst].ench && save.items[src].ench) save.items[dst].ench = save.items[src].ench; // an enchantment isn't lost to a merge
     freeStones(save, save.items[src]); delete save.items[src]; save.items[dst].rank++; return '';
   }
   function salvage(save, id) {
@@ -414,6 +416,7 @@
       const gm = hasMod('glass') ? [0.6, 1.8] : [1, 1];
       const tr = { side: 1, kind: g.item.base, x: 3 + r.next() * (LANE.W - 6), y: 1.5, hp: P.hp * gm[0], max: P.hp * gm[0], dmg: P.dmg * mult * gm[1] * (1 + (buffs.dmg || 0)), every: P.every, cd: r.next() * 0.3, speed: P.speed, range: P.range, r: P.r,
         leech: P.leech, crit: P.crit, thorns: P.thorns, shield: P.shield, heal: P.heal || 0, size: g.item.size, rarity: g.item.rarity, ranged: T.range > 3, hit: 0,
+        ench: g.item.ench ? { t: g.item.ench[0], p: 1 + 0.5 * g.item.ench[1] } : null, hits: 0,
         splash: P.splash || (hammer && g.item.base === 'brute' ? 2.2 : 0), pierce: pierce && g.item.base === 'archer', siege: siege && g.item.base === 'mortar' };
       if (P.repair) S.door.hp = Math.min(S.door.max, S.door.hp + P.repair);
       S.troops.push(tr);
@@ -450,7 +453,7 @@
     }
     function kill(e) {
       e.dead = true; S.kills++; S.killKinds[e.kind] = (S.killKinds[e.kind] || 0) + 1; ev('kill', { x: e.x, y: e.y, kind: e.kind });
-      let v = e.scrap * Math.pow(TUNE.scrapGrowth, depth - 1) * st.scrapMult * (sets.furnace >= 3 ? 1.5 : 1) * (hasMod('rich') ? 2 : 1);
+      let v = e.scrap * Math.pow(TUNE.scrapGrowth, depth - 1) * st.scrapMult * (sets.furnace >= 3 ? 1.5 : 1) * (e.gild ? 1 + 0.5 * e.gild : 1) * (hasMod('rich') ? 2 : 1);
       dropScrap(e.x, e.y, v);
       const il = depth + st.ilvlBonus + (r.next() < 0.3 ? 1 : 0);
       if (e.kind === 'boss') {
@@ -516,6 +519,13 @@
       d.gone = true;
     }
 
+    function enchantHit(u, e, dmg, foes) {
+      const E = u.ench;
+      if (E.t === 'ruby') { e.burnT = 3; e.burnD = Math.max(e.burnD || 0, (dmg * 0.25 * E.p) / 3); }
+      else if (E.t === 'sapphire') { e.slowT = 2; e.slowF = 1 - Math.min(0.6, 0.25 + 0.07 * E.p); }
+      else if (E.t === 'amethyst') { u.hits++; if (u.hits % 5 === 0) { let n = 0; for (const f of foes) { if (n >= 2) break; if (f !== e && !f.dead && Math.hypot(f.x - e.x, f.y - e.y) < 5) { hurt(f, dmg * 0.6 * E.p); ev('bolt', { x1: e.x, y1: e.y, x2: f.x, y2: f.y }); n++; } } } }
+      else if (E.t === 'topaz') e.gild = E.p;
+    }
     function fight(u, foes, dt, hasteM, overM) {
       if (u.dead) return;
       u.hit = Math.max(0, u.hit - dt);
@@ -530,6 +540,7 @@
           let dmg = u.dmg * (u.side === 1 ? 1 + overM : 1);
           if (u.crit && r.next() < u.crit) dmg *= 2;
           const done = hurt(best, dmg, u);
+          if (u.ench && u.side === 1) enchantHit(u, best, dmg, foes);
           if (u.leech) u.hp = Math.min(u.max, u.hp + done * u.leech);
           if (!u.ranged && best.thorns) hurt(u, done * best.thorns);
           if (u.splash) { for (const f of foes) if (f !== best && !f.dead && Math.hypot(f.x - best.x, f.y - best.y) < u.splash) hurt(f, dmg * 0.7, u); if (u.ranged) ev('shell', { x1: u.x, y1: u.y, x2: best.x, y2: best.y, r: u.splash }); else ev('blast', { x: best.x, y: best.y, r: u.splash }); }
@@ -541,7 +552,7 @@
       if (u.siege && u.y >= LANE.L - u.range && (!best || bd > u.range)) { if (u.cd <= 0) { u.cd = u.every; const gd = u.dmg * 3 * st.gateDmg * (1 + overM); if (!(S.boss && !S.bossDead)) S.gate.hp -= gd; ev('shell', { x1: u.x, y1: u.y, x2: u.x, y2: LANE.L, r: 2 }); } return; }
       if (atGate) { if (u.cd <= 0) { u.cd = u.every; const g = u.dmg * st.gateDmg * (1 + overM); if (!(S.boss && !S.bossDead)) S.gate.hp -= g; else S.gate.hp = Math.max(S.gate.max * 0.02, S.gate.hp - g * 0.2); ev('gatehit'); } return; }
       if (atDoor) { if (u.cd <= 0) { u.cd = u.every; S.door.hp -= u.dmg * (1 - st.doorArmor); ev('doorhit'); } return; }
-      u.y += u.side * u.speed * spdM * dt;
+      u.y += u.side * u.speed * spdM * (u.slowT > 0 ? u.slowF : 1) * dt;
       // a little sideways drift toward the nearest foe keeps lines from stacking
       if (best && Math.abs(best.y - u.y) < 8) u.x += Math.sign(best.x - u.x) * Math.min(Math.abs(best.x - u.x), 1.5 * dt);
     }
@@ -583,6 +594,8 @@
       // the Scrap Gremlin: only the Wrench can catch it
       if (S.gremlinAt >= 0 && S.t >= S.gremlinAt && !S.gremlin) { const fromLeft = r.next() < 0.5; S.gremlin = { x: fromLeft ? 0 : LANE.W, y: LANE.L * (0.35 + r.next() * 0.3), dir: fromLeft ? 1 : -1, hp: 7 * st.wrenchDmg * Math.pow(TUNE.wrenchGrowth, depth - 1), max: 0, t: 0, hit: 0 }; S.gremlin.max = S.gremlin.hp; S.gremlinAt = -1; ev('gremlin'); }
       if (S.gremlin && !S.gremlin.gone) { const gr = S.gremlin; gr.t += dt; gr.hit = Math.max(0, gr.hit - dt); gr.x += gr.dir * 2.4 * dt; gr.y += Math.sin(gr.t * 3) * 3 * dt; if (gr.x < -1 || gr.x > LANE.W + 1) { gr.gone = true; ev('gremlinaway'); } }
+      for (const e of S.enemies) { if (e.burnT > 0) { e.burnT -= dt; hurt(e, e.burnD * dt); } if (e.slowT > 0) e.slowT -= dt; }
+      for (const t of S.troops) if (t.ench && t.ench.t === 'emerald' && !t.dead) t.hp = Math.min(t.max, t.hp + t.max * 0.02 * t.ench.p * dt);
       // fighting
       for (const t of S.troops) fight(t, S.enemies, dt, hasteM, overM);
       for (const e of S.enemies) fight(e, S.troops, dt, 0, 0);
@@ -765,6 +778,23 @@ const overhaulGain = (save) => (save.best < 10 || save.best <= (save.cycleStart 
     if (ms.l >= msMax(save)) ms.xp = Math.min(ms.xp, msNeed(ms.l));
     return { fed: n, xp, ups };
   }
+  // ---- Merge Workshop: gems and enchanting
+  const enchantCost = (tier) => 20 * (tier + 1);
+  function canEnchant(save, id, type, tier) {
+    const it = save.items[id]; if (!it) return 'pick a gear'; if (GEARS[it.base].fam !== 'unit') return 'only troop gears take enchantments';
+    if (!ENCHANTS[type]) return 'pick a gem'; const p = (save.pouch || {})[type]; if (!p || (p[tier] || 0) < 2) return `needs two ${STONE_TIERS[tier]} ${({ ruby: 'Rubies', topaz: 'Topazes' })[type] || STONES[type].name + 's'}`;
+    if (save.brass < enchantCost(tier)) return 'not enough brass'; return '';
+  }
+  function enchant(save, id, type, tier) { const e = canEnchant(save, id, type, tier); if (e) return e; save.pouch[type][tier] -= 2; save.brass -= enchantCost(tier); save.items[id].ench = [type, tier]; return ''; }
+  const mixCost = (tier) => 3 * (tier + 1);
+  function mergeGemsAny(save, tier) { // any three gems of one tier -> a random gem of the next tier
+    if (tier >= 4) return { err: 'Perfect is the top' }; const P = save.pouch || {}; let have = 0; for (const t of Object.keys(STONES)) have += (P[t] || [])[tier] || 0;
+    if (have < 3) return { err: `needs three ${STONE_TIERS[tier]} gems` }; if (save.brass < mixCost(tier)) return { err: 'not enough brass' };
+    save.brass -= mixCost(tier);
+    let need = 3; const kinds = Object.keys(STONES).filter((t) => ((P[t] || [])[tier] || 0) > 0).sort((a, b) => P[b][tier] - P[a][tier]); // spend the most plentiful first
+    for (const t of kinds) { const k = Math.min(need, P[t][tier]); P[t][tier] -= k; need -= k; if (!need) break; }
+    const ty = withRng(save, (r) => r.pick(Object.keys(STONES))); pouchAdd(save, ty, tier + 1); return { err: '', type: ty };
+  }
   // ---- the Jeweller
   const combineCostJ = (save, tier) => Math.round(combineCost(tier) * (roomLvl(save, 'jeweller') >= 1 ? 0.8 : 1));
   const polishCost = (tier) => 12 * (tier + 1) * (tier + 1);
@@ -896,7 +926,7 @@ const overhaulGain = (save) => (save.best < 10 || save.best <= (save.cycleStart 
     return out;
   }
 
-  const api = { roomLvl, roomCost, buildRoom, canFuse, fuse, reforge, reforgeCost, feedMainspring, msNeed, msMax, combineCostJ, polishStone, polishCost, researchSlots, researchHours, startResearch, claimResearch,
+  const api = { enchantCost, canEnchant, enchant, mixCost, mergeGemsAny, roomLvl, roomCost, buildRoom, canFuse, fuse, reforge, reforgeCost, feedMainspring, msNeed, msMax, combineCostJ, polishStone, polishCost, researchSlots, researchHours, startResearch, claimResearch,
     ensureBounties, bountiesFromRun, claimBounty, rerollBounty, BOUNTY, startExpedition, expChoices, expEnter, expShiftOpts, expAfterShift, expResolve, expEvent, abandonExpedition, trialBosses, trialHeatOpen, trialOpts, trialAfter, trophyKey, dailyContract, MODS, trainStats, socketSlots, pouchAdd, combineStones, combineCost, socket, unsocket, unsocketCost, checkMilestones, TUNE, SAVE_V, LANE, rngFrom, key, unkey, cells, neighbours, hexDist, NEI, stats, baseStats, nodeCost, nodeOpen, canBuyNode, buyNode, buyBlueprint,
     makeItem, rollDrop, dropOdds, describe, gearPower, solve, affix, place, unplace, canMerge, merge, mergeKeepBest, salvage, salvageValue, reroll, rerollCost, temper, temperCost,
     maxIlvl, toggleVault, invItems, vaultCount, newSave, load, zoneOf, isBossDepth, enemyScale, gateHp, createShift, idleRates, applyOffline, overhaulGain, overhaul, withRng, addLoot };

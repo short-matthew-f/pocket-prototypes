@@ -131,6 +131,17 @@ function clearBoard(save) { for (const k of Object.keys(save.board)) { save.item
 { const s = M.newSave(101); s.brass = 999; ok(M.startResearch(s, 'survey', 0) !== '', 'research needs the desk built first'); M.buildRoom(s, 'research');
   ok(M.startResearch(s, 'survey', 0) === '' && M.startResearch(s, 'stone', 0) !== '', 'one desk, one project');
   ok(M.claimResearch(s, 0, 60e3).err && !M.claimResearch(s, 0, 31 * 60e3).err && s.scrap > 0, 'a 30-minute survey pays out after 30 minutes'); }
+// ---------------------------------------------------------------- gems + enchantments
+{ const s = M.newSave(110); s.brass = 500; M.pouchAdd(s, 'ruby', 0, 1); M.pouchAdd(s, 'topaz', 0, 1); M.pouchAdd(s, 'emerald', 0, 1);
+  const out = M.mergeGemsAny(s, 0); ok(!out.err && Object.values(s.pouch).reduce((a, t) => a + t[0], 0) === 0 && Object.values(s.pouch).reduce((a, t) => a + t[1], 0) === 1, 'any three Chipped gems merge into one random Flawed gem');
+  clearBoard(s); const gr = gear(s, 'grunt', 'L'); M.place(s, gr.id, '1,0'); const hs = gear(s, 'haste', 'M');
+  ok(M.enchant(s, hs.id, 'ruby', 0) !== '', 'only troop gears take enchantments');
+  ok(M.enchant(s, gr.id, 'ruby', 0) !== '', 'enchanting needs two gems of a kind'); M.pouchAdd(s, 'ruby', 0, 2);
+  ok(M.enchant(s, gr.id, 'ruby', 0) === '' && s.pouch.ruby[0] === 0 && s.items[gr.id].ench[0] === 'ruby', 'two Chipped Rubies enchant a gear with Searing');
+  ok(M.describe(s.items[gr.id], M.stats(s), null, null).ench.name === 'Searing', 'the gear card shows the enchantment');
+  const sh = M.createShift(s); let burned = false; for (let i = 0; i < 1200 && !sh.S.over; i++) { sh.update(1 / 20, {}); if (sh.S.enemies.some((e) => e.burnT > 0)) burned = true; } ok(burned, 'Searing troops set enemies burning');
+  M.pouchAdd(s, 'sapphire', 1, 2); M.enchant(s, gr.id, 'sapphire', 1); const sh2 = M.createShift(s); let slowed = false; for (let i = 0; i < 1200 && !sh2.S.over; i++) { sh2.update(1 / 20, {}); if (sh2.S.enemies.some((e) => e.slowT > 0)) slowed = true; } ok(slowed && s.items[gr.id].ench[0] === 'sapphire', 'a new enchantment replaces the old one; Frost slows enemies'); }
+
 // ---------------------------------------------------------------- bounties
 { const s = M.newSave(102); s.unlocked = 6; const L = M.ensureBounties(s); ok(L.length === 3 && L.every((b) => b.text), `three bounties (${L.map((b) => b.text).join(' / ')})`);
   const b = L[0]; const run = { win: true, depth: 9, boss: true, kills: 9999, elites: 99, gremlin: true, units: [b.base || 'grunt'], wrenchSecs: 0, cranks: 9, stones: 9 };

@@ -375,6 +375,7 @@
       <ul>${ds.lines.map((l) => `<li>${l}</li>`).join('')}
       ${ds.affixes.map((a, i) => `<li class="aff ${a.dim ? 'dim' : ''}">${a.txt}<button data-a="reroll" data-i="${i}" ${save.brass < rc ? 'disabled' : ''}>reroll ${rc}🔩</button></li>`).join('')}</ul>
       ${ds.power ? `<div class="power">★ ${ds.power}</div>` : ''}
+      ${ds.ench ? `<div class="power" style="color:${ds.ench.color === '#ffd24a' ? '#a77b00' : ds.ench.color}">${ds.ench.icon} ${ds.ench.name}: ${ds.ench.line}</div>` : ''}
       ${ds.sockets.length ? `<ul>${ds.sockets.map((x, i) => x ? `<li style="color:${x.color}">◆ ${x.name}: ${x.txt}<button data-a="unsock" data-i="${i}" style="border:1px solid ${x.color};background:#fff;border-radius:8px;font:800 11px var(--body);margin-left:6px;color:${x.color}">remove ${M.unsocketCost(x.tier)}🔩</button></li>` : `<li style="color:#6b5a44">◇ Empty socket <button data-a="sock" data-i="${i}" style="border:1px solid #6b5a44;background:#fff;border-radius:8px;font:800 11px var(--body);margin-left:6px" ${pouchList().length ? '' : 'disabled'}>${pouchList().length ? 'add a stone' : 'no stones yet'}</button></li>`).join('')}</ul>` : ''}
       ${ds.set ? `<div class="set"><b>${ds.set.name}</b> (${ds.set.have} meshed)<br>${ds.set.bonus.map((b, i) => `<span class="${ds.set.have >= i + 2 ? 'on' : ''}">${ds.set.have >= i + 2 ? '✓' : '·'} ${b}</span>`).join('<br>')}<br><small>Set pieces only count while they turn and touch each other.</small></div>` : ''}
       <div class="acts">
@@ -384,6 +385,7 @@
         <button data-a="vault">${it.vault ? 'Unvault' : `Vault (${M.vaultCount(save)}/${stats.vault})`}</button>
         <button data-a="salvage" ${it.vault ? 'disabled' : ''}>Salvage +${sv}🔩</button>
         ${!n && !it.vault && !it.leg && !it.set ? `<button data-a="toforge">⇧ Send to the Merge Workshop</button>` : ''}
+        ${D.GEARS[it.base].fam === 'unit' ? `<button data-a="toench">✨ ${it.ench ? 'Re-enchant' : 'Enchant'}</button>` : ''}
         ${M.roomLvl(save, 'forge') >= 2 && !it.leg && !it.set ? `<select data-a="reforge" style="flex:1 1 30%;min-height:42px;border:2px solid var(--ink);border-radius:12px;font:800 13px var(--body)"><option value="">Reforge (${M.reforgeCost(it)}🔩)…</option>${Object.keys(D.GEARS).filter((k) => D.GEARS[k].fam === D.GEARS[it.base].fam && k !== it.base).map((k) => `<option value="${k}">into ${D.GEARS[k].name}</option>`).join('')}</select>` : ''}
       </div>
       ${same.length ? '' : `<div class="sub" style="margin-top:6px">Merging needs another ${D.SIZES[it.size].name.toLowerCase()} ${D.GEARS[it.base].name} of rank ${it.rank}.</div>`}`;
@@ -398,6 +400,7 @@
       if (a === 'temper') { err = M.temper(save, id); if (!err) sfx.buy(); }
       if (a === 'vault') err = M.toggleVault(save, id);
       if (a === 'reroll') { err = M.reroll(save, id, +b.dataset.i); if (!err) sfx.buy(); }
+      if (a === 'toench') { ENCH.target = id; closeSheet(); setTab('workshop'); setTimeout(() => { const h = [...page.querySelectorAll('h3')].find((x) => x.textContent === 'Enchanting'); h && h.scrollIntoView({ behavior: 'smooth' }); }, 50); return; }
       if (a === 'toforge') { if (!FORGE.picked.includes(id)) FORGE.picked = [...FORGE.picked, id].slice(-3); closeSheet(); setTab('workshop'); toast('In the Merge Workshop'); return; }
       if (a === 'unsock') err = M.unsocket(save, id, +b.dataset.i);
       if (a === 'sock') return stonePicker(id, +b.dataset.i);
@@ -575,6 +578,7 @@
       g.strokeStyle = '#2a1d10'; g.lineWidth = 1.5; g.stroke();
       g.fillStyle = '#e8c05a'; g.beginPath(); g.arc(x, y - r * 0.35, r * 0.55, Math.PI, TAU); g.fill();
     }
+    if (tr.ench) { g.fillStyle = D.ENCHANTS[tr.ench.t].color; g.beginPath(); g.arc(x + r * 0.8, y - r * 0.9, Math.max(2, r * 0.22), 0, TAU); g.fill(); }
     if (tr.shield > 0) { g.strokeStyle = '#7fe0ff70'; g.lineWidth = 1.2; g.beginPath(); g.arc(x, y, r + 2.5, 0, TAU); g.stroke(); }
     if (tr.hp < tr.max) bar(x - r, y + r + 3, r * 2, 2.5, tr.hp / tr.max, '#7fd36b');
   }
@@ -595,6 +599,8 @@
       g.fillStyle = '#fff'; g.beginPath(); g.arc(x - r * 0.32, y + r * 0.1, r * 0.22, 0, TAU); g.arc(x + r * 0.32, y + r * 0.1, r * 0.22, 0, TAU); g.fill();
       g.fillStyle = '#1a0f08'; g.beginPath(); g.arc(x - r * 0.32, y + r * 0.18, r * 0.11, 0, TAU); g.arc(x + r * 0.32, y + r * 0.18, r * 0.11, 0, TAU); g.fill();
     }
+    if (e.burnT > 0) { g.globalCompositeOperation = 'lighter'; glow(x, y - r * 0.2, r * 1.3, '#ff6a2a'); g.globalCompositeOperation = 'source-over'; if (Math.random() < 0.3) fx.push({ k: 'spark', x: x + (Math.random() - 0.5) * r, y: y - r * 0.5, vx: 0, vy: -40, t: 0, life: 0.3 }); }
+    if (e.slowT > 0) { g.fillStyle = '#9fe0ff40'; g.beginPath(); g.arc(x, y, r * 1.05, 0, TAU); g.fill(); }
     if (e.hp < e.max && e.kind !== 'boss') bar(x - r, y - r - 7, r * 2, 3, e.hp / e.max, e.elite ? '#c77dff' : '#ff6a4a');
     if (e.shieldUp) { g.strokeStyle = '#9fe7ff'; g.lineWidth = 3; g.globalAlpha = 0.6 + 0.3 * Math.sin(t * 20); g.beginPath(); g.arc(x, y, r * 1.5, 0, TAU); g.stroke(); g.globalAlpha = 1; g.fillStyle = '#9fe7ff'; g.font = '900 11px Nunito'; g.textAlign = 'center'; g.fillText('SHIELDED', x, y - r * 1.6); }
     if (e.elite) { // Diablo-style champion: a pulsing aura ring and its name
@@ -741,7 +747,8 @@
   }
 
   // ------------------------------------------------------------------ Workshop: rooms
-  const FORGE = { picked: [] };
+  const FORGE = { picked: [] }, ENCH = { target: null };
+  const gemPl = (ty) => ({ ruby: 'Rubies', topaz: 'Topazes' })[ty] || D.STONES[ty].name + 's';
   const hhmm = (ms) => { const s2 = Math.max(0, Math.ceil(ms / 1000)), h = Math.floor(s2 / 3600), m = Math.floor((s2 % 3600) / 60), sec = s2 % 60; return h ? `${h}h ${String(m).padStart(2, '0')}m` : `${m}:${String(sec).padStart(2, '0')}`; };
   function roomHead(k) {
     const R = D.ROOMS[k], l = M.roomLvl(save, k), c = M.roomCost(save, k);
@@ -754,6 +761,7 @@
     const pickedIts = FORGE.picked.map((id) => save.items[id]).filter(Boolean); FORGE.picked = pickedIts.map((it) => it.id);
     const fuseErr = M.canFuse(save, FORGE.picked);
     const spare = M.invItems(save).filter((it) => !it.vault && it.rarity === 'common');
+    const gemList = pouchList(), troops = Object.values(save.items).filter((it) => D.GEARS[it.base].fam === 'unit').sort((a, b) => RORD.indexOf(a.rarity) - RORD.indexOf(b.rarity)), tgt = save.items[ENCH.target];
     page.innerHTML = `<h2>Workshop</h2><p class="arm-sub">Rooms stay built through Overhauls. Build and upgrade them with brass.</p>
       <section class="room">${roomHead('merge')}
         <p class="room-d">Three junk gears of one rarity become one random gear of the next: Common → Magic → Rare → Rare, Set or <b style="color:#ff8a1f">Legendary</b>. Gears on the bench or in the Vault stay out.</p>
@@ -761,6 +769,16 @@
         <div class="fuse">${[0, 1, 2].map((i) => { const it = pickedIts[i]; return it ? `<button class="slot" data-a="unpick" data-id="${it.id}" style="border-color:${rarity(it.rarity).color}">${iconURL(it) ? `<img src="${iconURL(it)}">` : roleOf(it).glyph}<small>${it.name}</small></button>` : '<span class="slot empty">+</span>'; }).join('')}
           <button class="act" data-a="fuse" ${fuseErr ? 'disabled' : ''}>⇧ Merge</button></div>
         <p class="room-d">${fuseErr && FORGE.picked.length ? fuseErr : 'Tip: in the Armory, select three gears of one rarity, or tap a gear and “Send to the Merge Workshop”.'}</p>
+        <h3>Gems</h3>
+        ${gemList.length ? `<ul class="gems">${gemList.map((p, i) => `<li><span style="color:${D.STONES[p.ty].color}">◆</span><b>${D.STONE_TIERS[p.ti]} ${D.STONES[p.ty].name}</b> ×${p.n}${p.ti < 4 ? `<button class="act small" data-a="gem3" data-i="${i}" ${p.n >= 3 && save.brass >= M.combineCostJ(save, p.ti) ? '' : 'disabled'}>3 → 1 ${D.STONE_TIERS[p.ti + 1]} (${M.combineCostJ(save, p.ti)}🔩)</button>` : ''}</li>`).join('')}</ul>
+          <div class="chips">${D.STONE_TIERS.slice(0, 4).map((tn, ti) => { const n = gemList.filter((p) => p.ti === ti).reduce((a, p) => a + p.n, 0); return n >= 3 ? `<button class="act small" data-a="gemmix" data-t="${ti}" ${save.brass >= M.mixCost(ti) ? '' : 'disabled'}>Mix any 3 ${tn} → random ${D.STONE_TIERS[ti + 1]} (${M.mixCost(ti)}🔩)</button>` : ''; }).join('')}</div>`
+          : '<p class="room-d">No gems yet. Elites, bosses, Scrap Gremlins, Bounties and the Research desk give them.</p>'}
+        <h3>Enchanting</h3>
+        <p class="room-d">Give a troop gear one enchantment by spending two gems of a kind. Better gems, stronger magic. A new enchantment replaces the old.</p>
+        <div class="chips">${troops.map((it) => `<button class="chip ${ENCH.target === it.id ? 'on' : ''}" data-a="etarget" data-id="${it.id}" style="border-color:${rarity(it.rarity).color}">${roleOf(it).glyph} ${it.name}${it.ench ? ` ${D.ENCHANTS[it.ench[0]].icon}` : ''}</button>`).join('') || '<span class="room-d">No troop gears.</span>'}</div>
+        ${tgt ? `<p class="room-d">${tgt.name}: ${tgt.ench ? `<b style="color:${D.ENCHANTS[tgt.ench[0]].color}">${D.ENCHANTS[tgt.ench[0]].icon} ${D.ENCHANTS[tgt.ench[0]].name}</b> (${D.ENCHANTS[tgt.ench[0]].txt(1 + 0.5 * tgt.ench[1])})` : 'not enchanted'}</p>
+          <div class="enchs">${Object.entries(D.ENCHANTS).map(([ty, E]) => { const tiers = (save.pouch[ty] || []).map((n, ti) => [n, ti]).filter(([n]) => n >= 2); const ti = tiers.length ? tiers[tiers.length - 1][1] : 0; const err = M.canEnchant(save, tgt.id, ty, ti);
+            return `<button class="ench" data-a="enchant" data-ty="${ty}" data-ti="${ti}" ${err ? 'disabled' : ''} style="--ec:${E.color}"><b>${E.icon} ${E.name}</b><small>${E.txt(1 + 0.5 * ti)}</small><i>${tiers.length ? `2 ${D.STONE_TIERS[ti]} ${gemPl(ty)} + ${M.enchantCost(ti)}🔩` : `needs 2 ${gemPl(ty)}`}</i></button>`; }).join('')}</div>` : '<p class="room-d">Pick a troop gear above.</p>'}
       </section>
       <section class="room">${roomHead('forge')}
         <h3>Feed the Mainspring</h3>
@@ -789,6 +807,10 @@
       if (a === 'startR') { err = M.startResearch(save, b.dataset.k, Date.now()); if (!err) sfx.tick(); }
       if (a === 'claimR') { const out = M.claimResearch(save, +b.dataset.i, Date.now()); err = out.err; if (!err) { sfx.loot('rare'); toast(out.scrap ? `+${fmt(out.scrap)} scrap` : out.bp ? '+1 Blueprint' : out.stone ? `A Flawed ${D.STONES[out.stone].name}` : out.item ? `${save.items[out.item] ? save.items[out.item].name : 'A gear'}!` : 'Study done: +25% scrap for 5 Shifts'); } }
       if (a === 'pouch') { openPouch(); return; }
+      if (a === 'gem3') { const p = gemList[+b.dataset.i]; err = M.combineStones(save, p.ty, p.ti); if (!err) { play('socket', 0.8) || sfx.merge(); toast(`A ${D.STONE_TIERS[p.ti + 1]} ${D.STONES[p.ty].name}!`); } }
+      if (a === 'gemmix') { const out = M.mergeGemsAny(save, +b.dataset.t); err = out.err; if (!err) { play('socket', 0.8) || sfx.merge(); toast(`A ${D.STONE_TIERS[+b.dataset.t + 1]} ${D.STONES[out.type].name}!`); } }
+      if (a === 'etarget') ENCH.target = +b.dataset.id;
+      if (a === 'enchant') { err = M.enchant(save, ENCH.target, b.dataset.ty, +b.dataset.ti); if (!err) { sfx.loot('rare'); toast(`${D.ENCHANTS[b.dataset.ty].icon} ${D.ENCHANTS[b.dataset.ty].name}!`); } }
       if (err) { toast(err); sfx.nope(); }
       persist(); refresh();
     };
@@ -1113,7 +1135,8 @@
     3: '🗄 <b>The Armory</b>: every gear in one place, with filters, sorting, <b>merge duplicates</b> and bulk salvage.<br>⇧ <b>Green badges</b> mark gears that can merge. A coloured ring shows rarity.<br>🏷 Every gear on the bench says what it is (and its RPM).<br>🧰 The bench tray scrolls and filters by Troops, Spells and Other.<br>✦ Upgrades show their names, and the Blueprint toggle no longer vanishes.',
   };
   NEWS[4] = '🔥 <b>The Workshop</b>: a Forge to fuse three unwanted gears into a rarer one (sometimes a legendary), feed spares to the Mainspring for speed, and reforge; a Research desk that works while you\'re away; a Jeweller; a Trophy Wall.<br>📋 <b>Jobs</b>: the Daily Contract, three <b>Bounties</b>, <b>Expeditions</b> (a branching map of fights, elites, treasure, a stall, events and a boss) and <b>Boss Trials</b> at rising Heat for trophies and boss-only legendaries.<br>📖 The Codex moved to the button at the top.';
-  const NEWS_V = 4;
+  NEWS[5] = '⇧ <b>The Merge Workshop</b> has its own room: merge three junk gears into one of the next rarity, <b>merge gems</b> (three of a kind, or any three of a tier into a random better one), and <b>enchant</b> troop gears with two gems: Searing, Frost, Storm, Gilded or Verdant.';
+  const NEWS_V = 5;
   if (!save.seenIntro) { intro(); save.seenNews = NEWS_V; }
   else if ((save.seenNews || 1) < NEWS_V) {
     const from = save.seenNews || 1; save.seenNews = NEWS_V; persist();

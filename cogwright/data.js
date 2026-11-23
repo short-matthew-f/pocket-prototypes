@@ -230,7 +230,7 @@
 
   // Workshop rooms: permanent (kept through Overhauls), built and levelled with brass
   const ROOMS = {
-    merge:    { name: 'Merge Workshop', icon: '⇧', cost: [0, 120, 350, 800, 1600], desc: ['Merge three junk gears of one rarity into a random gear of the next rarity up', 'Merging three of one family (all troops, all spells…) keeps that family', 'Merging three Rares: +5% Legendary chance', 'Merging three Rares: another +5% Legendary chance', 'Merging three Rares: another +5% Legendary chance'] },
+    merge:    { name: 'Merge Workshop', icon: '⇧', cost: [0, 120, 350, 800, 1600], desc: ['Merge three junk gears of one rarity into a random gear of the next; merge gems; enchant troop gears with gems', 'Merging three of one family (all troops, all spells…) keeps that family', 'Merging three Rares: +5% Legendary chance', 'Merging three Rares: another +5% Legendary chance', 'Merging three Rares: another +5% Legendary chance'] },
     forge:    { name: 'The Forge', icon: '🔥', cost: [0, 80, 550], desc: ['Feed spare gears to the Mainspring for permanent speed this Overhaul', 'Reforge: change a gear into another of its family', 'The Mainspring can climb to level 20'] },
     research: { name: 'Research Desk', icon: '📐', cost: [60, 180, 450, 1000], desc: ['One project at a time, running while you are away', 'Projects finish 15% faster', 'A second project slot; Blueprint drafting', 'Projects finish 30% faster'] },
     jeweller: { name: 'The Jeweller', icon: '💎', cost: [40, 160, 420], desc: ['Combining stones costs 20% less', 'Polish: lift a stone one tier for brass', 'Removing socketed stones is free'] },
@@ -247,6 +247,15 @@
   const TROPHIES = { 10: { name: "Foreman's Hat", txt: (h) => `+${2 * h}% troop damage` }, 20: { name: "Dredge's Bucket", txt: (h) => `+${2 * h}% troop health` }, 30: { name: "Horologist's Hand", txt: (h) => `+${2 * h}% Mainspring RPM` }, deep: { name: 'Deep Engine Valve', txt: (h) => `+${3 * h}% scrap` } };
   const HEAT = ['', 'Boss is tougher', '', 'Summons adds every 8 s', '', 'Enrages at half health', '', 'Shields itself for 3 s every 15 s', '', 'Only elites come out', ''];
 
-  const data = { ROOMS, RESEARCH, TROPHIES, HEAT, STONES, STONE_TIERS, MILESTONES, SIZES, MAIN_TEETH, GEARS, TROOPS, ENEMY_KINDS, ZONES, MAX_DEPTH, RARITIES, AFFIXES, LEGENDARIES, SETS, TREE, BLUEPRINTS };
+  // Enchantments: one per troop gear, made from two gems of a kind; the gems' tier sets the power p = 1 + 0.5 * tier
+  const ENCHANTS = {
+    ruby:     { name: 'Searing', icon: '🔥', color: '#ff6a3a', txt: (p) => `Hits set enemies burning for ${Math.round(25 * p)}% of the hit over 3 s` },
+    sapphire: { name: 'Frost', icon: '❄', color: '#7fd0ff', txt: (p) => `Hits slow enemies by ${Math.round(Math.min(60, 25 + 7 * p))}% for 2 s` },
+    amethyst: { name: 'Storm', icon: '⚡', color: '#c49bff', txt: (p) => `Every 5th hit sparks to 2 nearby enemies for ${Math.round(60 * p)}% damage` },
+    topaz:    { name: 'Gilded', icon: '✦', color: '#ffd24a', txt: (p) => `Enemies its troops finish off drop ${Math.round(50 * p)}% more scrap` },
+    emerald:  { name: 'Verdant', icon: '❦', color: '#5fe08a', txt: (p) => `Its troops heal ${(2 * p).toFixed(1)}% of their health a second` },
+  };
+
+  const data = { ENCHANTS, ROOMS, RESEARCH, TROPHIES, HEAT, STONES, STONE_TIERS, MILESTONES, SIZES, MAIN_TEETH, GEARS, TROOPS, ENEMY_KINDS, ZONES, MAX_DEPTH, RARITIES, AFFIXES, LEGENDARIES, SETS, TREE, BLUEPRINTS };
   if (typeof module !== 'undefined') module.exports = data; else root.CogData = data;
 })(typeof window !== 'undefined' ? window : globalThis);
