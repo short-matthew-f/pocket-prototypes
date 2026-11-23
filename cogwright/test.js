@@ -228,19 +228,19 @@ function shop(s) { // buy what's affordable, cheapest first, with a small bias t
   for (const it of M.invItems(s)) if (it.rarity !== 'common' && s.brass > M.temperCost(it, M.maxIlvl(s)) * 2) M.temper(s, it.id);
 }
 function bot(name, policy, hours, seed) {
-  const s = M.newSave(seed); let secs = 0, fails = 0, lastWin = 0; const marks = {};
+  const s = M.newSave(seed); let secs = 0, fails = 0, lastWin = 0, bestSeen = 0; const marks = {};
   while (secs < hours * 3600) {
     arrange(s, policy.mono); shop(s); arrange(s, policy.mono);
     // play the deepest open depth, drop back after repeated door losses
     s.depth = Math.max(1, Math.min(s.unlocked, s.unlocked - Math.floor(fails / 2)));
     const r = runShift(s, policy); secs += r.secs + 20;
     if (V && name === 'mixed') console.log(`  ${(secs / 60).toFixed(1)}m d${r.depth} ${r.outcome} gate ${(r.gate * 100).toFixed(0)}% door ${(r.door * 100).toFixed(0)}% scrap ${r.scrap} items ${r.items.length} | scrap ${s.scrap} tree ${Object.values(s.tree).reduce((a, b) => a + b, 0)}`);
-    if (r.outcome === 'win') { fails = Math.max(0, fails - 2); lastWin = secs; } else fails = Math.min(fails + 1, 2 * s.unlocked);
+    if (r.outcome === 'win') { fails = Math.max(0, fails - 2); if (s.best > bestSeen) { bestSeen = s.best; lastWin = secs; } } else fails = Math.min(fails + 1, 2 * s.unlocked);
     if (!marks.legendary && s.stats.legendaries) marks.legendary = secs;
     for (const d of [5, 10, 15, 20, 30]) if (!marks['d' + d] && s.best >= d) marks['d' + d] = secs;
-    if (policy.overhaul && M.overhaulGain(s) > 0 && secs - lastWin > 1800) { (marks.cycles = marks.cycles || []).push(`${s.best}@${(secs / 3600).toFixed(1)}h`);
+    if (policy.overhaul && M.overhaulGain(s) > 0 && secs - lastWin > 2700) { (marks.cycles = marks.cycles || []).push(`${s.best}@${(secs / 3600).toFixed(1)}h`);
       const st = M.stats(s); for (const it of Object.values(s.items).sort((a, b) => scoreItem(s, b, st) - scoreItem(s, a, st)).slice(0, st.vault)) if (!it.vault) M.toggleVault(s, it.id);
-      M.overhaul(s); marks.overhauls = (marks.overhauls || 0) + 1; fails = 0; lastWin = secs;
+      M.overhaul(s); marks.overhauls = (marks.overhauls || 0) + 1; fails = 0; lastWin = secs; bestSeen = 0;
       for (let g = 0; g < 60; g++) { const o = ['bp_power', 'bp_power', 'bp_start', 'bp_wrench', 'bp_scrap', 'bp_mf', 'bp_time', 'bp_vault', 'bp_idle'].filter((id) => M.buyBlueprint(s, id) === ''); if (!o.length) break; } }
   }
   if (V) { const st = M.stats(s), B = M.solve(s, st); const sp = B.spinning;
