@@ -98,24 +98,24 @@
   function invalidate() { stats = M.stats(save); board = M.solve(save, stats); }
   invalidate();
   function refresh() {
-    invalidate();
+    invalidate(); computeMergeable();
     const got = M.checkMilestones(save, board);
     if (got.length) { persist(); setTimeout(() => { toast(got.map((m) => `🏅 ${m.name}: +${m.brass} brass${m.bp ? ` +${m.bp} Blueprints` : ''}`).join('  ·  ')); play('milestone', 0.8) || sfx.win(); }, shift ? 900 : 50); }
     $('#c-scrap').textContent = fmt(save.scrap); $('#c-brass').textContent = fmt(save.brass);
-    $('#c-bp').textContent = fmt(save.blueprints); $('#c-bp-wrap').hidden = !(save.overhauls || save.blueprints);
+    $('#c-bp').textContent = fmt(save.blueprints); $('#c-bp-wrap').hidden = !showBp();
     save.depth = Math.max(1, Math.min(save.depth, save.unlocked));
     $('#d-num').textContent = 'Depth ' + save.depth; $('#d-zone').textContent = M.zoneOf(save.depth).name.replace('The ', '') + (M.isBossDepth(save.depth) ? ' · Boss' : '');
     $('#d-prev').disabled = save.depth <= 1; $('#d-next').disabled = save.depth >= save.unlocked;
     { const c = M.dailyContract(save, today()); $('#daily').classList.toggle('done', c.done); $('#daily').classList.toggle('new', !c.done); }
     $('#tree-dot').hidden = !D.TREE.some((n) => M.canBuyNode(save, n.id) === '') && !M.overhaulGain(save);
-    if (tab === 'codex') renderCodex();
+    if (tab === 'codex') renderCodex(); if (tab === 'armory') renderArmory();
     if (sel && !save.items[sel]) closeSheet();
   }
   document.querySelectorAll('nav button').forEach((b) => b.addEventListener('click', () => setTab(b.dataset.tab)));
   function setTab(t) {
     tab = t; closeSheet();
     document.querySelectorAll('nav button').forEach((b) => b.classList.toggle('on', b.dataset.tab === t));
-    document.body.classList.toggle('codex', t === 'codex'); document.body.classList.toggle('tree', t === 'tree');
+    document.body.classList.toggle('codex', t === 'codex' || t === 'armory'); document.body.classList.toggle('tree', t === 'tree');
     $('#foot').style.display = t === 'bench' ? '' : 'none';
     refresh(); requestAnimationFrame(resize);
   }
@@ -186,29 +186,49 @@
   }
   function hexOutline(x, y, s) { g.beginPath(); for (let i = 0; i < 6; i++) { const a = (Math.PI / 180) * (60 * i - 30); const px = x + s * Math.cos(a), py = y + s * Math.sin(a); i ? g.lineTo(px, py) : g.moveTo(px, py); } g.closePath(); }
 
-  // ------------------------------------------------------------------ Bench
-  let BL = null; // layout
+  // ------------------------------------------------------------------ Bench: the board, plus a tray of spare gears
+  // what a gear is for, readable at a glance: a glyph, a colour per family, a short name
+  const FAMC = { unit: '#ff9466', spell: '#c39bff', engine: '#a9c2d8', collector: '#ffd166', magnet: '#ff7a7a' };
+  function roleOf(it) {
+    const G = D.GEARS[it.base], fam = G.fam;
+    const short = fam === 'unit' ? D.TROOPS[G.troop].name + 's' : fam === 'engine' ? 'Engine' : fam === 'collector' ? 'Collector' : fam === 'magnet' ? 'Magnet' : G.name.replace(' Gear', '');
+    return { glyph: G.icon, color: FAMC[fam], short, fam };
+  }
+  function summary(it) { // one plain line: what this gear does
+    const P = M.gearPower(it, null, stats, {}), G = D.GEARS[it.base];
+    if (P.fam === 'unit') return `1 ${D.TROOPS[G.troop].name} per turn · ${Math.round(P.hp)} hp · ${P.dmg.toFixed(0)} dmg`;
+    if (P.fam === 'spell') return G.desc(P.p, P.s).replace(/^Every (\d+) turns: /, 'Every $1 turns, ');
+    if (P.fam === 'engine') return `Gears beyond it spin ×${P.factor.toFixed(2)}`;
+    if (P.fam === 'magnet') return `Pulls in ${P.pull} loose drop${P.pull > 1 ? 's' : ''} per turn`;
+    return `+${P.yield.toFixed(1)} scrap per turn, even while away`;
+  }
+  let mergeable = new Set();
+  function computeMergeable() { // gears that have an identical partner somewhere (bench or drawers)
+    const groups = {}; mergeable = new Set();
+    for (const it of Object.values(save.items)) { const k = it.base + '|' + it.size + '|' + it.rank; (groups[k] = groups[k] || []).push(it); }
+    for (const list of Object.values(groups)) if (list.length >= 2) for (const a of list) if (list.some((b) => b !== a && M.canMerge(save, a.id, b.id) === '')) mergeable.add(a.id);
+  }
+  let BL = null, trayScroll = 0, trayFilter = 'all', invOrder = [];
+  const TRAY = { h: 112, chip: 28, cw: 64, ch: 74, gap: 6 };
   function benchLayout() {
-    const slots = Math.max(stats.invSlots, M.invItems(save).length), cols = 8, slot = Math.min(50, (W - 24) / cols), rows = Math.ceil(slots / cols);
-    BL = { slots };
-    const drawerH = rows * slot + 34, bh = H - drawerH - 6, R = stats.boardR;
+    const R = stats.boardR, ty = H - TRAY.h, bh = ty - 4;
     HX.size = Math.min((W - 16) / (SQ3 * (2 * R + 1)), (bh - 16) / (3 * R + 2)); HX.cx = W / 2; HX.cy = bh / 2 + 4;
-    BL = { slots, slot, cols, rows, dx: (W - cols * slot) / 2, dy: bh + 28, bh };
+    BL = { bh, ty, cy: ty + TRAY.chip + 4, slots: stats.invSlots };
     return BL;
   }
-  const slotRect = (i) => ({ x: BL.dx + (i % BL.cols) * BL.slot, y: BL.dy + Math.floor(i / BL.cols) * BL.slot, s: BL.slot });
-  let invOrder = [];
-  function drawerItems() { // stable order: keep the player's order, new things at the end
-    const ids = M.invItems(save).map((it) => it.id), set = new Set(ids);
-    invOrder = invOrder.filter((id) => set.has(id)); for (const id of ids) if (!invOrder.includes(id)) invOrder.push(id);
-    return invOrder.map((id) => save.items[id]);
+  const FILTERS = [['all', 'All'], ['unit', 'Troops'], ['spell', 'Spells'], ['other', 'Other']];
+  const RORD = ['legendary', 'set', 'rare', 'magic', 'common'];
+  function trayItems() {
+    return M.invItems(save).filter((it) => { const f = D.GEARS[it.base].fam; return trayFilter === 'all' || (trayFilter === 'other' ? f !== 'unit' && f !== 'spell' : f === trayFilter); })
+      .sort((a, b) => RORD.indexOf(a.rarity) - RORD.indexOf(b.rarity) || a.base.localeCompare(b.base) || b.rank - a.rank || b.ilvl - a.ilvl);
   }
+  const cardRect = (i) => ({ x: 10 + i * (TRAY.cw + TRAY.gap) - trayScroll, y: BL.cy, w: TRAY.cw, h: TRAY.ch });
   // the wood + engraved hex sockets under the 3D gears (redrawn only when the layout or art changes)
   const placedAt = {};
   const popScale = (id) => { const t0 = placedAt[id]; if (t0 == null) return 1; const q = (clock - t0) / 0.35; if (q >= 1) { delete placedAt[id]; return 1; } return 1 + 0.25 * Math.sin(q * Math.PI) * (1 - q); };
   let underC = null, underK = '';
   function benchUnder() {
-    const k = `${W}x${H}:${stats.boardR}:${artVer}:${BL.slots}`; if (k === underK) return underC;
+    const k = `${W}x${H}:${stats.boardR}:${artVer}:${BL.ty}`; if (k === underK) return underC;
     underK = k; underC = underC || document.createElement('canvas'); const s = Math.min(2, DPR);
     underC.width = Math.round(W * s); underC.height = Math.round(H * s); const u = underC.getContext('2d'); u.setTransform(s, 0, 0, s, 0, 0);
     const bgi = art('bg-bench');
@@ -228,7 +248,7 @@
       path(); u.lineWidth = 1.2; u.strokeStyle = '#c9a24a66'; u.stroke();
     }
     // the drawer tray
-    const ty = BL.dy - 30, th = H - ty;
+    const ty = BL.ty, th = H - ty;
     const tg = u.createLinearGradient(0, ty, 0, H); tg.addColorStop(0, '#1d140d'); tg.addColorStop(1, '#120c08'); u.fillStyle = tg; u.fillRect(0, ty, W, th);
     u.fillStyle = '#c9a24a'; u.fillRect(0, ty, W, 2); u.fillStyle = '#00000080'; u.fillRect(0, ty + 2, W, 3);
     return underC;
@@ -278,56 +298,66 @@
       const p = hexPx(n.k), it = n.item;
       if (GL && setGlow[n.k]) { g.strokeStyle = '#3fcf74aa'; g.lineWidth = 3; g.shadowColor = '#3fcf74'; g.shadowBlur = 12; g.beginPath(); g.arc(p.x, p.y, radOf(it, inr) * 1.12, 0, TAU); g.stroke(); g.shadowBlur = 0; }
       if (GL && n.state === 'jam') { const R = radOf(it, inr) * 0.35; g.strokeStyle = '#ff4a3a'; g.lineWidth = 3.5; g.lineCap = 'round'; g.beginPath(); g.moveTo(p.x - R, p.y - R); g.lineTo(p.x + R, p.y + R); g.moveTo(p.x + R, p.y - R); g.lineTo(p.x - R, p.y + R); g.stroke(); g.lineCap = 'butt'; }
-      if (n.state === 'spin') { const ty = p.y + inr * 0.66, txt = Math.round(n.rpm) + ' rpm'; g.font = '800 9px Nunito, system-ui'; const tw = g.measureText(txt).width + 8; g.fillStyle = '#1d1712cc'; g.beginPath(); g.roundRect(p.x - tw / 2, ty - 7, tw, 12, 6); g.fill(); g.fillStyle = '#f3e6c6'; g.textAlign = 'center'; g.fillText(txt, p.x, ty + 2.5); }
+      const ro = roleOf(it), rc = rarity(it.rarity).color;
+      if (it.rarity !== 'common') { g.strokeStyle = rc; g.globalAlpha = 0.85; g.lineWidth = 2.5; g.beginPath(); g.arc(p.x, p.y, radOf(it, inr) * 1.08, 0, TAU); g.stroke(); g.globalAlpha = 1; }
+      { const ty = p.y + inr * 0.7, txt = `${ro.glyph} ${ro.short}${n.state === 'spin' ? ' · ' + Math.round(n.rpm) : n.state === 'jam' ? ' · jammed' : ' · idle'}`; g.font = '800 9px Nunito, system-ui'; const tw = g.measureText(txt).width + 10;
+        g.fillStyle = '#140e09e0'; g.beginPath(); g.roundRect(p.x - tw / 2, ty - 7, tw, 13, 6); g.fill(); g.strokeStyle = ro.color; g.lineWidth = 1; g.stroke(); g.fillStyle = n.state === 'spin' ? '#f3e6c6' : '#ff9a8a'; g.textAlign = 'center'; g.fillText(txt, p.x, ty + 3); }
+      if (mergeable.has(it.id)) mergeBadge(p.x + radOf(it, inr) * 0.75, p.y - radOf(it, inr) * 0.75);
       if (sel === it.id) { hexOutline(p.x, p.y, HX.size * 0.97); g.strokeStyle = '#fff'; g.lineWidth = 2; g.stroke(); }
     }
-    // drawers
-    const items = drawerItems();
-    g.fillStyle = '#d4a94e'; g.font = '900 13px Cinzel, serif'; g.textAlign = 'left'; g.fillText(`Drawers ${items.length}/${stats.invSlots}`, BL.dx + 2, BL.dy - 9);
-    g.textAlign = 'right'; g.fillStyle = '#a8957a'; g.font = '800 12px Nunito, system-ui'; g.fillText('Sort ⇅', BL.dx + BL.cols * BL.slot - 2, BL.dy - 9);
-    const nStones = pouchList().reduce((a, p) => a + p.n, 0); g.fillStyle = nStones ? '#c9a8ff' : '#6b5a44'; g.fillText(`◆ Stones ${nStones}`, BL.dx + BL.cols * BL.slot - 70, BL.dy - 9);
-    for (let i = 0; i < BL.slots; i++) {
-      const r = slotRect(i); const sg = g.createLinearGradient(0, r.y, 0, r.y + r.s); sg.addColorStop(0, '#000000a0'); sg.addColorStop(1, '#00000040');
-      g.fillStyle = sg; g.beginPath(); g.roundRect(r.x + 2, r.y + 2, r.s - 4, r.s - 4, 9); g.fill();
-      const it = items[i]; if (!it || (drag && drag.live && drag.id === it.id)) continue;
-      g.strokeStyle = rarity(it.rarity).color; g.lineWidth = it.rarity === 'common' ? 1 : 2; g.stroke();
-      drawItem(it, r.x + r.s / 2, r.y + r.s / 2, r.s * ({ S: 0.3, M: 0.36, L: 0.42 })[it.size], 0, { glow: sel === it.id ? '#fff' : null });
-    }
-    if (drag && drag.live) { const it = save.items[drag.id]; g.save(); g.shadowColor = '#000'; g.shadowBlur = 18; g.shadowOffsetY = 10; drawItem(it, drag.x, drag.y - 30, radOf(it, inr) * 1.1, t * 2); g.restore(); }
-    if (!board.spinning.some((n) => D.GEARS[n.item.base].fam === 'unit')) { g.fillStyle = '#ffd38a'; g.font = '800 13px Nunito, system-ui'; g.textAlign = 'center'; g.fillText('Drag a gear next to the Mainspring so it turns', W / 2, 18); }
+    // the tray: filter chips, then a scrolling row of named cards
+    g.textBaseline = 'middle';
+    let cx = 10; for (const [k, lbl] of FILTERS) { g.font = '800 12px Nunito, system-ui'; const w = g.measureText(lbl).width + 18; g.fillStyle = trayFilter === k ? '#d4a94e' : '#ffffff14'; g.beginPath(); g.roundRect(cx, BL.ty + 5, w, 22, 11); g.fill(); g.fillStyle = trayFilter === k ? '#241a12' : '#cdbb98'; g.textAlign = 'center'; g.fillText(lbl, cx + w / 2, BL.ty + 16.5); BL['chip_' + k] = [cx, cx + w]; cx += w + 6; }
+    const nStones = pouchList().reduce((a, p) => a + p.n, 0);
+    g.textAlign = 'right'; g.font = '800 12px Nunito, system-ui'; g.fillStyle = '#d4a94e'; g.fillText('Armory ›', W - 12, BL.ty + 16.5); g.fillStyle = nStones ? '#c9a8ff' : '#6b5a44'; g.fillText(`◆${nStones}`, W - 76, BL.ty + 16.5);
+    const items = trayItems(), maxScroll = Math.max(0, items.length * (TRAY.cw + TRAY.gap) + 14 - W); trayScroll = Math.max(0, Math.min(maxScroll, trayScroll)); BL.maxScroll = maxScroll;
+    g.save(); g.beginPath(); g.rect(0, BL.cy - 2, W, TRAY.ch + 6); g.clip();
+    items.forEach((it, i) => {
+      const r = cardRect(i); if (r.x > W || r.x + r.w < 0 || (drag && drag.live && drag.id === it.id)) return;
+      const rc = rarity(it.rarity).color, ro = roleOf(it);
+      g.fillStyle = '#1a120c'; g.beginPath(); g.roundRect(r.x, r.y, r.w, r.h, 10); g.fill(); g.strokeStyle = it.rarity === 'common' ? '#4a3826' : rc; g.lineWidth = it.rarity === 'common' ? 1 : 2; g.stroke();
+      g.fillStyle = ro.color; g.fillRect(r.x + 8, r.y + 2, r.w - 16, 2);
+      drawItem(it, r.x + r.w / 2, r.y + 28, ({ S: 15, M: 18, L: 21 })[it.size], 0, { glow: sel === it.id ? '#fff' : null });
+      g.font = '800 9.5px Nunito, system-ui'; g.textAlign = 'center'; g.fillStyle = '#f3e6c6'; g.fillText(`${ro.glyph} ${ro.short}`, r.x + r.w / 2, r.y + r.h - 9);
+      if (mergeable.has(it.id)) mergeBadge(r.x + r.w - 10, r.y + 10);
+    });
+    if (!items.length) { g.fillStyle = '#8a7a62'; g.font = '700 12px Nunito, system-ui'; g.textAlign = 'center'; g.fillText(M.invItems(save).length ? 'Nothing in this filter' : 'Every spare gear is on the bench', W / 2, BL.cy + TRAY.ch / 2); }
+    g.restore(); g.textBaseline = 'alphabetic';
+    if (drag && drag.live) { const it = save.items[drag.id]; g.save(); g.shadowColor = '#000'; g.shadowBlur = 18; g.shadowOffsetY = 10; drawItem(it, drag.x, drag.y - 30, radOf(it, inr) * 1.1, t * 2); g.restore(); if (drag.fromCell) { g.fillStyle = drag.y > BL.ty ? '#ffe28a' : '#ffe28a80'; g.font = '800 11px Nunito'; g.textAlign = 'center'; g.fillText('drop here to take it off', W / 2, BL.ty - 6); } }
+    if (!board.spinning.some((n) => D.GEARS[n.item.base].fam === 'unit')) { g.fillStyle = '#ffd38a'; g.font = '800 13px Nunito, system-ui'; g.textAlign = 'center'; g.fillText('Drag a troop gear next to the Mainspring so it turns', W / 2, 18); }
   }
-  // bench input
+  function mergeBadge(x, y) { g.fillStyle = '#2f9e5a'; g.beginPath(); g.arc(x, y, 7, 0, TAU); g.fill(); g.strokeStyle = '#0d2a18'; g.lineWidth = 1.5; g.stroke(); g.fillStyle = '#fff'; g.font = '900 10px system-ui'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('⇧', x, y + 0.5); g.textBaseline = 'alphabetic'; }
+  // bench input: drag gears between board and tray; swipe the tray sideways to scroll it
   let drag = null;
   function benchHit(x, y) {
-    if (y < BL.bh) { const k = pxHex(x, y); const id = save.board[k]; if (id && M.cells(stats.boardR).includes(k)) return { id, cell: k }; return { cell: k }; }
-    if (y > BL.dy - 26 && y < BL.dy && x > BL.dx + BL.cols * BL.slot - 66) return { sort: true };
-    if (y > BL.dy - 26 && y < BL.dy && x > BL.dx + BL.cols * BL.slot - 150) return { pouch: true };
-    const c = Math.floor((x - BL.dx) / BL.slot), r = Math.floor((y - BL.dy) / BL.slot), i = r * BL.cols + c;
-    if (c >= 0 && c < BL.cols && r >= 0 && i < BL.slots) { const it = drawerItems()[i]; return { drawer: true, id: it ? it.id : null, i }; }
-    return {};
+    if (y < BL.ty) { const k = pxHex(x, y); const id = save.board[k]; if (id && M.cells(stats.boardR).includes(k)) return { id, cell: k }; return { cell: k }; }
+    if (y < BL.cy) { for (const [k] of FILTERS) { const c = BL['chip_' + k]; if (c && x >= c[0] && x <= c[1]) return { chip: k }; } if (x > W - 64) return { armory: true }; if (x > W - 110) return { pouch: true }; return { tray: true }; }
+    const items = trayItems(); for (let i = 0; i < items.length; i++) { const r = cardRect(i); if (x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h) return { tray: true, id: items[i].id }; }
+    return { tray: true };
   }
-  function benchDown(x, y) { const h = benchHit(x, y); drag = { x, y, sx: x, sy: y, id: h.id || null, fromCell: h.cell && h.id ? h.cell : null, live: false, h }; }
-  function benchMove(x, y) { if (!drag) return; drag.x = x; drag.y = y; if (!drag.live && drag.id && Math.hypot(x - drag.sx, y - drag.sy) > 9) { drag.live = true; closeSheet(); } }
+  function benchDown(x, y) { const h = benchHit(x, y); drag = { x, y, sx: x, sy: y, id: h.id || null, fromCell: h.cell && h.id ? h.cell : null, live: false, mode: null, scroll0: trayScroll, h }; }
+  function benchMove(x, y) {
+    if (!drag) return; drag.x = x; drag.y = y; const dx = x - drag.sx, dy = y - drag.sy;
+    if (!drag.mode && Math.hypot(dx, dy) > 9) { drag.mode = drag.h.tray && Math.abs(dx) > Math.abs(dy) ? 'scroll' : drag.id ? 'gear' : 'none'; if (drag.mode === 'gear') { drag.live = true; closeSheet(); } }
+    if (drag.mode === 'scroll') trayScroll = Math.max(0, Math.min(BL.maxScroll || 0, drag.scroll0 - dx));
+  }
   function benchUp(x, y) {
     if (!drag) return; const d = drag; drag = null;
-    if (!d.live) { // a tap
-      if (d.h.sort) { sortDrawers(); return; }
+    if (!d.mode) { // a tap
+      if (d.h.chip) { trayFilter = d.h.chip; trayScroll = 0; sfx.tick(); return; }
+      if (d.h.armory) { setTab('armory'); return; }
       if (d.h.pouch) { openPouch(); return; }
       if (d.id) openGear(d.id); else closeSheet();
       return;
     }
-    const h = benchHit(x, y - 30), it = save.items[d.id];
+    if (d.mode !== 'gear') return;
+    const h = benchHit(x, y - 30);
     let err = '';
     if (h.id && h.id !== d.id && M.canMerge(save, d.id, h.id) === '') { const m = M.mergeKeepBest(save, d.id, h.id); err = m.err; if (!err) { sfx.merge(); toast(`Merged: ${save.items[m.id].name} is now rank ${save.items[m.id].rank}`); } }
-    else if (y - 30 < BL.bh && h.cell) { if (h.cell === '0,0') err = 'The Mainspring stays put'; else if (!M.cells(stats.boardR).includes(h.cell)) err = ''; else { err = M.place(save, d.id, h.cell); if (!err) { sfx.clank(); placedAt[d.id] = clock; } } }
-    else if (h.drawer && d.fromCell) { err = M.unplace(save, d.fromCell); if (!err) sfx.tick(); }
+    else if (y - 30 < BL.ty && h.cell) { if (h.cell === '0,0') err = 'The Mainspring stays put'; else if (!M.cells(stats.boardR).includes(h.cell)) err = ''; else { err = M.place(save, d.id, h.cell); if (!err) { sfx.clank(); placedAt[d.id] = clock; } } }
+    else if (y > BL.ty && d.fromCell) { err = M.unplace(save, d.fromCell); if (!err) sfx.tick(); }
     if (err) { toast(err); sfx.nope(); }
-    void it; persist(); refresh();
-  }
-  function sortDrawers() {
-    const ord = ['legendary', 'set', 'rare', 'magic', 'common'];
-    invOrder = M.invItems(save).sort((a, b) => ord.indexOf(a.rarity) - ord.indexOf(b.rarity) || a.base.localeCompare(b.base) || b.ilvl - a.ilvl).map((it) => it.id);
-    toast('Sorted by rarity');
+    persist(); refresh();
   }
 
   // gear card
@@ -367,7 +397,7 @@
       if (a === 'sock') return stonePicker(id, +b.dataset.i);
       if (a === 'salvage') { if (b.dataset.sure) { err = M.salvage(save, id); if (!err) { sfx.clank(); toast(`+${sv} brass`); persist(); refresh(); return closeSheet(); } } else { b.dataset.sure = 1; b.textContent = `Sure? +${sv}🔩`; return; } }
       if (err) { toast(err); sfx.nope(); }
-      persist(); refresh(); if (save.items[id]) openGear(id);
+      persist(); refresh(); if (save.items[id]) openGear(id); else closeSheet();
     };
   }
   function pouchList() { const out = []; for (const [ty, tiers] of Object.entries(save.pouch || {})) tiers.forEach((n, ti) => { if (n > 0) out.push({ ty, ti, n }); }); return out.sort((a, b) => b.ti - a.ti || a.ty.localeCompare(b.ty)); }
@@ -680,10 +710,10 @@
   function endShift() { shift = null; fx = []; document.body.classList.remove('shift'); refresh(); requestAnimationFrame(resize); music(); }
 
   // ------------------------------------------------------------------ Upgrade tree + Blueprints
-  const NODE_SP = 74;
+  const NODE_SP = 96;
   const treeNodePx = (n) => ({ x: W / 2 + treePan.x + n.x * NODE_SP, y: H / 2 + 20 + treePan.y + n.y * NODE_SP });
   const bpNodePx = (i) => { const a = (i / D.BLUEPRINTS.length) * TAU - Math.PI / 2, r = Math.min(W, H) * 0.32; return { x: W / 2 + Math.cos(a) * r, y: H / 2 + 30 + Math.sin(a) * r }; };
-  const showBp = () => save.overhauls > 0 || save.blueprints > 0;
+  function showBp() { return save.overhauls > 0 || save.blueprints > 0 || Object.values(save.bp || {}).some((l) => l > 0); }
   function drawTree(t) {
     g.fillStyle = '#1d1712'; g.fillRect(0, 0, W, H);
     g.strokeStyle = '#2a2019'; g.lineWidth = 1; for (let x = (treePan.x % 37) - 37; x < W; x += 37) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x, H); g.stroke(); }
@@ -698,8 +728,9 @@
         g.globalAlpha = open ? 1 : 0.35; const ic = art('icon-' + n.id);
         if (ic) g.drawImage(ic, p.x - 23, p.y - 23, 46, 46); else { g.fillStyle = '#f3e6c6'; g.font = '20px system-ui'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(n.icon, p.x, p.y + 1); g.textBaseline = 'alphabetic'; }
         g.globalAlpha = 1; g.textAlign = 'center';
-        g.fillStyle = '#a8957a'; g.font = '800 10px Nunito, system-ui';
-        if (n.id !== 'root') g.fillText(maxed ? 'MAX' : open ? `${l}/${n.max} · ${fmt(M.nodeCost(n, l))}` : '🔒', p.x, p.y + 39);
+        g.fillStyle = open ? '#f3e6c6' : '#7a6a52'; g.font = '800 10px Nunito, system-ui'; g.fillText(n.name, p.x, p.y + 39);
+        g.fillStyle = can ? '#ffe28a' : '#a8957a'; g.font = '700 9px Nunito, system-ui';
+        if (n.id !== 'root') g.fillText(maxed ? 'MAX' : open ? `${l}/${n.max} · ${fmt(M.nodeCost(n, l))}` : '🔒 locked', p.x, p.y + 50);
         if (sel === 'node:' + n.id) { g.strokeStyle = '#fff'; g.lineWidth = 2; g.beginPath(); g.arc(p.x, p.y, 32, 0, TAU); g.stroke(); }
       }
     } else {
@@ -765,6 +796,72 @@
   }
 
   // ------------------------------------------------------------------ Codex (DOM page)
+  // ------------------------------------------------------------------ Armory: every gear in one place
+  const ARM = { fam: 'all', rar: 'any', where: 'all', sort: 'rarity', select: false, picked: new Set() };
+  const iconCache = {};
+  function iconURL(it) {
+    const k = [it.base, it.size, it.rarity, artVer].join('|'); if (iconCache[k]) return iconCache[k];
+    if (window.CogGL && window.CogGL.ready) { try { return (iconCache[k] = window.CogGL.icon(iconSpec(it), 96).toDataURL()); } catch { /* fall through */ } }
+    return null;
+  }
+  function armoryList() {
+    const pw = (it) => { const P = M.gearPower(it, null, stats, {}); return P.fam === 'unit' ? Math.sqrt(P.hp * (P.dmg / P.every)) : (P.s || P.factor || P.yield || P.pull || 1) * 5; };
+    return Object.values(save.items).filter((it) => {
+      const f = D.GEARS[it.base].fam;
+      if (ARM.fam !== 'all' && !(ARM.fam === 'other' ? f !== 'unit' && f !== 'spell' : f === ARM.fam)) return false;
+      if (ARM.rar === 'magic+' && it.rarity === 'common') return false; if (ARM.rar === 'rare+' && !['rare', 'set', 'legendary'].includes(it.rarity)) return false; if (ARM.rar === 'special' && !['set', 'legendary'].includes(it.rarity)) return false;
+      if (ARM.where === 'bench' && it.loc !== 'board') return false; if (ARM.where === 'drawers' && it.loc !== 'inv') return false;
+      return true;
+    }).sort((a, b) => ARM.sort === 'type' ? a.base.localeCompare(b.base) || b.rank - a.rank : ARM.sort === 'ilvl' ? b.ilvl - a.ilvl : ARM.sort === 'power' ? pw(b) - pw(a) : RORD.indexOf(a.rarity) - RORD.indexOf(b.rarity) || a.base.localeCompare(b.base));
+  }
+  function mergePlan() { // merge spare commons/magics into an identical gear; the better one always survives
+    const plan = []; const used = new Set();
+    const groups = {}; for (const it of Object.values(save.items)) { if (it.vault) continue; const k = it.base + '|' + it.size + '|' + it.rank; (groups[k] = groups[k] || []).push(it); }
+    for (const list of Object.values(groups)) {
+      list.sort((a, b) => RORD.indexOf(a.rarity) - RORD.indexOf(b.rarity) || b.affixes.length - a.affixes.length);
+      const keep = list.filter((it) => !used.has(it.id)), donors = keep.filter((it) => it.rarity === 'common' || it.rarity === 'magic').reverse();
+      for (const d of donors) { const t = keep.find((x) => x !== d && !used.has(x.id) && !used.has(d.id) && M.canMerge(save, d.id, x.id) === '' && RORD.indexOf(x.rarity) <= RORD.indexOf(d.rarity)); if (t) { plan.push([d.id, t.id]); used.add(d.id); used.add(t.id); } }
+    }
+    return plan;
+  }
+  function renderArmory() {
+    const all = Object.values(save.items), list = armoryList(), plan = mergePlan(), inv = M.invItems(save).length;
+    const chip = (grp, val, lbl) => `<button class="chip ${ARM[grp] === val ? 'on' : ''}" data-a="f" data-g="${grp}" data-v="${val}">${lbl}</button>`;
+    const sv = [...ARM.picked].reduce((a, id) => a + (save.items[id] ? M.salvageValue(save, save.items[id], stats) : 0), 0);
+    page.innerHTML = `
+      <h2>Armory</h2>
+      <p class="arm-sub">${all.length} gears · drawers ${inv}/${stats.invSlots} · ${all.length - inv} on the bench · Vault ${M.vaultCount(save)}/${stats.vault} · ◆ ${pouchList().reduce((a, p) => a + p.n, 0)} stones</p>
+      <div class="chips">${chip('fam', 'all', 'All')}${chip('fam', 'unit', '⚔ Troops')}${chip('fam', 'spell', '✦ Spells')}${chip('fam', 'other', '⟳ Other')}</div>
+      <div class="chips">${chip('rar', 'any', 'Any rarity')}${chip('rar', 'magic+', 'Magic+')}${chip('rar', 'rare+', 'Rare+')}${chip('rar', 'special', 'Set & Legendary')}</div>
+      <div class="chips">${chip('where', 'all', 'Everywhere')}${chip('where', 'bench', 'On the bench')}${chip('where', 'drawers', 'In drawers')}
+        <select data-a="sort"><option value="rarity">Sort: rarity</option><option value="type">Sort: type</option><option value="power">Sort: power</option><option value="ilvl">Sort: item level</option></select></div>
+      <div class="chips">
+        <button class="act" data-a="mergeall" ${plan.length ? '' : 'disabled'}>⇧ Merge duplicates${plan.length ? ` (${plan.length})` : ''}</button>
+        <button class="act" data-a="select">${ARM.select ? 'Done selecting' : '☐ Select to salvage'}</button>
+        <button class="act" data-a="pouch">◆ Stones</button>
+      </div>
+      ${ARM.select ? `<div class="selbar"><span>${ARM.picked.size} selected</span><button class="act" data-a="pickall">Select all shown (not vaulted)</button><button class="act danger" data-a="salv" ${ARM.picked.size ? '' : 'disabled'}>Salvage ${ARM.picked.size} for +${sv} 🔩</button></div>` : ''}
+      <div class="arm-grid">${list.map((it) => {
+        const R = rarity(it.rarity), ro = roleOf(it), url = iconURL(it), picked = ARM.picked.has(it.id);
+        return `<button class="gcard ${picked ? 'picked' : ''}" data-a="card" data-id="${it.id}" style="--rc:${R.color};--fc:${ro.color}">
+          <span class="gi">${url ? `<img src="${url}" alt="">` : `<b>${ro.glyph}</b>`}</span>
+          <span class="gn" style="color:${it.rarity === 'common' ? '#f3e6c6' : R.color}">${it.name}</span>
+          <span class="gr">${R.name} · ${D.SIZES[it.size].name} · ilvl ${it.ilvl}${it.rank > 1 ? ` · rank ${it.rank}` : ''}</span>
+          <span class="gw"><i style="color:${ro.color}">${ro.glyph} ${ro.short}</i>: ${summary(it)}</span>
+          <span class="gb">${mergeable.has(it.id) ? '<em class="m">⇧ can merge</em>' : ''}${it.loc === 'board' ? '<em>on bench</em>' : ''}${it.vault ? '<em>🔒 vault</em>' : ''}${it.leg ? '<em class="l">★ legendary</em>' : ''}${(it.sockets || []).some(Boolean) ? '<em>◆</em>' : ''}</span>
+        </button>`; }).join('') || '<p>No gears match.</p>'}</div>`;
+    const sel2 = page.querySelector('select[data-a=sort]'); if (sel2) { sel2.value = ARM.sort; sel2.onchange = () => { ARM.sort = sel2.value; renderArmory(); }; }
+    page.onclick = (e) => {
+      const b = e.target.closest('button'); if (!b) return; const a = b.dataset.a;
+      if (a === 'f') { ARM[b.dataset.g] = b.dataset.v; renderArmory(); return; }
+      if (a === 'select') { ARM.select = !ARM.select; ARM.picked.clear(); renderArmory(); return; }
+      if (a === 'pickall') { for (const it of armoryList()) if (!it.vault) ARM.picked.add(it.id); renderArmory(); return; }
+      if (a === 'pouch') { openPouch(); return; }
+      if (a === 'card') { const id = +b.dataset.id; if (ARM.select) { if (save.items[id] && save.items[id].vault) { toast('Vaulted gears can\'t be salvaged'); return; } ARM.picked.has(id) ? ARM.picked.delete(id) : ARM.picked.add(id); renderArmory(); } else openGear(id); return; }
+      if (a === 'salv') { if (!b.dataset.sure) { b.dataset.sure = 1; b.textContent = `Tap again to salvage ${ARM.picked.size}`; return; } let n = 0; const before = save.brass; for (const id of ARM.picked) if (!M.salvage(save, id)) n++; ARM.picked.clear(); ARM.select = false; sfx.clank(); toast(`Salvaged ${n} gears for +${save.brass - before} brass`); persist(); refresh(); return; }
+      if (a === 'mergeall') { let n = 0; for (const [src, dst] of mergePlan()) if (!M.merge(save, src, dst)) n++; sfx.merge(); toast(`Merged ${n} pairs`); persist(); refresh(); return; }
+    };
+  }
   function renderCodex() {
     const st = { ...stats, ...M.trainStats(stats, board) }, odds = M.dropOdds(st), R = M.idleRates(save, st), cx = save.codex;
     const legs = Object.entries(D.LEGENDARIES), sets = Object.entries(D.SETS);
@@ -852,10 +949,17 @@
   }
   resize(); refresh(); requestAnimationFrame(frame);
   { const away = M.applyOffline(save, Date.now()); if (away) welcomeBack(away); }
-  if (!save.seenIntro) { intro(); save.seenNews = M.SAVE_V; }
-  else if ((save.seenNews || 1) < M.SAVE_V) {
-    save.seenNews = M.SAVE_V; persist();
-    showModal(`<h2>New in the workshop</h2><p style="text-align:left">⚙ <b>3D gears</b>, real brass and copper you can watch turn.<br>☠ <b>Elite enemies</b> with special powers (and better loot).<br>💰 <b>Scrap Gremlins</b>: catch them with the Wrench before they run off.<br>☄ <b>Mortar, Mender and Magnet gears</b>, 6 new legendaries and 2 new sets.<br>◆ <b>Cogstones</b> to socket into rare and better gears.<br>📜 A <b>Daily Contract</b>: one special Shift a day, with a chest.<br>🏅 <b>Milestones</b> that pay brass and Blueprints.<br>🌀 The endless <b>Deep Works</b> past Depth 30.</p><button data-a="ok">Back to work</button>`, hideModal);
+  // what's new, per release (independent of the save format version)
+  const NEWS = {
+    2: '⚙ <b>3D gears</b> · ☠ <b>Elites</b> · 💰 <b>Scrap Gremlins</b> · ☄ <b>Mortar, Mender, Magnet</b> · ◆ <b>Cogstones</b> · 📜 <b>Daily Contract</b> · 🏅 <b>Milestones</b> · 🌀 <b>The Deep Works</b>',
+    3: '🗄 <b>The Armory</b>: every gear in one place, with filters, sorting, <b>merge duplicates</b> and bulk salvage.<br>⇧ <b>Green badges</b> mark gears that can merge. A coloured ring shows rarity.<br>🏷 Every gear on the bench says what it is (and its RPM).<br>🧰 The bench tray scrolls and filters by Troops, Spells and Other.<br>✦ Upgrades show their names, and the Blueprint toggle no longer vanishes.',
+  };
+  const NEWS_V = 3;
+  if (!save.seenIntro) { intro(); save.seenNews = NEWS_V; }
+  else if ((save.seenNews || 1) < NEWS_V) {
+    const from = save.seenNews || 1; save.seenNews = NEWS_V; persist();
+    const items = Object.keys(NEWS).map(Number).filter((v) => v > from).sort((a, b) => b - a).map((v) => `<p style="text-align:left">${NEWS[v]}</p>`).join('<hr style="border:0;border-top:1px solid #c9b48a">');
+    showModal(`<h2>New in the workshop</h2>${items}<button data-a="ok">Back to work</button>`, hideModal);
   }
   persist();
 
@@ -865,7 +969,7 @@
   if (DEV) window.__cw = {
     M, D, get save() { return save; }, set save(s) { save = s; }, refresh, setTab, startShift, invalidate,
     // all in page (client) pixels, ready for synthetic pointer events
-    cellPx: (k) => cl(hexPx(k)), slotPx: (i) => { const r = slotRect(i); return cl({ x: r.x + r.s / 2, y: r.y + r.s / 2 }); },
+    cellPx: (k) => cl(hexPx(k)), slotPx: (i) => { const r = cardRect(i); return cl({ x: r.x + r.w / 2, y: r.y + r.h / 2 }); },
     lanePx: (x, y) => cl({ x: lx(x), y: ly(y) + LIFT }), stripCenter: () => cl(shift.stripC),
     get shift() { return shift; }, give: (n = 1e6) => { save.scrap += n; save.brass += n / 100; refresh(); },
     nodePx: (id) => cl(treeNodePx(D.TREE.find((n) => n.id === id))),

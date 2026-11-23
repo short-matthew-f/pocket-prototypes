@@ -37,8 +37,8 @@ function gearGeo(teeth) {
   g.translate(0, 0, -0.08); g.computeVertexNormals();
   return (geoCache['g' + teeth] = g);
 }
-const hubGeo = () => geoCache.hub || (geoCache.hub = new THREE.CylinderGeometry(0.34, 0.37, 0.34, 40).rotateX(Math.PI / 2));
-const capGeo = () => geoCache.cap || (geoCache.cap = new THREE.CircleGeometry(0.3, 40));
+const hubGeo = () => geoCache.hub || (geoCache.hub = new THREE.CylinderGeometry(0.46, 0.5, 0.34, 40).rotateX(Math.PI / 2));
+const capGeo = () => geoCache.cap || (geoCache.cap = new THREE.CircleGeometry(0.43, 40));
 const rimGeo = () => geoCache.rim || (geoCache.rim = new THREE.TorusGeometry(1.07, 0.03, 8, 64));
 function springGeo() {
   if (geoCache.spring) return geoCache.spring;
@@ -144,7 +144,7 @@ function icon(spec, px = 96) {
   if (!iconR) {
     iconR = new THREE.WebGLRenderTarget(px * 2, px * 2); iconR.texture.colorSpace = THREE.SRGBColorSpace;
     iconScene = new THREE.Scene(); iconScene.environment = scene.environment;
-    iconScene.add(new THREE.HemisphereLight(0xfff1d6, 0x6a5a48, 1.6)); const d = new THREE.DirectionalLight(0xffe2b0, 2.6); d.position.set(-0.6, 0.8, 1); iconScene.add(d);
+    iconScene.add(new THREE.HemisphereLight(0xfff6e4, 0x9a8a72, 3.2)); iconScene.add(new THREE.AmbientLight(0xffffff, 0.8)); const d = new THREE.DirectionalLight(0xfff0d0, 4.2); d.position.set(-0.6, 0.8, 1); iconScene.add(d);
     iconCam = new THREE.OrthographicCamera(-1.15, 1.15, 1.15, -1.15, 0.1, 10); iconCam.position.set(0, 0, 5);
   }
   const g = makeGear(spec); g.rotation.z = 0.2; iconScene.add(g);

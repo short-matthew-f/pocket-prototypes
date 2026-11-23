@@ -85,6 +85,22 @@ body.codex #cv{display:none}
 #page td:last-child{text-align:right}
 #page .leg{color:#ff8a1f}#page .unk{color:var(--dim)}
 #page button{min-height:42px;border:2px solid #5a4430;border-radius:12px;background:#00000040;padding:0 14px;font:800 14px var(--body);color:var(--paper);margin:4px 6px 4px 0}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+#page .chip{min-height:32px;margin:0;padding:0 12px;border-radius:16px;font:800 12px var(--body)}
+#page .chip.on{background:var(--brass);color:var(--ink);border-color:var(--brass)}
+#page .act{min-height:36px;margin:0;font:800 13px var(--body)}
+#page .act:disabled{opacity:.4}
+#page select{min-height:32px;border-radius:16px;background:#00000040;color:var(--paper);border:2px solid #5a4430;font:800 12px var(--body);padding:0 8px}
+.arm-sub{color:var(--dim)!important;font-size:13px!important;margin:0}
+.selbar{position:sticky;top:0;z-index:2;display:flex;flex-wrap:wrap;gap:6px;align-items:center;background:#241b14;padding:6px;border:1px solid #5a4430;border-radius:12px;margin:6px 0;font:800 13px var(--body)}
+.arm-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;margin-top:8px}
+#page .gcard{margin:0;display:grid;grid-template-columns:54px 1fr;grid-template-rows:auto auto auto auto;column-gap:8px;text-align:left;padding:8px;border-radius:14px;border:2px solid #4a3826;border-color:var(--rc);background:linear-gradient(#2a1f17,#1d1712);min-height:0;box-shadow:inset 0 3px 0 var(--fc)}
+#page .gcard.picked{outline:3px solid #ff8a6a;outline-offset:-3px;background:#3a1f17}
+.gi{grid-row:1/5;width:54px;height:54px;display:grid;place-items:center;border-radius:12px;background:#00000040}
+.gi img{width:54px;height:54px}.gi b{font-size:26px}
+.gn{font:900 13px/1.15 var(--display)}.gr{font:700 10.5px var(--body);color:var(--dim)}
+.gw{font:700 11.5px/1.25 var(--body);color:var(--paper)}.gw i{font-style:normal;font-weight:900}
+.gb{display:flex;flex-wrap:wrap;gap:4px;margin-top:2px}.gb em{font:800 9.5px var(--body);font-style:normal;background:#00000050;border-radius:8px;padding:1px 6px;color:var(--dim)}.gb em.m{background:#2f9e5a;color:#fff}.gb em.l{color:#ff8a1f}
 #page button.danger{border-color:var(--red);color:var(--red)}
 #toast{position:fixed;left:50%;top:calc(60px + env(safe-area-inset-top,0px));transform:translateX(-50%);z-index:9;background:#000c;color:var(--paper);font:800 14px var(--body);padding:8px 14px;border-radius:12px;pointer-events:none;opacity:0;transition:opacity .2s;max-width:90vw;text-align:center}
 #toast.on{opacity:1}
@@ -105,6 +121,7 @@ body.codex #cv{display:none}
   </div>
   <nav>
     <button data-tab="bench" class="on"><b>⚙</b>Bench</button>
+    <button data-tab="armory"><b>🗄</b>Armory</button>
     <button data-tab="tree"><b>✦</b>Upgrades<i class="dot" id="tree-dot" hidden></i></button>
     <button data-tab="codex"><b>📖</b>Codex</button>
   </nav>
