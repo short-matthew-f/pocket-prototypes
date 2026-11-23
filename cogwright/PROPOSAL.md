@@ -17,8 +17,8 @@ Changes from the proposal:
 
 Pacing, measured by a bot playing the real model (`node test.js --bots`):
 
-- First legendary at about 17 minutes. A pity timer guarantees one within 20 drops.
-- Depth 10 at about 2 hours.
+- First legendary at 3–16 minutes across three seeds. A pity timer guarantees one within 20 drops.
+- Depth 10 at 1.5–2.3 hours across three seeds.
 - Bots that never use the Wrench, or use only one troop type, progress less.
 
 ## Pitch

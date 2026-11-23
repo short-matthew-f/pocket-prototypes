@@ -127,6 +127,12 @@
   function addLoot(save, it, st) { // into the drawers, or salvaged when the filter says so / the drawers are full
     save.codex = save.codex || {}; if (it.leg) save.codex[it.leg] = 1; if (it.set) save.codex[it.set + ':' + it.base] = 1;
     const filtered = (st.autoSalvage >= 1 && it.rarity === 'common') || (st.autoSalvage >= 2 && it.rarity === 'magic');
+    const precious = it.rarity === 'legendary' || it.rarity === 'set' || it.rarity === 'rare';
+    if (!filtered && invItems(save).length >= st.invSlots && precious) { // make room by melting the weakest common/magic spare
+      const ord = ['common', 'magic'], spare = invItems(save).filter((o) => !o.vault && ord.includes(o.rarity)).sort((a, b) => ord.indexOf(a.rarity) - ord.indexOf(b.rarity) || a.ilvl - b.ilvl)[0];
+      if (spare) { save.brass += salvageValue(save, spare, st); delete save.items[spare.id]; }
+      else if (it.rarity !== 'rare') { it.loc = 'inv'; return { kept: true, overflow: true }; } // never melt a legendary or set piece unasked
+    }
     if (filtered || invItems(save).length >= st.invSlots) { const b = salvageValue(save, it, st); save.brass += b; delete save.items[it.id]; return { salvaged: b }; }
     it.loc = 'inv'; return { kept: true };
   }
@@ -243,6 +249,15 @@
     if (B.rank >= stats(save).maxRank) return 'already at the top rank';
     if (A.vault && !B.vault) return 'take it out of the Vault first';
     return '';
+  }
+  function mergeKeepBest(save, a, b) { // used by drag-and-drop: the rarer gear (or the one with more affixes) survives
+    const A = save.items[a], B = save.items[b]; if (!A || !B) return { err: 'pick two gears' };
+    const rank = (it) => RARITIES.findIndex((r) => r.id === it.rarity) * 10 + it.affixes.length;
+    const [src, dst] = rank(A) > rank(B) ? [b, a] : [a, b];
+    const at = Object.keys(save.board).find((c) => save.board[c] === src);
+    const err = merge(save, src, dst); if (err) return { err };
+    if (at && save.items[dst].loc !== 'board') place(save, dst, at); // the survivor takes the board spot
+    return { err: '', id: dst };
   }
   function merge(save, src, dst) { // dst keeps its affixes and rises a rank; src is used up
     const e = canMerge(save, src, dst); if (e) return e;
@@ -516,20 +531,20 @@
   function idleRates(save, st = stats(save)) {
     const b = solve(save, st);
     const perp = b.spinning.some((n) => n.item.leg === 'perpetual') ? 2 : 1;
-    let coll = 0;
+    let coll = 0, collShift = 0;
     for (const n of b.spinning) {
       const P = gearPower(n.item, n, st, b.sets);
       const perTurn = (P.fam === 'collector' ? P.yield * (1 + affix(n.item, 'idle') / 100) : 0) + P.scrap;
-      coll += (perTurn * n.rpm) / 60;
+      coll += (perTurn * n.rpm) / 60; collShift += ((P.fam === 'collector' ? P.yield : 0) + P.scrap) * n.rpm / 60;
     }
     coll *= st.idleEff * st.idleMult * perp;
     const a = save.avg, cycle = a.secs + 20; // a Shift plus time at the bench
     const active = a.n ? a.scrap / cycle : 0;
     const night = st.nightEff && a.n ? (a.scrap / cycle) * st.nightEff * st.idleMult : 0;
     let total = coll + night;
-    const cap = active ? active * 0.9 : Infinity; // idle never beats playing
+    const cap = active ? active * 0.9 : collShift * 0.9; // idle never beats playing
     total = Math.min(total, cap);
-    return { collectors: coll, night, total, active, capped: total >= cap - 1e-9 && cap !== Infinity };
+    return { collectors: coll, night, total, active, capped: total >= cap - 1e-9 && total > 0 };
   }
   function applyOffline(save, now) {
     const st = stats(save);
@@ -564,7 +579,7 @@
   }
 
   const api = { TUNE, SAVE_V, LANE, rngFrom, key, unkey, cells, neighbours, hexDist, NEI, stats, baseStats, nodeCost, nodeOpen, canBuyNode, buyNode, buyBlueprint,
-    makeItem, rollDrop, dropOdds, describe, gearPower, solve, affix, place, unplace, canMerge, merge, salvage, salvageValue, reroll, rerollCost, temper, temperCost,
+    makeItem, rollDrop, dropOdds, describe, gearPower, solve, affix, place, unplace, canMerge, merge, mergeKeepBest, salvage, salvageValue, reroll, rerollCost, temper, temperCost,
     maxIlvl, toggleVault, invItems, vaultCount, newSave, load, zoneOf, isBossDepth, enemyScale, gateHp, createShift, idleRates, applyOffline, overhaulGain, overhaul, withRng, addLoot };
   if (typeof module !== 'undefined') module.exports = api; else root.CogModel = api;
 })(typeof window !== 'undefined' ? window : globalThis);

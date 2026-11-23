@@ -145,7 +145,7 @@
     N('c_scrap', 'Scrap Sense', '⛭', -2, 2, ['b_inv', 't_spd'], 35, 1.7, 10, (l) => `Scrap from kills +15% per level (now +${15 * l}%)`, (s, l) => { s.scrapMult *= 1 + 0.15 * l; }),
     N('i_cap', 'Night Watchman', '🌙', -3, 3, ['c_scrap'], 80, 2.4, 3, (l) => `Offline earnings build for up to ${[2, 4, 8, 12][l]} h`, (s, l) => { s.offlineCap = [2, 4, 8, 12][l] * 3600; }),
     N('i_eff', 'Tireless Coffers', '💤', -2, 4, ['c_scrap'], 90, 1.9, 5, (l) => `Collector gears earn ${30 + 8 * l}% of their Shift rate while you're away`, (s, l) => { s.idleEff = 0.3 + 0.08 * l; }),
-    N('i_night', 'Night Shift', '🌃', -3, 5, ['i_cap', 'i_eff'], 1500, 3, 3, (l) => l === 0 ? 'While you are away, the workshop runs Shifts on its own at 40% of your recent average' : `Night Shifts earn ${40 + 10 * l}% of your recent average`, (s, l) => { s.nightEff = l ? 0.3 + 0.1 * l : 0; }),
+    N('i_night', 'Night Shift', '🌃', -3, 5, ['i_cap', 'i_eff'], 1500, 3, 3, (l) => l === 0 ? 'While you are away, the workshop runs Shifts on its own at 40% of your recent average' : `Night Shifts earn ${30 + 10 * l}% of your recent average${l < 3 ? ` (next level: ${40 + 10 * l}%)` : ''}`, (s, l) => { s.nightEff = l ? 0.3 + 0.1 * l : 0; }),
   ];
 
   // Blueprint tree (permanent, bought with Blueprints from Overhauls)

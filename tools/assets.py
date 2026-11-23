@@ -15,7 +15,7 @@ from collections import deque
 from PIL import Image
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-GAMES = ['ore-sweeper', 'hoard', 'starfall', 'bonk-knight', 'void-drifter', 'delve-deck']
+GAMES = ['ore-sweeper', 'hoard', 'starfall', 'bonk-knight', 'void-drifter', 'delve-deck', 'cogwright']
 DROP = '/private/tmp/claude-501/-Users-matthewshort-claude-random-requests/9bc3d657-5733-4365-80e8-54214d2cba14/scratchpad/cpf-assets/deliveries/pocket-prototypes'
 
 def key_out(im, tol=38):

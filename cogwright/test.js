@@ -75,6 +75,36 @@ function clearBoard(save) { for (const k of Object.keys(save.board)) { save.item
   s.avg = { scrap: 100, drops: 1, secs: 70, n: 6 }; s.tree.i_night = 3; s.tree.i_eff = 5; s.tree.i_cap = 3;
   const R = M.idleRates(s); ok(R.total < R.active, `idle (${R.total.toFixed(2)}/s) stays below the active rate (${R.active.toFixed(2)}/s), even fully upgraded`);
 }
+// ---------------------------------------------------------------- Overhaul + Blueprints
+{ const s = M.newSave(30); s.best = 10; s.unlocked = 11; s.scrap = 5000; s.brass = 80; s.tree.t_dmg = 4;
+  const keep = M.withRng(s, (r) => M.makeItem(s, r, { rarity: 'legendary', ilvl: 9, leg: 'stormcoil' })); keep.loc = 'inv'; M.toggleVault(s, keep.id);
+  const lose = gear(s, 'brute', 'L');
+  ok(M.overhaul(M.newSave(31)) !== '', 'no Overhaul before clearing Depth 10');
+  const gain = M.overhaulGain(s); ok(M.overhaul(s) === '' && s.blueprints === gain && gain > 0, `Overhaul grants Blueprints (${gain})`);
+  ok(s.scrap === 0 && s.brass === 0 && !s.tree.t_dmg && s.unlocked === 1 && s.overhauls === 1, 'Overhaul resets scrap, brass, the tree and depth');
+  ok(s.items[keep.id] && !s.items[lose.id], 'vaulted gears survive an Overhaul; the rest are gone');
+  ok(Object.keys(s.board).length === 1, 'a fresh starter gear is on the bench');
+  s.blueprints = 20; ok(M.buyBlueprint(s, 'bp_start') === '' && M.buyBlueprint(s, 'bp_start') === '', 'Blueprints can be bought');
+  s.best = 10; M.overhaul(s); ok(s.unlocked === 7, `Head Start opens the first depths after the next Overhaul (unlocked ${s.unlocked})`);
+  const cap = M.idleRates(s); ok(cap.total <= cap.collectors + 1e-9 && s.avg.n === 0, 'right after an Overhaul, idle pay is capped by the collectors alone');
+}
+// ---------------------------------------------------------------- never lose a legendary unasked
+{ const s = M.newSave(40); const st = M.stats(s);
+  while (M.invItems(s).length < st.invSlots) gear(s, 'grunt', 'S');
+  const L = M.withRng(s, (r) => M.makeItem(s, r, { rarity: 'legendary', ilvl: 3, leg: 'heart' }));
+  ok(M.addLoot(s, L, st).kept && s.items[L.id], 'a legendary dropping into full drawers is kept (a spare common is melted instead)');
+  for (const it of M.invItems(s)) if (it.rarity === 'common') { it.rarity = 'rare'; }
+  const L2 = M.withRng(s, (r) => M.makeItem(s, r, { rarity: 'legendary', ilvl: 3, leg: 'escapement' }));
+  ok(M.addLoot(s, L2, st).kept && s.items[L2.id], 'with no spares left, a legendary overflows the drawers rather than melting');
+}
+{ const s = M.newSave(41); clearBoard(s);
+  const leg = M.withRng(s, (r) => M.makeItem(s, r, { rarity: 'legendary', ilvl: 3, leg: 'heart' })); leg.loc = 'inv';
+  const com = gear(s, 'tinker', 'M'); M.place(s, com.id, '1,0');
+  const m = M.mergeKeepBest(s, leg.id, com.id);
+  ok(!m.err && m.id === leg.id && s.items[leg.id].rank === 2 && !s.items[com.id], 'dragging a legendary onto a matching common keeps the legendary');
+  ok(s.board['1,0'] === leg.id, 'and the legendary takes the common\'s spot on the bench');
+}
+
 // ---------------------------------------------------------------- the Shift
 function runShift(s, policy = {}, dt = 1 / 20) {
   const sh = M.createShift(s), S = sh.S; const w = { x: 13, y: 8 }; let retarget = 0;
@@ -158,13 +188,14 @@ function bot(name, policy, hours, seed) {
     if (r.outcome === 'win') { fails = 0; lastWin = secs; } else if (s.depth === s.unlocked) fails++; else fails = Math.max(0, fails - 1);
     if (!marks.legendary && s.stats.legendaries) marks.legendary = secs;
     for (const d of [5, 10, 15, 20, 30]) if (!marks['d' + d] && s.best >= d) marks['d' + d] = secs;
-    if (policy.overhaul && s.best >= 10 && s.best >= s.unlocked - 1 && secs - lastWin > 1800) { M.overhaul(s); marks.overhauls = (marks.overhauls || 0) + 1;
+    if (policy.overhaul && s.best >= 10 && s.best >= s.unlocked - 1 && secs - lastWin > 1800) { (marks.cycles = marks.cycles || []).push(`${s.best}@${(secs / 3600).toFixed(1)}h`); M.overhaul(s); marks.overhauls = (marks.overhauls || 0) + 1; fails = 0; lastWin = secs;
       for (let g = 0; g < 30; g++) { const o = D.BLUEPRINTS.map((b) => b.id).filter((id) => M.buyBlueprint(s, id) === ''); if (!o.length) break; } }
   }
   if (V) { const st = M.stats(s), B = M.solve(s, st); const sp = B.spinning;
     console.log(`  board: ${sp.length} turning, ${B.jammed.length} jammed, engines ${sp.filter((n) => n.item.base === 'engine').length}, max rpm ${Math.max(...sp.map((n) => n.rpm)).toFixed(0)}, ranks ${sp.map((n) => n.item.rank).join('')}, ilvls ${sp.map((n) => n.item.ilvl).join(',')}`);
     console.log(`  spawns/s ${(sp.filter((n) => n.item.base in {grunt:1,archer:1,brute:1,tinker:1}).reduce((a, n) => a + n.rpm / 60, 0)).toFixed(1)}  troopDmg x${st.troopDmg.toFixed(2)} troopHp x${st.troopHp.toFixed(2)} wrench ${st.wrenchDmg.toFixed(0)}`); }
   const m = (k) => (marks[k] ? (marks[k] / 60).toFixed(0) + 'm' : '—');
+  if (marks.cycles) console.log(`  overhaul cycles (best depth @ time): ${marks.cycles.join('  ')}  bossKills ${s.stats.bossKills}`);
   console.log(`${name.padEnd(14)} best depth ${String(s.best).padStart(2)}  shifts ${s.stats.shifts}  legendary@${m('legendary')}  d5@${m('d5')}  d10@${m('d10')}  d15@${m('d15')}  d20@${m('d20')}${marks.overhauls ? '  overhauls ' + marks.overhauls : ''}`);
   return { s, marks };
 }
@@ -173,8 +204,9 @@ if (argv.includes('--bots')) {
   const H = +(argv[argv.indexOf('--hours') + 1] || 3);
   const res = {};
   const only = process.env.ONLY;
-  for (const [name, pol] of [['mixed', {}], ['no-wrench', { wrench: false }], ['no-crank', { crank: false }], ['grunts-only', { mono: 'grunt' }], ['archers-only', { mono: 'archer' }]])
-    if (!only || only === name) res[name] = bot(name, pol, H, 101);
+  const SEED = +(process.env.SEED || 101);
+  for (const [name, pol] of [['overhaul', { overhaul: true, skip: !only }], ['mixed', {}], ['no-wrench', { wrench: false }], ['no-crank', { crank: false }], ['grunts-only', { mono: 'grunt' }], ['archers-only', { mono: 'archer' }]])
+    if ((!only && !pol.skip) || only === name) res[name] = bot(name, pol, H, SEED);
   if (only) process.exit(0);
   ok(res.mixed.marks.legendary && res.mixed.marks.legendary < 20 * 60, 'first legendary inside 20 minutes');
   ok(res.mixed.marks.d10 && res.mixed.marks.d10 > 0.75 * 3600 && res.mixed.marks.d10 < 3 * 3600, 'Depth 10 (first Overhaul) in roughly 1-3 hours');
