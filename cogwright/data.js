@@ -106,6 +106,9 @@
     clocksmith:  { name: "Clocksmith's Pace", base: 'haste', size: 'S', power: 'While Haste is active the whole gear train turns 25% faster' },
     piercer:     { name: 'The Long Bolt', base: 'archer', size: 'L', power: 'Archer shots pierce and also hit the next enemy behind' },
     gremlinbait: { name: 'Gremlin Bait', base: 'collector', size: 'S', power: 'A Scrap Gremlin shows up in every Shift' },
+    foremanshammer: { name: "Foreman's Hammer", base: 'brute', size: 'L', bossOnly: true, power: 'Brute blows shake the lane: every hit also strikes all enemies nearby' },
+    dredgemaw:   { name: 'Dredge Maw', base: 'magnet', size: 'L', bossOnly: true, power: 'Each turn pulls in five drops, and anything it pulls in counts double' },
+    horohand:    { name: "Horologist's Hand", base: 'engine', size: 'M', bossOnly: true, power: 'Its drive boost stacks with the biggest one before it' },
   };
 
   const SETS = {
@@ -225,6 +228,24 @@
     amethyst: { name: 'Amethyst', color: '#a46bff', v: [5, 10, 16, 24, 35], txt: (v) => `+${v}% magic find` },
   };
 
-  const data = { STONES, STONE_TIERS, MILESTONES, SIZES, MAIN_TEETH, GEARS, TROOPS, ENEMY_KINDS, ZONES, MAX_DEPTH, RARITIES, AFFIXES, LEGENDARIES, SETS, TREE, BLUEPRINTS };
+  // Workshop rooms: permanent (kept through Overhauls), built and levelled with brass
+  const ROOMS = {
+    forge:    { name: 'The Forge', icon: '🔥', cost: [0, 80, 220, 550, 1300], desc: ['Fuse three gears of a rarity into one of the next; feed spare gears to the Mainspring', 'Reforge: change a gear into another of its family', 'Fusing three of one family keeps that family', 'Better odds when fusing rares (+5% legendary per level)', 'Mainspring levels cap rises to 20'] },
+    research: { name: 'Research Desk', icon: '📐', cost: [60, 180, 450, 1000], desc: ['One project at a time, running while you are away', 'Projects finish 15% faster', 'A second project slot; Blueprint drafting', 'Projects finish 30% faster'] },
+    jeweller: { name: 'The Jeweller', icon: '💎', cost: [40, 160, 420], desc: ['Combining stones costs 20% less', 'Polish: lift a stone one tier for brass', 'Removing socketed stones is free'] },
+    trophy:   { name: 'Trophy Wall', icon: '🏆', cost: [0], desc: ['Boss Trial trophies: each Heat level cleared is a permanent bonus'] },
+  };
+  const RESEARCH = {
+    survey:     { name: 'Scrap survey', icon: '🗺', hours: 0.5, lvl: 1, desc: 'A pile of scrap (about two Shifts\' worth)' },
+    stone:      { name: 'Cut a stone', icon: '◆', hours: 1, lvl: 1, desc: 'A Flawed Cogstone' },
+    study:      { name: 'Time-and-motion study', icon: '⏱', hours: 1, lvl: 1, desc: '+25% scrap for your next 5 Shifts' },
+    commission: { name: 'Commission a gear', icon: '⚙', hours: 2, lvl: 2, desc: 'A rare (or better) gear at your best item level' },
+    blueprint:  { name: 'Draft a Blueprint', icon: '📜', hours: 8, lvl: 3, desc: 'One Blueprint (needs Research Desk level 3)' },
+  };
+  // Boss Trials: trophies by boss depth (bonuses per Heat level cleared, capped at Heat 10)
+  const TROPHIES = { 10: { name: "Foreman's Hat", txt: (h) => `+${2 * h}% troop damage` }, 20: { name: "Dredge's Bucket", txt: (h) => `+${2 * h}% troop health` }, 30: { name: "Horologist's Hand", txt: (h) => `+${2 * h}% Mainspring RPM` }, deep: { name: 'Deep Engine Valve', txt: (h) => `+${3 * h}% scrap` } };
+  const HEAT = ['', 'Boss is tougher', '', 'Summons adds every 8 s', '', 'Enrages at half health', '', 'Shields itself for 3 s every 15 s', '', 'Only elites come out', ''];
+
+  const data = { ROOMS, RESEARCH, TROPHIES, HEAT, STONES, STONE_TIERS, MILESTONES, SIZES, MAIN_TEETH, GEARS, TROOPS, ENEMY_KINDS, ZONES, MAX_DEPTH, RARITIES, AFFIXES, LEGENDARIES, SETS, TREE, BLUEPRINTS };
   if (typeof module !== 'undefined') module.exports = data; else root.CogData = data;
 })(typeof window !== 'undefined' ? window : globalThis);

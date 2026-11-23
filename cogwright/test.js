@@ -111,6 +111,41 @@ function clearBoard(save) { for (const k of Object.keys(save.board)) { save.item
   const B = M.solve(s); ok(B.spinning.length >= 1, 'the migrated bench still turns');
   const sh = M.createShift(s); for (let i = 0; i < 400 && !sh.S.over; i++) sh.update(1 / 20, { wrench: { x: 13, y: 10 } }); sh.quit(); const r = sh.result();
   ok(r && r.scrap >= 0 && s.stats.shifts === JSON.parse(raw).stats.shifts + 1, 'and plays a Shift'); }
+{ const raw = require('fs').readFileSync(__dirname + '/fixtures/save-v2.json', 'utf8'), old = JSON.parse(raw); const s = M.load(raw, 1.7e12 + 5e6);
+  ok(s.v === M.SAVE_V && Object.keys(s.items).length === Object.keys(old.items).length && s.rooms && s.mainspring && s.research, 'a v2 save migrates to v3 with gears, stones and milestones intact and the new workshop added');
+  ok(JSON.stringify(s.pouch) === JSON.stringify(old.pouch) && Object.keys(s.milestones).length === Object.keys(old.milestones).length, 'its stones and milestones survive');
+  const sh = M.createShift(s); for (let i = 0; i < 300 && !sh.S.over; i++) sh.update(1 / 20, {}); sh.quit(); ok(sh.result().run, 'and it plays a Shift that reports a run record'); }
+// ---------------------------------------------------------------- the workshop
+{ const s = M.newSave(100); s.brass = 5000; const g = (b, r = 'common') => { const it = M.withRng(s, (rr) => M.makeItem(s, rr, { rarity: r, ilvl: 3, base: b, size: 'M' })); it.loc = 'inv'; return it; };
+  const a = [g('grunt'), g('archer'), g('haste')]; const f = M.fuse(s, a.map((x) => x.id));
+  ok(!f.err && s.items[f.id].rarity === 'magic' && a.every((x) => !s.items[x.id]), 'the Forge fuses three Commons into a Magic gear');
+  ok(M.fuse(s, [g('grunt').id, g('grunt', 'magic').id, g('grunt').id]).err, 'fusing needs three of the same rarity');
+  let legs = 0; for (let i = 0; i < 60; i++) { const r3 = [g('brute', 'rare'), g('brute', 'rare'), g('brute', 'rare')]; const out = M.fuse(s, r3.map((x) => x.id)); if (s.items[out.id].rarity === 'legendary') legs++; }
+  ok(legs > 4 && legs < 30, `three Rares sometimes fuse into a legendary (${legs}/60)`);
+  M.buildRoom(s, 'forge'); const re = g('grunt', 'magic'); ok(M.reforge(s, re.id, 'archer') === '' && s.items[re.id].base === 'archer', 'Forge level 2 reforges a gear within its family');
+  ok(M.reforge(s, re.id, 'haste') !== '', 'but not across families');
+  const rpm0 = M.stats(s).mainRpm; const fed = M.feedMainspring(s, Array.from({ length: 12 }, () => g('grunt', 'rare').id));
+  ok(fed.ups > 0 && M.stats(s).mainRpm > rpm0, `feeding spare gears levels the Mainspring (+${fed.ups} levels)`);
+  s.best = 10; M.overhaul(s); ok(s.mainspring.l === 0 && s.rooms.forge === 2, 'an Overhaul resets the Mainspring but keeps the rooms'); }
+{ const s = M.newSave(101); s.brass = 999; ok(M.startResearch(s, 'survey', 0) !== '', 'research needs the desk built first'); M.buildRoom(s, 'research');
+  ok(M.startResearch(s, 'survey', 0) === '' && M.startResearch(s, 'stone', 0) !== '', 'one desk, one project');
+  ok(M.claimResearch(s, 0, 60e3).err && !M.claimResearch(s, 0, 31 * 60e3).err && s.scrap > 0, 'a 30-minute survey pays out after 30 minutes'); }
+// ---------------------------------------------------------------- bounties
+{ const s = M.newSave(102); s.unlocked = 6; const L = M.ensureBounties(s); ok(L.length === 3 && L.every((b) => b.text), `three bounties (${L.map((b) => b.text).join(' / ')})`);
+  const b = L[0]; const run = { win: true, depth: 9, boss: true, kills: 9999, elites: 99, gremlin: true, units: [b.base || 'grunt'], wrenchSecs: 0, cranks: 9, stones: 9 };
+  for (let i = 0; i < 3; i++) M.bountiesFromRun(s, run); ok(L.every((x) => x.progress >= x.n), 'a big enough run completes them');
+  const before = JSON.stringify(s.brass) + Object.keys(s.items).length + s.blueprints; const id = L[0].id; ok(!M.claimBounty(s, id).err && !s.bounties.list.find((x) => x.id === id) && s.bounties.list.length === 3, 'claiming pays and deals a fresh bounty'); void before; }
+// ---------------------------------------------------------------- expeditions + trials
+{ const s = M.newSave(103); s.unlocked = 5; s.tree.t_dmg = 10; s.tree.t_hp = 10; s.tree.s_door = 8;
+  ok(M.startExpedition(s) === '' && s.exp.rows.length === 7 && s.exp.rows[6][0].type === 'boss', 'an Expedition is a 7-row map ending in a boss');
+  const c = M.expChoices(s); ok(c.length >= 2 && c.every((n) => n.type === 'fight'), 'it starts with a choice of fights');
+  M.expEnter(s, 0, 0); const o = M.expShiftOpts(s); ok(o.counts === false && o.seed === s.exp.rows[0][0].seed, 'Expedition Shifts are seeded and never count toward depth progress');
+  const un = s.unlocked, sh = M.createShift(s, o); while (!sh.S.over) sh.update(1 / 20, { wrench: { x: 13, y: 12 } }); const res = sh.result(); M.expAfterShift(s, res);
+  ok(s.unlocked === un, 'winning an Expedition fight does not open depths'); ok(res.outcome !== 'win' || M.expChoices(s).length >= 1, 'after a win you choose the next node'); }
+{ const s = M.newSave(104); s.stats.deepest = 20; ok(JSON.stringify(M.trialBosses(s)) === '[10,20]' && M.trialHeatOpen(s, 10) === 1, 'Boss Trials list the bosses you have beaten, starting at Heat 1');
+  const o = M.trialOpts(s, 10, 5); s.tree.t_dmg = 10; const sh = M.createShift(s, o); let summon = false; for (let i = 0; i < 900 && !sh.S.over; i++) { sh.update(1 / 20, {}); if (sh.S.events.some((e) => e.type === 'summon')) summon = true; }
+  ok(sh.S.boss && summon, 'Heat 3+ bosses summon adds'); M.trialAfter(s, 10, 5, { outcome: 'win' }); ok(s.trophies[10] === 5 && M.trialHeatOpen(s, 10) === 6 && M.stats(s).troopDmg > M.stats(M.newSave(1)).troopDmg * 1.09, 'a cleared Heat becomes a trophy bonus'); }
+
 // ---------------------------------------------------------------- Head Start never pays Blueprints for free
 { const s = M.newSave(50); s.bp.bp_start = 5; s.best = 12; s.unlocked = 13; M.overhaul(s);
   ok(s.unlocked === 16 && s.best === 0 && M.overhaulGain(s) === 0, 'right after an Overhaul with Head Start, there is nothing to Overhaul for');

@@ -106,7 +106,8 @@
     save.depth = Math.max(1, Math.min(save.depth, save.unlocked));
     $('#d-num').textContent = 'Depth ' + save.depth; $('#d-zone').textContent = M.zoneOf(save.depth).name.replace('The ', '') + (M.isBossDepth(save.depth) ? ' · Boss' : '');
     $('#d-prev').disabled = save.depth <= 1; $('#d-next').disabled = save.depth >= save.unlocked;
-    { const c = M.dailyContract(save, today()); $('#daily').classList.toggle('done', c.done); $('#daily').classList.toggle('new', !c.done); }
+    { const L = save.bounties ? save.bounties.list : []; const now = Date.now(); $('#jobs-dot').hidden = !(!M.dailyContract(save, today()).done || L.some((b) => b.progress >= b.n)); $('#ws-dot').hidden = !(save.research.slots.some((x) => now >= x.end)); }
+    if (tab === 'workshop') renderWorkshop(); if (tab === 'jobs') renderJobs();
     $('#tree-dot').hidden = !D.TREE.some((n) => M.canBuyNode(save, n.id) === '') && !M.overhaulGain(save);
     if (tab === 'codex') renderCodex(); if (tab === 'armory') renderArmory();
     if (sel && !save.items[sel]) closeSheet();
@@ -115,7 +116,7 @@
   function setTab(t) {
     tab = t; closeSheet();
     document.querySelectorAll('nav button').forEach((b) => b.classList.toggle('on', b.dataset.tab === t));
-    document.body.classList.toggle('codex', t === 'codex' || t === 'armory'); document.body.classList.toggle('tree', t === 'tree');
+    document.body.classList.toggle('codex', ['codex', 'armory', 'workshop', 'jobs'].includes(t)); if (t === 'jobs' && !(save.exp && !save.exp.over)) JOB.view = 'main'; document.body.classList.toggle('tree', t === 'tree');
     $('#foot').style.display = t === 'bench' ? '' : 'none';
     refresh(); requestAnimationFrame(resize);
   }
@@ -123,11 +124,12 @@
   $('#d-next').onclick = () => { save.depth++; refresh(); };
   $('#go').onclick = () => startShift();
   const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
-  $('#daily').onclick = () => {
+  function dailyPrompt() {
     const c = M.dailyContract(save, today());
     if (c.done) { toast('Today\'s Contract is done. A new one comes tomorrow.'); return; }
     showModal(`<h2>Daily Contract</h2><p><b>${c.text}</b></p><p>Depth ${c.depth}. Win it for a chest: a rare gear, another gear, a Flawed Cogstone and 30 brass. One a day.</p><div class="row"><button class="alt" data-a="no">Later</button><button data-a="go">Take the job</button></div>`, (a) => { hideModal(); if (a === 'go') startShift({ depth: c.depth, mod: c.mod, contract: c.day }); });
-  };
+  }
+  $('#codexbtn').onclick = () => setTab('codex');
 
   // ------------------------------------------------------------------ drawing helpers
   const gearPaths = {};
@@ -381,9 +383,12 @@
         <button data-a="temper" ${tc && save.brass >= tc ? '' : 'disabled'}>${tc ? `Temper → ${to} (${tc}🔩)` : 'Temper: maxed'}</button>
         <button data-a="vault">${it.vault ? 'Unvault' : `Vault (${M.vaultCount(save)}/${stats.vault})`}</button>
         <button data-a="salvage" ${it.vault ? 'disabled' : ''}>Salvage +${sv}🔩</button>
+        ${!n && !it.vault ? `<button data-a="toforge">🔥 Send to the Forge</button>` : ''}
+        ${M.roomLvl(save, 'forge') >= 2 && !it.leg && !it.set ? `<select data-a="reforge" style="flex:1 1 30%;min-height:42px;border:2px solid var(--ink);border-radius:12px;font:800 13px var(--body)"><option value="">Reforge (${M.reforgeCost(it)}🔩)…</option>${Object.keys(D.GEARS).filter((k) => D.GEARS[k].fam === D.GEARS[it.base].fam && k !== it.base).map((k) => `<option value="${k}">into ${D.GEARS[k].name}</option>`).join('')}</select>` : ''}
       </div>
       ${same.length ? '' : `<div class="sub" style="margin-top:6px">Merging needs another ${D.SIZES[it.size].name.toLowerCase()} ${D.GEARS[it.base].name} of rank ${it.rank}.</div>`}`;
     sheet.hidden = false;
+    const rf = sheet.querySelector('select[data-a=reforge]'); if (rf) rf.onchange = () => { if (!rf.value) return; const err = M.reforge(save, id, rf.value); if (err) { toast(err); sfx.nope(); } else { sfx.merge(); toast('Reforged'); } persist(); refresh(); openGear(id); };
     sheet.onclick = (e) => {
       const b = e.target.closest('button'); if (!b) return; const a = b.dataset.a; let err = '';
       if (a === 'close') return closeSheet();
@@ -393,6 +398,7 @@
       if (a === 'temper') { err = M.temper(save, id); if (!err) sfx.buy(); }
       if (a === 'vault') err = M.toggleVault(save, id);
       if (a === 'reroll') { err = M.reroll(save, id, +b.dataset.i); if (!err) sfx.buy(); }
+      if (a === 'toforge') { if (!FORGE.picked.includes(id)) FORGE.picked = [...FORGE.picked, id].slice(-3); closeSheet(); setTab('workshop'); toast('In the Forge'); return; }
       if (a === 'unsock') err = M.unsocket(save, id, +b.dataset.i);
       if (a === 'sock') return stonePicker(id, +b.dataset.i);
       if (a === 'salvage') { if (b.dataset.sure) { err = M.salvage(save, id); if (!err) { sfx.clank(); toast(`+${sv} brass`); persist(); refresh(); return closeSheet(); } } else { b.dataset.sure = 1; b.textContent = `Sure? +${sv}🔩`; return; } }
@@ -412,10 +418,10 @@
   function openPouch() {
     sel = null; const list = pouchList();
     sheet.innerHTML = `<button class="x" data-a="close">✕</button><h3>◆ Cogstones</h3><div class="sub">Socket them from a rare, set or legendary gear's card. Three of a kind combine into the next tier.</div>
-      ${list.length ? `<ul>${list.map((p, i) => stoneRow(p, p.ti < 4 ? `<button data-a="comb" data-i="${i}" ${p.n >= 3 && save.brass >= M.combineCost(p.ti) ? '' : 'disabled'} style="border:2px solid var(--ink);border-radius:10px;background:#fff;font:800 12px var(--body);padding:6px 8px">3 → 1 (${M.combineCost(p.ti)}🔩)</button>` : '<b>Perfect</b>')).join('')}</ul>` : '<p class="sub">No stones yet. Elites, bosses and Scrap Gremlins drop them; pick them up with the Wrench.</p>'}`;
+      ${list.length ? `<ul>${list.map((p, i) => stoneRow(p, p.ti < 4 ? `<button data-a="comb" data-i="${i}" ${p.n >= 3 && save.brass >= M.combineCostJ(save, p.ti) ? '' : 'disabled'} style="border:2px solid var(--ink);border-radius:10px;background:#fff;font:800 12px var(--body);padding:6px 8px">3 → 1 (${M.combineCostJ(save, p.ti)}🔩)</button>${M.roomLvl(save, 'jeweller') >= 2 ? `<button data-a="polish" data-i="${i}" ${save.brass >= M.polishCost(p.ti) ? '' : 'disabled'} style="border:2px solid var(--ink);border-radius:10px;background:#fff;font:800 12px var(--body);padding:6px 8px">Polish (${M.polishCost(p.ti)}🔩)</button>` : ''}` : '<b>Perfect</b>')).join('')}</ul>` : '<p class="sub">No stones yet. Elites, bosses and Scrap Gremlins drop them; pick them up with the Wrench.</p>'}`;
     sheet.hidden = false;
     sheet.onclick = (e) => { const b = e.target.closest('button'); if (!b) return; if (b.dataset.a === 'close') return closeSheet();
-      const p = pouchList()[+b.dataset.i]; const err = M.combineStones(save, p.ty, p.ti); if (err) { toast(err); sfx.nope(); } else { play('socket', 0.8) || sfx.merge(); persist(); refresh(); } openPouch(); };
+      const p = pouchList()[+b.dataset.i]; const err = b.dataset.a === 'polish' ? M.polishStone(save, p.ty, p.ti) : M.combineStones(save, p.ty, p.ti); if (err) { toast(err); sfx.nope(); } else { play('socket', 0.8) || sfx.merge(); persist(); refresh(); } openPouch(); };
   }
   function autoPlace(id) { // the first free cell where it turns without jamming anything
     const it = save.items[id];
@@ -431,11 +437,11 @@
   function startShift(opts = {}) {
     if (!board.spinning.some((n) => D.GEARS[n.item.base].fam === 'unit')) { toast('Mesh at least one troop gear to the Mainspring first'); sfx.nope(); return; }
     audio(); closeSheet();
-    const sh = M.createShift(save, { depth: opts.depth || save.depth, mod: opts.mod, contract: opts.contract });
-    shift = { sh, S: sh.S, paused: false, acc: 0, res: null, wrench: null, crank: null, pointers: new Map() };
+    const { ctx, ...o } = opts; const sh = M.createShift(save, { ...o, depth: o.depth || save.depth });
+    shift = { sh, S: sh.S, ctx: ctx || {}, paused: false, acc: 0, res: null, wrench: null, crank: null, pointers: new Map() };
     fx = []; document.body.classList.add('shift'); requestAnimationFrame(resize); music();
     if (sh.S.boss) toast(`${sh.S.zone.names.boss} guards this depth`);
-    if (opts.mod) toast(M.MODS[opts.mod]);
+    if (opts.mod) toast(M.MODS[opts.mod]); if (opts.heat) toast(`Boss Trial, Heat ${opts.heat}`);
     persist();
   }
   let SL = null;
@@ -691,7 +697,10 @@
       <div class="row"><button class="alt" data-a="end">End Shift</button><button data-a="resume">Resume</button></div>`, (a) => { hideModal(); if (a === 'end') shift.sh.quit(); shift.paused = false; });
   }
   function showResult() {
-    const r = shift.res, st = shift.S;
+    const r = shift.res, st = shift.S, ctx = shift.ctx;
+    const doneB = r.run ? M.bountiesFromRun(save, r.run) : [];
+    if (ctx.exp) return expResult(r, doneB);
+    if (ctx.trial) return trialResult(r, ctx.trial, doneB);
     const title = { win: st.boss ? `${st.zone.names.boss} falls!` : 'Gate broken!', door: 'The door gave way', timeout: 'Shift over' }[r.outcome];
     const items = r.items.map((id) => save.items[id]).filter(Boolean);
     const lines = [`+${fmt(r.scrap)} scrap · ${r.kills} kills${r.brass ? ` · +${r.brass} brass from salvage` : ''}`];
@@ -699,6 +708,7 @@
     if (r.opened) lines.push(`Depth ${save.unlocked} is open${M.isBossDepth(save.unlocked) ? ' — a boss waits there' : ''}.`);
     if (r.outcome !== 'win') lines.push(r.outcome === 'door' ? 'Upgrade the door, troop health, or put a Tinker on the bench.' : `Gate ${Math.round(r.gate * 100)}% left. More troops, more damage, or a longer Shift will get it.`);
     if (r.outcome === 'win' && st.boss && st.depth === 10 && save.overhauls === 0) lines.push('You can now Overhaul from the Upgrades tab for permanent Blueprints.');
+    for (const b of doneB) lines.push(`📋 Bounty done: ${b.text}. Claim it in Jobs.`);
     showModal(`<h2>${title}</h2>${lines.map((l) => `<p>${l}</p>`).join('')}
       ${r.stones && r.stones.length ? `<p>${r.stones.map(([ty, ti]) => `<span style="color:${D.STONES[ty].color}">◆ ${D.STONE_TIERS[ti]} ${D.STONES[ty].name}</span>`).join(' · ')}</p>` : ''}
       ${items.length ? `<div class="loot">${items.map((it) => `<div style="color:${rarity(it.rarity).color === '#b9b3a6' ? '#5a4c3a' : rarity(it.rarity).color};${it.rarity === 'legendary' ? 'background:#2a1a08' : ''}">⚙ ${it.name} <small>(ilvl ${it.ilvl})</small></div>`).join('')}</div>` : ''}
@@ -708,6 +718,140 @@
     });
   }
   function endShift() { shift = null; fx = []; document.body.classList.remove('shift'); refresh(); requestAnimationFrame(resize); music(); }
+
+  function lootList(ids) { const items = ids.map((id) => save.items[id]).filter(Boolean); return items.length ? `<div class="loot">${items.map((it) => `<div style="color:${rarity(it.rarity).color === '#b9b3a6' ? '#5a4c3a' : rarity(it.rarity).color}">⚙ ${it.name} <small>(ilvl ${it.ilvl})</small></div>`).join('')}</div>` : ''; }
+  function expResult(r, doneB) {
+    const out = M.expAfterShift(save, r), E = save.exp; persist();
+    const title = r.outcome === 'win' ? (E.won ? 'Expedition complete!' : 'Node cleared') : out.retry ? 'Out of time' : 'The Expedition ends';
+    const lines = [`+${fmt(r.scrap)} scrap · door at ${Math.round(E.integrity * 100)}% · 🎟 ${E.coins} tickets`];
+    if (out.bp) lines.push('+1 Blueprint and a treasure chest!'); if (out.retry) lines.push('The gate held. It cost you 25% of your door; try that node again from the map.'); if (out.over && !E.won) lines.push('You keep everything you found.');
+    for (const b of doneB) lines.push(`📋 Bounty done: ${b.text}`);
+    showModal(`<h2>${title}</h2>${lines.map((l) => `<p>${l}</p>`).join('')}${lootList([...(r.items || []), ...(out.items || [])])}<div class="row"><button data-a="map">${E.over ? 'Back to Jobs' : 'To the map'}</button></div>`, () => { hideModal(); endShift(); JOB.view = E.over ? 'main' : 'map'; setTab('jobs'); });
+  }
+  function trialResult(r, t, doneB) {
+    const out = M.trialAfter(save, t.d, t.heat, r); persist();
+    const T = D.TROPHIES[M.trophyKey(t.d)], lines = [];
+    if (out.won) lines.push(out.newHeat ? `🏆 ${T.name}, Heat ${t.heat}: ${T.txt(save.trophies[M.trophyKey(t.d)])} for good` : `Heat ${t.heat} beaten again.`); else lines.push('Not this time. The trophy waits.');
+    if (out.legendary) lines.push(`★ A boss legendary: ${save.items[out.legendary].name}!`);
+    for (const b of doneB) lines.push(`📋 Bounty done: ${b.text}`);
+    showModal(`<h2>${out.won ? 'Trial won!' : 'Trial lost'}</h2>${lines.map((l) => `<p>${l}</p>`).join('')}${lootList(r.items || [])}<div class="row"><button data-a="ok">Back to Jobs</button></div>`, () => { hideModal(); endShift(); setTab('jobs'); });
+  }
+
+  // ------------------------------------------------------------------ Workshop: rooms
+  const FORGE = { picked: [] };
+  const hhmm = (ms) => { const s2 = Math.max(0, Math.ceil(ms / 1000)), h = Math.floor(s2 / 3600), m = Math.floor((s2 % 3600) / 60), sec = s2 % 60; return h ? `${h}h ${String(m).padStart(2, '0')}m` : `${m}:${String(sec).padStart(2, '0')}`; };
+  function roomHead(k) {
+    const R = D.ROOMS[k], l = M.roomLvl(save, k), c = M.roomCost(save, k);
+    return `<div class="room-h"><b>${R.icon} ${R.name}</b><span>${l ? `level ${l}` : 'not built'}</span>${c != null ? `<button class="act" data-a="build" data-k="${k}" ${save.brass >= c ? '' : 'disabled'}>${l ? 'Upgrade' : 'Build'} · ${c} 🔩</button>` : '<span class="maxed">fully built</span>'}</div>
+      <p class="room-d">${l ? R.desc.slice(0, l).map((d) => '✓ ' + d).join('<br>') : ''}${c != null ? `${l ? '<br>' : ''}<span class="next">Next: ${R.desc[l]}</span>` : ''}</p>`;
+  }
+  function fuseCandidates(rar) { return M.invItems(save).filter((it) => it.rarity === rar && !it.vault).sort((a, b) => a.ilvl - b.ilvl || a.affixes.length - b.affixes.length); }
+  function renderWorkshop() {
+    const now = Date.now(), ms = save.mainspring, fl = M.roomLvl(save, 'forge');
+    const pickedIts = FORGE.picked.map((id) => save.items[id]).filter(Boolean); FORGE.picked = pickedIts.map((it) => it.id);
+    const fuseErr = M.canFuse(save, FORGE.picked);
+    const spare = M.invItems(save).filter((it) => !it.vault && it.rarity === 'common');
+    page.innerHTML = `<h2>Workshop</h2><p class="arm-sub">Rooms stay built through Overhauls. Build and upgrade them with brass.</p>
+      <section class="room">${roomHead('forge')}
+        <h3>Fuse</h3><p class="room-d">Three gears of one rarity become one of the next: Common → Magic → Rare → (Rare, Set or <b style="color:#ff8a1f">Legendary</b>).</p>
+        <div class="chips">${['common', 'magic', 'rare'].map((rr) => { const n = fuseCandidates(rr).length; return `<button class="chip" data-a="auto3" data-r="${rr}" ${n >= 3 ? '' : 'disabled'}>Pick 3 ${rarity(rr).name} (${n})</button>`; }).join('')}</div>
+        <div class="fuse">${[0, 1, 2].map((i) => { const it = pickedIts[i]; return it ? `<button class="slot" data-a="unpick" data-id="${it.id}" style="border-color:${rarity(it.rarity).color}">${iconURL(it) ? `<img src="${iconURL(it)}">` : roleOf(it).glyph}<small>${it.name}</small></button>` : '<span class="slot empty">+</span>'; }).join('')}
+          <button class="act" data-a="fuse" ${fuseErr ? 'disabled' : ''}>🔥 Fuse</button></div>
+        <p class="room-d">${fuseErr && FORGE.picked.length ? fuseErr : 'Tip: tap a gear in the Armory, then “Send to the Forge”.'}</p>
+        <h3>Feed the Mainspring</h3>
+        <p class="room-d">Spare gears melt into the Mainspring: each level is +2% speed for the whole train. Level ${ms.l} / ${M.msMax(save)} (+${2 * ms.l}% RPM). Resets on Overhaul.</p>
+        <div class="bar"><i style="width:${Math.min(100, (100 * ms.xp) / M.msNeed(ms.l))}%"></i></div>
+        <div class="chips"><button class="act" data-a="feedcommons" ${spare.length ? '' : 'disabled'}>Feed all spare Commons (${spare.length})</button><button class="act" data-a="feedpicked" ${FORGE.picked.length ? '' : 'disabled'}>Feed the ${FORGE.picked.length || ''} picked</button></div>
+        ${fl >= 2 ? '<p class="room-d">Reforge: open any non-legendary gear\'s card and pick a new shape from its family.</p>' : ''}
+      </section>
+      <section class="room">${roomHead('research')}
+        ${M.roomLvl(save, 'research') ? `${save.research.slots.map((x, i) => { const R = D.RESEARCH[x.k], done = now >= x.end, f = Math.min(1, (now - x.start) / (x.end - x.start)); return `<div class="proj"><b>${R.icon} ${R.name}</b><div class="bar"><i style="width:${f * 100}%"></i></div><span>${done ? 'Done!' : hhmm(x.end - now) + ' left'}</span>${done ? `<button class="act" data-a="claimR" data-i="${i}">Claim</button>` : ''}</div>`; }).join('')}
+          ${save.research.slots.length < M.researchSlots(save) ? `<div class="projs">${Object.entries(D.RESEARCH).map(([k, R]) => `<button class="pbtn" data-a="startR" data-k="${k}" ${M.roomLvl(save, 'research') >= R.lvl ? '' : 'disabled'}><b>${R.icon} ${R.name}</b><small>${R.desc}</small><i>${(M.researchHours(save, k) * 60).toFixed(0)} min</i></button>`).join('')}</div>` : '<p class="room-d">Every desk is busy. Projects keep running while the app is closed.</p>'}` : ''}
+      </section>
+      <section class="room">${roomHead('jeweller')}
+        ${M.roomLvl(save, 'jeweller') ? '<div class="chips"><button class="act" data-a="pouch">◆ Open the stone pouch</button></div>' : ''}
+      </section>
+      <section class="room"><div class="room-h"><b>🏆 Trophy Wall</b><span>${Object.keys(save.trophies).length} trophies</span></div>
+        <p class="room-d">${Object.entries(D.TROPHIES).map(([k, T]) => { const h = save.trophies[k] || 0; return `${h ? '🏆' : '·'} <b>${T.name}</b>: ${h ? `Heat ${h}, ${T.txt(h)}` : 'beat this boss in a Boss Trial (Jobs)'}`; }).join('<br>')}</p>
+      </section>`;
+    page.onclick = (e) => {
+      const b = e.target.closest('button'); if (!b) return; const a = b.dataset.a; let err = '';
+      if (a === 'build') { err = M.buildRoom(save, b.dataset.k); if (!err) { sfx.buy(); toast(`${D.ROOMS[b.dataset.k].name} level ${M.roomLvl(save, b.dataset.k)}!`); } }
+      if (a === 'auto3') FORGE.picked = fuseCandidates(b.dataset.r).slice(0, 3).map((it) => it.id);
+      if (a === 'unpick') FORGE.picked = FORGE.picked.filter((id) => id !== +b.dataset.id);
+      if (a === 'fuse') { const out = M.fuse(save, FORGE.picked); err = out.err; if (!err) { FORGE.picked = []; const it = save.items[out.id]; sfx.loot(it.rarity); showModal(`<h2>Fused!</h2>${lootList([out.id])}<button data-a="ok">Nice</button>`, hideModal); } }
+      if (a === 'feedcommons' || a === 'feedpicked') { const ids = a === 'feedpicked' ? FORGE.picked : spare.map((it) => it.id); const r2 = M.feedMainspring(save, ids); FORGE.picked = []; sfx.merge(); toast(`Fed ${r2.fed} gears${r2.ups ? `: Mainspring level ${save.mainspring.l}!` : ''}`); }
+      if (a === 'startR') { err = M.startResearch(save, b.dataset.k, Date.now()); if (!err) sfx.tick(); }
+      if (a === 'claimR') { const out = M.claimResearch(save, +b.dataset.i, Date.now()); err = out.err; if (!err) { sfx.loot('rare'); toast(out.scrap ? `+${fmt(out.scrap)} scrap` : out.bp ? '+1 Blueprint' : out.stone ? `A Flawed ${D.STONES[out.stone].name}` : out.item ? `${save.items[out.item] ? save.items[out.item].name : 'A gear'}!` : 'Study done: +25% scrap for 5 Shifts'); } }
+      if (a === 'pouch') { openPouch(); return; }
+      if (err) { toast(err); sfx.nope(); }
+      persist(); refresh();
+    };
+  }
+  setInterval(() => { if (tab === 'workshop' && !shift && sheet.hidden && modal.hidden && save.research.slots.length) renderWorkshop(); }, 1000);
+
+  // ------------------------------------------------------------------ Jobs: Daily Contract, Bounties, Expeditions, Boss Trials
+  const JOB = { view: 'main', heat: {} };
+  const BOSSNAME = (d) => M.zoneOf(d).names.boss + (d > 30 ? ` (Depth ${d})` : '');
+  const NODE = { fight: ['⚔', 'Fight'], elite: ['☠', 'Elite fight'], treasure: ['🎁', 'Treasure'], shop: ['🛒', 'Tinker\'s stall'], rest: ['🛠', 'Repair bench'], event: ['❓', 'Something odd'], boss: ['👑', 'Boss'] };
+  function renderJobs() {
+    if (JOB.view === 'map' && save.exp && !save.exp.over) return renderMap();
+    const c = M.dailyContract(save, today()), L = M.ensureBounties(save), E = save.exp, bosses = M.trialBosses(save);
+    const rw = (b) => ({ brass: `${b.amount} 🔩`, gear: 'a rare+ gear', stone: 'a Flawed Cogstone', bp: '1 📜 Blueprint' })[b.reward];
+    page.innerHTML = `<h2>Jobs</h2>
+      <section class="room"><div class="room-h"><b>📜 Daily Contract</b><span>${c.done ? 'done today ✓' : 'available'}</span></div>
+        <p class="room-d"><b>${c.text}</b>. Depth ${c.depth}. Win it for a chest: a rare gear, another gear, a stone and 30 brass.</p>
+        <div class="chips"><button class="act" data-a="daily" ${c.done ? 'disabled' : ''}>Take the job</button></div></section>
+      <section class="room"><div class="room-h"><b>📋 Bounties</b><span>progress from any Shift</span></div>
+        ${L.map((b) => `<div class="bounty"><b>${b.text}</b><div class="bar"><i style="width:${(100 * b.progress) / b.n}%"></i></div><span>${b.progress}/${b.n} · reward: ${rw(b)}</span>
+          ${b.progress >= b.n ? `<button class="act" data-a="claimB" data-id="${b.id}">Claim</button>` : `<button class="act small" data-a="rerollB" data-id="${b.id}" ${save.bounties.rerollDay === today() ? 'disabled' : ''}>↻</button>`}</div>`).join('')}
+        <p class="room-d">One free ↻ reroll a day.</p></section>
+      <section class="room"><div class="room-h"><b>🗺 Expedition</b><span>${E && !E.over ? `row ${E.at ? E.at[0] + 1 : 1} of 7` : 'none under way'}</span></div>
+        <p class="room-d">A branching route of fights, elites, treasure, a stall, repairs and odd events, ending at a boss. Your door's damage carries from node to node; if it breaks, the Expedition ends (you keep the loot). Win the boss for a Blueprint and a legendary-or-set chest. Doesn't affect your depth progress.</p>
+        <div class="chips">${E && !E.over ? `<button class="act" data-a="map">Open the map</button><button class="act small" data-a="abandon">Abandon</button>` : `<button class="act" data-a="startE">Set out (Depth ${Math.max(1, save.unlocked - 2)})</button>`}</div></section>
+      <section class="room"><div class="room-h"><b>👑 Boss Trials</b><span>${bosses.length ? `${bosses.length} boss${bosses.length > 1 ? 'es' : ''}` : 'beat a boss first'}</span></div>
+        <p class="room-d">Rematch a beaten boss at higher Heat. Each Heat you clear is a permanent trophy bonus; from Heat 3 the boss may drop its own legendary.</p>
+        ${bosses.map((d) => { const open = M.trialHeatOpen(save, d), h = Math.min(open, JOB.heat[d] || open), T = D.TROPHIES[M.trophyKey(d)]; return `<div class="bounty"><b>${BOSSNAME(d)}</b><span>Trophy: ${T.name}, ${save.trophies[M.trophyKey(d)] ? `Heat ${save.trophies[M.trophyKey(d)]}` : 'none yet'}</span>
+          <div class="heat"><button class="act small" data-a="heat" data-d="${d}" data-v="-1">−</button><b>Heat ${h}</b><button class="act small" data-a="heat" data-d="${d}" data-v="1" ${h >= open ? 'disabled' : ''}>+</button><button class="act" data-a="trial" data-d="${d}" data-h="${h}">Challenge</button></div>
+          <small>${D.HEAT.slice(1, h + 1).filter(Boolean).join(' · ')}</small></div>`; }).join('')}</section>`;
+    page.onclick = (e) => {
+      const b = e.target.closest('button'); if (!b) return; const a = b.dataset.a; let err = '';
+      if (a === 'daily') return dailyPrompt();
+      if (a === 'claimB') { const out = M.claimBounty(save, +b.dataset.id); err = out.err; if (!err) { sfx.loot('rare'); toast(out.brass ? `+${out.brass} brass` : out.bp ? '+1 Blueprint' : out.stone ? `A ${D.STONES[out.stone].name}` : 'A new gear in your drawers'); } }
+      if (a === 'rerollB') { err = M.rerollBounty(save, +b.dataset.id, today()); }
+      if (a === 'startE') { err = M.startExpedition(save); if (!err) { JOB.view = 'map'; sfx.buy(); } }
+      if (a === 'map') JOB.view = 'map';
+      if (a === 'abandon') { if (!b.dataset.sure) { b.dataset.sure = 1; b.textContent = 'Tap to give up'; return; } M.abandonExpedition(save); }
+      if (a === 'heat') { const d = +b.dataset.d; JOB.heat[d] = Math.max(1, Math.min(M.trialHeatOpen(save, d), (JOB.heat[d] || M.trialHeatOpen(save, d)) + +b.dataset.v)); }
+      if (a === 'trial') { const d = +b.dataset.d, h = +b.dataset.h; persist(); return startShift({ ...M.trialOpts(save, d, h), ctx: { trial: { d, heat: h } } }); }
+      if (err) { toast(err); sfx.nope(); }
+      persist(); refresh();
+    };
+  }
+  function renderMap() {
+    const E = save.exp, ch = M.expChoices(save);
+    page.innerHTML = `<h2>Expedition</h2><p class="arm-sub">Depth ${E.depth} · door ${Math.round(E.integrity * 100)}% · 🎟 ${E.coins} tickets${E.buffs.rpm ? ` · +${Math.round(E.buffs.rpm * 100)}% RPM` : ''}${E.buffs.dmg ? ` · +${Math.round(E.buffs.dmg * 100)}% damage` : ''}</p>
+      <div class="bar"><i style="width:${E.integrity * 100}%;background:${E.integrity > 0.35 ? '#7fd36b' : '#ff5a3a'}"></i></div>
+      <div class="map">${E.rows.slice().reverse().map((row) => `<div class="mrow">${row.map((nd) => { const here = E.at && E.at[0] === nd.y && E.at[1] === nd.x, can = ch.includes(nd); return `<button class="node ${nd.done ? 'done' : ''} ${here ? 'here' : ''} ${can ? 'can' : ''}" data-a="node" data-y="${nd.y}" data-x="${nd.x}" ${can ? '' : 'disabled'}><b>${NODE[nd.type][0]}</b><small>${NODE[nd.type][1]}</small></button>`; }).join('')}</div>`).join('')}</div>
+      <div class="chips"><button class="act" data-a="back">‹ Jobs</button></div>`;
+    page.onclick = (e) => {
+      const b = e.target.closest('button'); if (!b) return; const a = b.dataset.a;
+      if (a === 'back') { JOB.view = 'main'; renderJobs(); return; }
+      if (a === 'node') { const err = M.expEnter(save, +b.dataset.y, +b.dataset.x); if (err) { toast(err); return; } persist(); openExpNode(save.exp.rows[+b.dataset.y][+b.dataset.x]); }
+    };
+  }
+  function openExpNode(nd) {
+    if (['fight', 'elite', 'boss'].includes(nd.type)) { const o = M.expShiftOpts(save); return startShift({ ...o, ctx: { exp: true } }); }
+    const E = save.exp, done = (out) => { persist(); refresh(); const loot = out && out.items ? lootList(out.items) : ''; showModal(`<h2>${NODE[nd.type][1]}</h2>${out && out.brass ? `<p>+${out.brass} brass</p>` : ''}${loot}<p>Door ${Math.round(E.integrity * 100)}% · 🎟 ${E.coins}</p><button data-a="ok">Onward</button>`, () => { hideModal(); renderMap(); }); };
+    if (nd.type === 'treasure' || nd.type === 'rest') { const out = M.expResolve(save); sfx.loot(nd.type === 'treasure' ? 'rare' : 'magic'); return done(out); }
+    if (nd.type === 'shop') {
+      const shop = () => showModal(`<h2>Tinker's stall</h2><p>🎟 ${E.coins} tickets · door ${Math.round(E.integrity * 100)}%</p>
+        <div class="row"><button class="alt" data-a="repair">Repair +50% (2🎟)</button><button class="alt" data-a="oil">Oil +15% RPM (3🎟)</button></div><div class="row"><button class="alt" data-a="gear">A rare gear (4🎟)</button><button data-a="leave">Move on</button></div>`, (a) => {
+        const out = M.expResolve(save, a); if (out.err) { toast(out.err); sfx.nope(); return; } if (a === 'leave') { hideModal(); persist(); renderMap(); return; } sfx.buy(); if (out.items && out.items.length) toast(save.items[out.items[0]] ? save.items[out.items[0]].name : 'A gear'); persist(); hideModal(); setTimeout(shop, 140); });
+      return shop();
+    }
+    if (nd.type === 'event') { const ev = M.expEvent(nd); showModal(`<h2>${ev.title}</h2><p>${ev.text}</p>${ev.choices.map((c, i) => `<button data-a="${i}" class="${i ? '' : 'alt'}" style="margin-top:6px">${c.label}</button>`).join('')}`, (a) => { hideModal(); const out = M.expResolve(save, +a); setTimeout(() => done(out), 140); }); }
+  }
 
   // ------------------------------------------------------------------ Upgrade tree + Blueprints
   const NODE_SP = 96;
@@ -954,7 +1098,8 @@
     2: '⚙ <b>3D gears</b> · ☠ <b>Elites</b> · 💰 <b>Scrap Gremlins</b> · ☄ <b>Mortar, Mender, Magnet</b> · ◆ <b>Cogstones</b> · 📜 <b>Daily Contract</b> · 🏅 <b>Milestones</b> · 🌀 <b>The Deep Works</b>',
     3: '🗄 <b>The Armory</b>: every gear in one place, with filters, sorting, <b>merge duplicates</b> and bulk salvage.<br>⇧ <b>Green badges</b> mark gears that can merge. A coloured ring shows rarity.<br>🏷 Every gear on the bench says what it is (and its RPM).<br>🧰 The bench tray scrolls and filters by Troops, Spells and Other.<br>✦ Upgrades show their names, and the Blueprint toggle no longer vanishes.',
   };
-  const NEWS_V = 3;
+  NEWS[4] = '🔥 <b>The Workshop</b>: a Forge to fuse three unwanted gears into a rarer one (sometimes a legendary), feed spares to the Mainspring for speed, and reforge; a Research desk that works while you\'re away; a Jeweller; a Trophy Wall.<br>📋 <b>Jobs</b>: the Daily Contract, three <b>Bounties</b>, <b>Expeditions</b> (a branching map of fights, elites, treasure, a stall, events and a boss) and <b>Boss Trials</b> at rising Heat for trophies and boss-only legendaries.<br>📖 The Codex moved to the button at the top.';
+  const NEWS_V = 4;
   if (!save.seenIntro) { intro(); save.seenNews = NEWS_V; }
   else if ((save.seenNews || 1) < NEWS_V) {
     const from = save.seenNews || 1; save.seenNews = NEWS_V; persist();

@@ -101,6 +101,20 @@ body.codex #cv{display:none}
 .gn{font:900 13px/1.15 var(--display)}.gr{font:700 10.5px var(--body);color:var(--dim)}
 .gw{font:700 11.5px/1.25 var(--body);color:var(--paper)}.gw i{font-style:normal;font-weight:900}
 .gb{display:flex;flex-wrap:wrap;gap:4px;margin-top:2px}.gb em{font:800 9.5px var(--body);font-style:normal;background:#00000050;border-radius:8px;padding:1px 6px;color:var(--dim)}.gb em.m{background:#2f9e5a;color:#fff}.gb em.l{color:#ff8a1f}
+.room{border:1px solid #4a3826;border-radius:16px;padding:10px 12px;margin:10px 0;background:linear-gradient(#2a1f17,#211912)}
+.room h3{font:900 14px var(--display);color:var(--brass);margin:10px 0 2px}
+.room-h{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.room-h b{font:900 16px var(--display);color:var(--paper);flex:1}.room-h span{font:700 12px var(--body);color:var(--dim)}.room-h .maxed{color:var(--green)}
+#page .room-d{font-size:13px;color:var(--dim);margin:4px 0}.room-d .next{color:#ffe28a}
+.bar{height:8px;border-radius:5px;background:#00000060;overflow:hidden;margin:6px 0}.bar i{display:block;height:100%;background:var(--brass)}
+.fuse{display:flex;gap:6px;align-items:center;margin:6px 0}.fuse .slot{width:72px;min-height:72px;border:2px dashed #5a4430;border-radius:12px;display:grid;place-items:center;font:800 9px var(--body);color:var(--dim);background:#00000030;margin:0;padding:2px}.fuse .slot img{width:44px;height:44px}.fuse .slot small{font-size:8.5px;line-height:1.1}.fuse .slot.empty{font-size:22px}
+.projs{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px}.pbtn{display:grid!important;text-align:left;gap:2px;padding:8px!important;margin:0!important;border-radius:12px!important}.pbtn small{font:600 11px var(--body);color:var(--dim)}.pbtn i{font:800 11px var(--body);font-style:normal;color:#ffe28a}.pbtn:disabled{opacity:.4}
+.proj,.bounty{display:grid;gap:2px;border-top:1px solid #3a2c21;padding:8px 0}.proj span,.bounty span,.bounty small{font:700 12px var(--body);color:var(--dim)}.bounty .act{justify-self:start}
+#page .act.small{min-height:30px;padding:0 10px}
+.heat{display:flex;gap:6px;align-items:center}.heat b{font:900 14px var(--display);color:#ff9a6a;min-width:64px;text-align:center}
+.map{display:grid;gap:10px;margin:10px 0}.mrow{display:flex;justify-content:center;gap:10px}
+#page .node{width:76px;min-height:62px;margin:0;padding:4px;border-radius:14px;display:grid;place-items:center;gap:0;border:2px solid #4a3826;opacity:.45}
+.node b{font-size:22px}.node small{font:800 10px var(--body)}
+#page .node.can{opacity:1;border-color:#ffe28a;box-shadow:0 0 12px #ffe28a55}#page .node.done{opacity:.8;background:#2f4a33}#page .node.here{border-color:#fff}
 #page button.danger{border-color:var(--red);color:var(--red)}
 #toast{position:fixed;left:50%;top:calc(60px + env(safe-area-inset-top,0px));transform:translateX(-50%);z-index:9;background:#000c;color:var(--paper);font:800 14px var(--body);padding:8px 14px;border-radius:12px;pointer-events:none;opacity:0;transition:opacity .2s;max-width:90vw;text-align:center}
 #toast.on{opacity:1}
@@ -112,18 +126,19 @@ body.codex #cv{display:none}
     <span class="cur" title="Scrap"><i>⛭</i><span id="c-scrap">0</span></span>
     <span class="cur" title="Brass"><i>🔩</i><span id="c-brass">0</span></span>
     <span class="cur" id="c-bp-wrap" title="Blueprints" hidden><i>📜</i><span id="c-bp">0</span></span>
+    <button id="codexbtn" class="cur" aria-label="Codex" style="border-radius:50%;padding:3px 7px">📖</button>
   </header>
   <main><canvas id="gl"></canvas><canvas id="cv"></canvas><div id="page"></div></main>
   <div id="foot">
     <div class="depth"><button id="d-prev" aria-label="Shallower">◀</button><span><b id="d-num">1</b><span id="d-zone">Foundry</span></span><button id="d-next" aria-label="Deeper">▶</button></div>
-    <button id="daily" aria-label="Daily Contract"><b>📜</b><small>Daily</small></button>
     <button id="go">Start Shift</button>
   </div>
   <nav>
     <button data-tab="bench" class="on"><b>⚙</b>Bench</button>
     <button data-tab="armory"><b>🗄</b>Armory</button>
+    <button data-tab="workshop"><b>🔥</b>Workshop<i class="dot" id="ws-dot" hidden></i></button>
+    <button data-tab="jobs"><b>📋</b>Jobs<i class="dot" id="jobs-dot" hidden></i></button>
     <button data-tab="tree"><b>✦</b>Upgrades<i class="dot" id="tree-dot" hidden></i></button>
-    <button data-tab="codex"><b>📖</b>Codex</button>
   </nav>
 </div>
 <div id="sheet" hidden></div>
