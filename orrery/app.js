@@ -11,49 +11,99 @@
 
   // ---------------------------------------------------------------- sound: a tiny synth
   const sfx = (() => {
-    let ac = null, master = null; const last = {};
-    const ctx = () => { if (!ac) { try { ac = new (window.AudioContext || window.webkitAudioContext)(); master = ac.createGain(); master.gain.value = 0.5; master.connect(ac.destination); } catch (e) { ac = null; } } if (ac && ac.state === 'suspended') ac.resume(); return ac; };
-    const ok = (name, gap) => { if (!save.sfx) return false; const now = performance.now(); if (last[name] && now - last[name] < gap) return false; last[name] = now; return !!ctx(); };
-    function tone(f, dur, type = 'square', vol = 0.15, slide = 0, delay = 0) {
+    // Chiptune voices only (square, triangle and stepped noise), a low master level, a soft limiter,
+    // and a budget: busy moments drop the small sounds (shots, hits, coins) before anything that matters.
+    let ac = null, master = null, nbuf = null; const last = {}; let recent = [];
+    const LEVEL = [0, 0.14, 0.3]; // off, low, normal
+    const ctx = () => {
+      if (!ac) { try {
+        ac = new (window.AudioContext || window.webkitAudioContext)();
+        const comp = ac.createDynamicsCompressor(); comp.threshold.value = -24; comp.knee.value = 12; comp.ratio.value = 6; comp.attack.value = 0.003; comp.release.value = 0.2;
+        const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 7000; // takes the fizz off the squares
+        master = ac.createGain(); master.connect(lp); lp.connect(comp); comp.connect(ac.destination);
+        const n = ac.sampleRate, b = ac.createBuffer(1, n, n), d = b.getChannelData(0); let v = 0; // 8-bit style noise: random steps held for a few samples
+        for (let i = 0; i < n; i++) { if (i % 6 === 0) v = Math.random() < 0.5 ? -1 : 1; d[i] = v; } nbuf = b;
+      } catch (e) { ac = null; } }
+      if (ac) { master.gain.value = LEVEL[vol()]; if (ac.state === 'suspended') ac.resume(); }
+      return ac;
+    };
+    const vol = () => (save.vol == null ? (save.sfx === false ? 0 : 1) : save.vol);
+    // pri 0 = chatter (dropped first), 1 = feedback, 2 = always plays
+    const ok = (name, gap, pri = 1) => {
+      if (!vol()) return false; const now = performance.now();
+      if (last[name] && now - last[name] < gap) return false;
+      recent = recent.filter((t) => now - t < 120);
+      if (recent.length >= (pri === 0 ? 2 : pri === 1 ? 4 : 99)) return false;
+      last[name] = now; recent.push(now); return !!ctx();
+    };
+    function tone(f, dur, type = 'square', v = 0.1, slide = 0, delay = 0) {
       const t = ac.currentTime + delay, o = ac.createOscillator(), g = ac.createGain();
-      o.type = type; o.frequency.setValueAtTime(f, t); if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(30, f * slide), t + dur);
-      g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+      o.type = type === 'sawtooth' || type === 'sine' ? (type === 'sine' ? 'triangle' : 'square') : type;
+      o.frequency.setValueAtTime(f, t); if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(30, f * slide), t + dur);
+      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(v, t + 0.004); g.gain.exponentialRampToValueAtTime(0.0005, t + dur);
       o.connect(g); g.connect(master); o.start(t); o.stop(t + dur + 0.02);
     }
-    function noise(dur, vol = 0.2, freq = 1200, q = 0.8, delay = 0) {
-      const t = ac.currentTime + delay, n = Math.floor(ac.sampleRate * dur), b = ac.createBuffer(1, n, ac.sampleRate), d = b.getChannelData(0);
-      for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / n);
-      const s = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain();
-      f.type = 'lowpass'; f.frequency.value = freq; f.Q.value = q; g.gain.value = vol;
-      s.buffer = b; s.connect(f); f.connect(g); g.connect(master); s.start(t);
+    function noise(dur, v = 0.1, rate = 1, delay = 0) {
+      const t = ac.currentTime + delay, src = ac.createBufferSource(), g = ac.createGain();
+      src.buffer = nbuf; src.playbackRate.value = rate; src.loop = true;
+      g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(0.0005, t + dur);
+      src.connect(g); g.connect(master); src.start(t, Math.random() * 0.5); src.stop(t + dur + 0.02);
     }
+    let coinStep = 0, coinT = 0; const SCALE = [0, 2, 4, 7, 9, 12, 14, 16];
     return {
       unlock: () => ctx(),
-      shoot: () => ok('shoot', 70) && tone(900 + Math.random() * 200, 0.05, 'square', 0.025, 0.6),
-      fire: (g) => ok('fire' + g, 90) && (g === 'cannon' ? (tone(140, 0.18, 'sawtooth', 0.09, 0.5), noise(0.12, 0.08, 600)) : g === 'missile' ? noise(0.25, 0.06, 2500, 2) : tone(g === 'spread' ? 600 : 1200, 0.06, 'square', 0.03, 0.5)),
-      laser: () => ok('laser', 120) && tone(1400, 0.35, 'sawtooth', 0.04, 0.4),
-      hit: () => ok('hit', 45) && tone(300 + Math.random() * 80, 0.04, 'triangle', 0.06, 0.7),
-      kill: (big) => ok('kill', 40) && (noise(big ? 0.5 : 0.18, big ? 0.3 : 0.14, big ? 700 : 1500), tone(big ? 90 : 180, big ? 0.4 : 0.12, 'sawtooth', 0.06, 0.4)),
-      boom: () => ok('boom', 60) && (noise(0.3, 0.2, 500), tone(80, 0.3, 'sine', 0.2, 0.5)),
-      coin: () => ok('coin', 35) && tone(1300 + Math.random() * 300, 0.07, 'square', 0.035, 1.5),
-      hurt: () => ok('hurt', 100) && (noise(0.3, 0.25, 900), tone(160, 0.3, 'sawtooth', 0.12, 0.4)),
-      block: () => ok('block', 60) && tone(2000, 0.05, 'triangle', 0.05, 0.5),
-      dash: () => ok('dash', 150) && tone(500, 0.25, 'sawtooth', 0.04, 2.2),
-      warn: () => ok('warn', 500) && [0, 0.35, 0.7].forEach((d) => tone(220, 0.25, 'square', 0.08, 1, d)),
-      win: () => ok('win', 500) && [523, 659, 784, 1046].forEach((f, i) => tone(f, 0.22, 'square', 0.07, 1, i * 0.1)),
-      lose: () => ok('lose', 500) && [392, 330, 262, 196].forEach((f, i) => tone(f, 0.28, 'triangle', 0.09, 1, i * 0.14)),
-      buy: () => ok('buy', 60) && (tone(700, 0.08, 'square', 0.06, 1.5), tone(1050, 0.1, 'square', 0.05, 1.3, 0.07)),
-      nope: () => ok('nope', 120) && tone(150, 0.15, 'square', 0.07, 0.8),
-      tick: () => ok('tick', 40) && tone(1800, 0.03, 'square', 0.03),
-      zap: () => ok('zap', 80) && (noise(0.12, 0.08, 4000, 3), tone(1600, 0.1, 'sawtooth', 0.03, 0.3)),
-      lash: () => ok('lash', 90) && noise(0.08, 0.1, 3500, 4),
-      pop: () => ok('pop', 100) && tone(700, 0.15, 'sine', 0.12, 2),
-      nova: () => ok('nova', 300) && (noise(0.6, 0.3, 900), tone(120, 0.6, 'sawtooth', 0.12, 0.3), tone(880, 0.3, 'square', 0.05, 2)),
-      power: () => ok('power', 300) && [440, 660, 990].forEach((f, i) => tone(f, 0.2, 'square', 0.05, 1.4, i * 0.06)),
-      hole: () => ok('hole', 300) && (tone(200, 1.2, 'sine', 0.15, 0.2), noise(1, 0.08, 300)),
-      slow: () => ok('slow', 300) && tone(600, 0.8, 'triangle', 0.1, 0.25),
+      vol, cycle: () => { save.vol = (vol() + 2) % 3; save.sfx = save.vol > 0; if (ac) master.gain.value = LEVEL[save.vol]; return save.vol; },
+      shoot: () => ok('shoot', 160, 0) && tone(1100, 0.03, 'square', 0.02, 0.7),
+      fire: (g) => ok('fire', 170, 0) && (g === 'cannon' ? (tone(160, 0.12, 'square', 0.05, 0.5), noise(0.08, 0.03, 0.4)) : g === 'missile' ? noise(0.15, 0.025, 0.6) : tone(g === 'spread' ? 620 : 980, 0.035, 'square', 0.018, 0.6)),
+      laser: () => ok('laser', 300, 0) && tone(1200, 0.18, 'square', 0.025, 0.5),
+      hit: () => ok('hit', 110, 0) && tone(260 + Math.random() * 40, 0.035, 'triangle', 0.05, 0.7),
+      kill: (big) => ok('kill', big ? 0 : 90, big ? 2 : 1) && (noise(big ? 0.45 : 0.1, big ? 0.09 : 0.04, big ? 0.3 : 0.7), tone(big ? 110 : 220, big ? 0.35 : 0.08, 'triangle', big ? 0.12 : 0.06, 0.4)),
+      boom: () => ok('boom', 120, 1) && (noise(0.22, 0.06, 0.35), tone(90, 0.2, 'triangle', 0.1, 0.5)),
+      coin: () => { const now = performance.now(); if (now - coinT > 700) coinStep = 0; if (!ok('coin', 90, 0)) return; coinT = now; tone(988 * Math.pow(2, SCALE[coinStep % SCALE.length] / 12), 0.05, 'square', 0.02); coinStep++; },
+      hurt: () => ok('hurt', 200, 2) && (noise(0.2, 0.07, 0.5), tone(150, 0.22, 'square', 0.06, 0.5)),
+      block: () => ok('block', 130, 0) && tone(1500, 0.03, 'triangle', 0.04, 0.6),
+      dash: () => ok('dash', 200, 1) && tone(440, 0.15, 'square', 0.03, 2),
+      warn: () => ok('warn', 500, 2) && [0, 0.3, 0.6].forEach((d) => tone(220, 0.18, 'square', 0.05, 1, d)),
+      win: () => ok('win', 500, 2) && [523, 659, 784, 1046].forEach((f, i) => tone(f, 0.16, 'square', 0.05, 1, i * 0.1)),
+      lose: () => ok('lose', 500, 2) && [392, 330, 262, 196].forEach((f, i) => tone(f, 0.22, 'triangle', 0.09, 1, i * 0.14)),
+      buy: () => ok('buy', 60, 2) && (tone(784, 0.06, 'square', 0.045), tone(1175, 0.09, 'square', 0.04, 1, 0.06)),
+      nope: () => ok('nope', 120, 2) && tone(140, 0.12, 'square', 0.05, 0.8),
+      tick: () => ok('tick', 40, 2) && tone(1568, 0.025, 'square', 0.025),
+      zap: () => ok('zap', 160, 0) && (noise(0.06, 0.03, 1.4), tone(1400, 0.06, 'square', 0.02, 0.4)),
+      lash: () => ok('lash', 160, 0) && noise(0.05, 0.035, 1.2),
+      pop: () => ok('pop', 120, 1) && tone(660, 0.1, 'triangle', 0.08, 2),
+      nova: () => ok('nova', 300, 2) && (noise(0.45, 0.08, 0.3), tone(110, 0.45, 'triangle', 0.12, 0.3), tone(880, 0.2, 'square', 0.03, 2)),
+      power: () => ok('power', 300, 2) && [440, 659, 880].forEach((f, i) => tone(f, 0.12, 'square', 0.035, 1, i * 0.06)),
+      hole: () => ok('hole', 300, 2) && (tone(180, 0.9, 'triangle', 0.1, 0.25), noise(0.7, 0.025, 0.2)),
+      slow: () => ok('slow', 300, 2) && tone(587, 0.6, 'triangle', 0.08, 0.3),
     };
   })();
+
+  // ---------------------------------------------------------------- 8-bit look: low-res buffers, one fixed palette, ordered dither
+  const PAL = ['#08081a', '#161a3a', '#262d5e', '#3b4a8f', '#5a6fc0', '#8fa0e0', '#e8ecff', '#7fdcff', '#2f9fd0', '#a0fff0', '#6bff9e', '#1f8a5c',
+    '#ffe066', '#ffb36b', '#ff7a3d', '#ff4d6d', '#8a1f45', '#ff5ad2', '#ffa0d8', '#b07bff', '#5c3aa8', '#9aa6b8', '#b6ff6b', '#ffcf3f']
+    .map((h) => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)]);
+  const PX = 0.5; // run buffer: one pixel per two world units (180 x 320)
+  const LUT = new Uint8Array(32768);
+  for (let i = 0; i < 32768; i++) {
+    const r = ((i >> 10) & 31) * 8 + 4, g = ((i >> 5) & 31) * 8 + 4, b = (i & 31) * 8 + 4; let best = 0, bd = 1e9;
+    for (let j = 0; j < PAL.length; j++) { const P = PAL[j], dr = r - P[0], dg = g - P[1], db = b - P[2], d = 2 * dr * dr + 4 * dg * dg + 3 * db * db; if (d < bd) { bd = d; best = j; } }
+    LUT[i] = best;
+  }
+  const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5].map((v) => Math.round((v / 16 - 0.47) * 26));
+  function crunch(cv) { // snap every pixel to the palette; soft edges become hard ones
+    const c = cv.getContext('2d'), w = cv.width, h = cv.height; if (!w || !h) return;
+    const im = c.getImageData(0, 0, w, h), d = im.data;
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 4; if (d[i + 3] < 110) { d[i + 3] = 0; continue; }
+      const P0 = PAL[LUT[((d[i] >> 3) << 10) | ((d[i + 1] >> 3) << 5) | (d[i + 2] >> 3)]];
+      if (Math.abs(d[i] - P0[0]) + Math.abs(d[i + 1] - P0[1]) + Math.abs(d[i + 2] - P0[2]) < 14) { d[i] = P0[0]; d[i + 1] = P0[1]; d[i + 2] = P0[2]; d[i + 3] = 255; continue; } // already a palette colour: no dither
+      const o = BAYER[((y & 3) << 2) | (x & 3)], r = Math.max(0, Math.min(255, d[i] + o)), g = Math.max(0, Math.min(255, d[i + 1] + o)), b = Math.max(0, Math.min(255, d[i + 2] + o));
+      const P = PAL[LUT[((r >> 3) << 10) | ((g >> 3) << 5) | (b >> 3)]]; d[i] = P[0]; d[i + 1] = P[1]; d[i + 2] = P[2]; d[i + 3] = 255;
+    }
+    c.putImageData(im, 0, 0);
+  }
+  const PIXF = '"Press Start 2P",monospace';
 
   // ---------------------------------------------------------------- drawing parts
   const MCOL = { rotor: '#7fdcff', pendulum: '#ffb36b', slider: '#b9a2ff', piston: '#ff7f9f', cam: '#8dffb7', stepper: '#ffe066', flywheel: '#ff8af0' };
@@ -192,7 +242,8 @@
     else if (k === 'hub') { drawShip(c, 0, 6, 2.2, 0, false); }
     else if (k.startsWith('hull:')) { const h = k.slice(5), tr = { h, m: 'fixed', kids: M.HULLS[h].sockets.map(() => null) }; const P = M.pose(tr, 0, 0, h === 'spine' ? -40 : 0); const sc = h === 'spine' ? 0.62 : h === 'ring' ? 0.85 : 1.1; c.scale(sc, sc); drawHull(c, P.hull, 0, 1); c.fillStyle = HCOL[h]; for (const so of P.sockets) { c.beginPath(); c.arc(so.x, so.y, 4, 0, TAU); c.fill(); } }
     else if (k.startsWith('spec:')) drawSpecIcon(c, k.slice(5), 38);
-    return (ICONS[k] = cv.toDataURL());
+    const sm = document.createElement('canvas'); sm.width = sm.height = 32; const sc2 = sm.getContext('2d', { willReadFrequently: true }); sc2.drawImage(cv, 0, 0, 32, 32); crunch(sm);
+    return (ICONS[k] = sm.toDataURL());
   }
 
   // ---------------------------------------------------------------- UI shell
@@ -200,7 +251,7 @@
   let tab = 'levels';
   function refreshTop() {
     $('#coins').textContent = fmt(save.coins); $('#cores').textContent = fmt(save.cores);
-    $('#snd').textContent = save.sfx ? '🔊' : '🔇';
+    $('#snd').textContent = ['🔇', '🔉', '🔊'][sfx.vol()];
     document.querySelectorAll('#tabs button').forEach((b) => {
       b.classList.toggle('on', b.dataset.tab === tab);
       let dot = false;
@@ -218,7 +269,7 @@
   const hideModal = () => { $('#modal').hidden = true; };
   function setTab(t) { tab = t; render(); page.scrollTop = 0; }
   document.querySelectorAll('#tabs button').forEach((b) => b.addEventListener('click', () => { sfx.unlock(); sfx.tick(); setTab(b.dataset.tab); }));
-  $('#snd').addEventListener('click', () => { save.sfx = !save.sfx; persist(); refreshTop(); sfx.unlock(); sfx.tick(); });
+  $('#snd').addEventListener('click', () => { const v = sfx.cycle(); persist(); refreshTop(); toast(['Sound off', 'Sound: low', 'Sound: normal'][v]); if (v) { sfx.unlock(); sfx.tick(); } });
   function render() {
     refreshTop();
     stopPreview();
@@ -349,11 +400,11 @@
   }
   function startPreview() {
     const cv = $('#pv'); if (!cv) return;
-    const c = cv.getContext('2d');
+    const c = cv.getContext('2d', { willReadFrequently: true });
     const loop = (now) => {
       PV.raf = requestAnimationFrame(loop);
       if (!cv.isConnected) { stopPreview(); return; }
-      const dpr = Math.min(2, window.devicePixelRatio || 1), w = cv.clientWidth, h = cv.clientHeight;
+      const dpr = 0.5, w = cv.clientWidth, h = cv.clientHeight; // two CSS px per pixel
       if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); PV.trailKey = ''; }
       const dt = PV.last ? Math.min(0.05, (now - PV.last) / 1000) : 0; PV.last = now;
       if (PV.play) PV.t += dt;
@@ -368,7 +419,7 @@
       const s = PV.scale, cx = w / 2, cy = h / 2;
       c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, w, h);
       // spirograph
-      c.lineWidth = 1; c.globalAlpha = 0.28;
+      c.lineWidth = 2; c.globalAlpha = 0.45;
       for (const k in PV.trails) { const T = PV.trails[k]; c.strokeStyle = M.GADGETS[T.g].color; c.beginPath(); for (let i = 0; i < T.pts.length; i += 2) { const x = cx + T.pts[i] * s, y = cy + T.pts[i + 1] * s; i ? c.lineTo(x, y) : c.moveTo(x, y); } c.stroke(); }
       c.globalAlpha = 1;
       // comet tails over the last second
@@ -380,7 +431,7 @@
       c.globalAlpha = 1;
       // the rig itself, posed in world units around the centre and scaled
       const P = M.pose(save.tree, PV.t, cx / s, cy / s);
-      c.save(); c.scale(s, s); drawRig(c, P, PV.t, 1, { sockets: true, sel: SEL, ship: true }); c.restore();
+      c.save(); c.scale(s, s); drawRig(c, P, PV.t, 1, { sockets: true, sel: SEL, ship: true }); c.restore(); crunch(cv);
       // hit-test copy in CSS px
       PV.P = { sockets: P.sockets.map((o) => ({ ...o, x: o.x * s, y: o.y * s })), gadgets: P.gadgets.map((o) => ({ ...o, x: o.x * s, y: o.y * s })), joints: P.joints.map((o) => ({ ...o, x: o.x * s, y: o.y * s })) };
     };
@@ -426,6 +477,7 @@
 
   // ---------------------------------------------------------------- the run
   const cv = $('#cv'), ctx = cv.getContext('2d');
+  const lo = document.createElement('canvas'); lo.width = W * PX; lo.height = H * PX; const lctx = lo.getContext('2d', { willReadFrequently: true });
   let run = null, view = { s: 1, ox: 0, oy: 0, dpr: 1 }, paused = false, raf = 0, lastT = 0, acc = 0;
   let parts = [], floats = [], rings = [], trails = {}, shake = 0, flashT = 0, banner = null, target = null, drag = null;
   const stars = Array.from({ length: 90 }, (_, i) => ({ x: Math.random() * W, y: Math.random() * H, z: 0.3 + (i % 3) * 0.35 }));
@@ -550,20 +602,17 @@
     document.querySelectorAll('#specs .spb').forEach((b, i) => { const sp = S.spec[i]; if (!sp) return; const k = 1 - sp.cd / sp.max; b.style.setProperty('--k', (k * 360).toFixed(0) + 'deg'); b.classList.toggle('ready', sp.cd <= 0); });
   }
   function draw(S) {
-    const c = ctx, { s, ox, oy, dpr } = view;
-    c.setTransform(dpr, 0, 0, dpr, 0, 0);
-    c.fillStyle = '#05070f'; c.fillRect(0, 0, view.w, view.h);
+    const { s, ox, oy, dpr } = view; let c = lctx; c.setTransform(1, 0, 0, 1, 0, 0); c.fillStyle = '#161a3a'; c.fillRect(0, 0, lo.width, lo.height);
     const sx = shake ? (Math.random() - 0.5) * shake : 0, sy = shake ? (Math.random() - 0.5) * shake : 0;
-    c.setTransform(dpr * s, 0, 0, dpr * s, dpr * (ox + sx), dpr * (oy + sy));
-    c.save(); c.beginPath(); c.rect(0, 0, W, H); c.clip();
-    const bg = c.createLinearGradient(0, 0, 0, H); bg.addColorStop(0, '#0d1230'); bg.addColorStop(1, '#0a0d22'); c.fillStyle = bg; c.fillRect(0, 0, W, H);
+    c.setTransform(PX, 0, 0, PX, Math.round(sx * PX), Math.round(sy * PX)); c.save();
+    c.fillStyle = '#161a3a'; c.fillRect(0, 0, W, H);
     for (const st of stars) { c.globalAlpha = st.z * 0.8; c.fillStyle = '#cfd8ff'; c.fillRect(st.x, st.y, st.z * 2, st.z * 2); }
     c.globalAlpha = 1;
     // spirograph trails around the hub
     c.lineWidth = 1.2; c.lineJoin = 'round';
     for (const k in trails) {
       const T = trails[k], p = T.pts; if (p.length < 4) continue;
-      c.strokeStyle = T.col; c.globalAlpha = 0.38; c.lineWidth = 1.5; c.beginPath();
+      c.strokeStyle = T.col; c.globalAlpha = 0.55; c.lineWidth = 2; c.beginPath();
       for (let i = 0; i < p.length; i += 2) { const x = S.hub.x + p[i], y = S.hub.y + p[i + 1]; i ? c.lineTo(x, y) : c.moveTo(x, y); }
       c.stroke();
     }
@@ -608,13 +657,19 @@
     // particles, rings, floaters
     for (const r of rings) { const k = r.t / r.life; c.strokeStyle = r.col; c.globalAlpha = 1 - k; c.lineWidth = 3 * (1 - k) + 0.5; c.beginPath(); c.arc(r.x, r.y, r.r + (r.max - r.r) * k, 0, TAU); c.stroke(); }
     for (const p of parts) { c.globalAlpha = Math.max(0, p.life / p.max); c.fillStyle = p.col; c.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size); }
-    c.globalAlpha = 1; c.textAlign = 'center'; c.textBaseline = 'middle';
-    for (const f of floats) { c.globalAlpha = 1 - f.t / 0.8; c.fillStyle = f.col; c.font = '800 11px Nunito,sans-serif'; c.fillText(f.text, f.x, f.y - f.t * 30); }
     c.globalAlpha = 1;
     // boss bar
     const boss = S.enemies.find((e) => e.type === 'boss');
-    if (boss) { const f = Math.max(0, boss.hp / boss.max); c.fillStyle = '#00000088'; c.fillRect(30, 46, W - 60, 8); c.fillStyle = '#ff4d6d'; c.fillRect(30, 46, (W - 60) * f, 8); c.strokeStyle = '#ffffff55'; c.lineWidth = 1; c.strokeRect(30, 46, W - 60, 8); }
-    if (banner) { const a = banner.t < 0.3 ? banner.t / 0.3 : banner.t > 1.8 ? (2.2 - banner.t) / 0.4 : 1; c.globalAlpha = Math.max(0, a); c.fillStyle = banner.col || '#e8ecff'; c.font = '900 24px Orbitron,sans-serif'; c.fillText(banner.text, W / 2, H * 0.36); c.globalAlpha = 1; }
+    if (boss) { const f = Math.max(0, boss.hp / boss.max); c.fillStyle = '#08081a'; c.fillRect(30, 46, W - 60, 8); c.fillStyle = '#ff4d6d'; c.fillRect(30, 46, (W - 60) * f, 8); c.strokeStyle = '#e8ecff'; c.lineWidth = 2; c.strokeRect(30, 46, W - 60, 8); }
+    c.restore(); crunch(lo);
+    // up to the screen with hard pixel edges, then text and flashes at full resolution
+    c = ctx; c.setTransform(dpr, 0, 0, dpr, 0, 0); c.fillStyle = '#000'; c.fillRect(0, 0, view.w, view.h);
+    c.imageSmoothingEnabled = false; c.drawImage(lo, ox, oy, W * s, H * s);
+    c.setTransform(dpr * s, 0, 0, dpr * s, dpr * ox, dpr * oy); c.save(); c.beginPath(); c.rect(0, 0, W, H); c.clip();
+    c.textAlign = 'center'; c.textBaseline = 'middle';
+    for (const f of floats) { c.globalAlpha = 1 - f.t / 0.8; c.fillStyle = f.col; c.font = `8px ${PIXF}`; c.fillText(f.text, Math.round(f.x), Math.round(f.y - f.t * 30)); }
+    c.globalAlpha = 1;
+    if (banner) { const a = banner.t < 0.3 ? banner.t / 0.3 : banner.t > 1.8 ? (2.2 - banner.t) / 0.4 : 1; c.globalAlpha = Math.max(0, a); c.fillStyle = banner.col || '#e8ecff'; c.font = `18px ${PIXF}`; c.fillStyle = '#08081a'; c.fillText(banner.text, W / 2 + 2, H * 0.36 + 2); c.fillStyle = banner.col || '#e8ecff'; c.fillText(banner.text, W / 2, H * 0.36); c.globalAlpha = 1; }
     if (S.slow > 0) { c.fillStyle = 'rgba(80,255,170,0.07)'; c.fillRect(0, 0, W, H); }
     if (S.od > 0) { c.strokeStyle = `rgba(255,138,240,${0.35 + 0.2 * Math.sin(S.t * 20)})`; c.lineWidth = 6; c.strokeRect(3, 3, W - 6, H - 6); }
     if (flashT > 0) { c.fillStyle = `rgba(255,60,80,${flashT * 0.9})`; c.fillRect(0, 0, W, H); }
