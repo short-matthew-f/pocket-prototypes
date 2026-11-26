@@ -773,7 +773,7 @@
     page.innerHTML = `<div id="tv"><div id="tl" style="width:${wpx}px;height:${hpx}px"><svg width="${wpx}" height="${hpx}">${lines}</svg>${K.NODES.map((n) => {
       const lv = h.levels[n.id] || 0, open = K.nodeOpen(n, h.levels, h), max = lv >= n.max, cost = K.nodeCost(n, lv), can = open && !max && cost <= (n.cur === 'f' ? h.feathers : h.kopeks);
       const [x, y] = P(n);
-      return `<button class="nd ${open ? '' : 'lock'} ${max ? 'max' : ''} ${can ? 'can' : ''} ${n.cur === 'f' ? 'f' : ''} ${n.win ? 'win' : ''} ${n.id === selNode ? 'on' : ''}" data-n="${n.id}" style="left:${x}px;top:${y}px"><span class="ic">${ICON[n.icon] || '•'}</span><small>${max ? 'MAX' : lv + '/' + n.max}</small></button>`;
+      return `<button class="nd ${open ? '' : 'lock'} ${max ? 'max' : ''} ${can ? 'can' : ''} ${n.cur === 'f' ? 'f' : ''} ${n.win ? 'win' : ''} ${n.id === selNode ? 'on' : ''}" data-n="${n.id}" style="left:${x}px;top:${y}px"><span class="ic">${n.win && ASSETS.img['icon-needle'] ? `<img src="${ASSETS.img['icon-needle']}" alt="" style="width:34px;height:34px">` : ICON[n.icon] || '•'}</span><small>${max ? 'MAX' : lv + '/' + n.max}</small></button>`;
     }).join('')}</div><div id="thelp">DRAG TO LOOK AROUND<br>✦ DASHED = FEATHERS</div></div><div id="tinfo"></div>`;
     const tv = $('#tv'), tl = $('#tl');
     if (!pan) { const s = P(K.NODE.str); pan = { x: tv.clientWidth / 2 - s[0], y: (tv.clientHeight - 110) / 2 - s[1] }; }
@@ -827,6 +827,7 @@
   }
 
   // ================================================================ boot
+  for (const [sel, nm] of [['.cur.k i', 'icon-kopek'], ['.cur.f i', 'icon-feather']]) if (ASSETS.img[nm]) document.querySelector(sel).innerHTML = `<img src="${ASSETS.img[nm]}" alt="" style="width:16px;height:16px;display:block">`;
   resize(); tab('tower', true);
   document.addEventListener('pointerdown', () => { AU.init(); if (!run) AU.music('menu'); }, { once: true });
   if (new URLSearchParams(location.search).has('dev')) {
