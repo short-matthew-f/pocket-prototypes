@@ -336,54 +336,39 @@
         case 'floor': {
           warned = -1;
           if (e.boss) { banner('FLOOR ' + e.floor, '#f4ecd8', false, 2); banner(e.lead.name, '#ff8a5c', true, 2.2); AU.play('boss'); }
-          else if (e.floor !== run.startFloor) banner('FLOOR ' + e.floor, '#f4ecd8');
+          else banner('FLOOR ' + e.floor + ' · ' + e.n + ' MONSTERS', '#f4ecd8');
           AU.music(e.floor === K.TOP ? 'koschei' : e.boss ? 'boss' : 'climb');
           break;
         }
         case 'mon': { const a = ma(e.m.uid); a.enter = 0.35; lastFoe = e.m; break; }
+        case 'breed': { const p = cellXY(e.x, e.y); burst(p.x, p.y, '#d0a0ff', 10, 30); floater(p.x, p.y - 6, 'SUMMONED', '#d0a0ff'); break; }
         case 'deathlessIntro': banner('HE CANNOT DIE...', '#6cff8c', false, 2.6); break;
-        case 'cleared': banner('FLOOR CLEAR', '#9ce07c'); break;
-        case 'lift': case 'flee': { const r = monRect(e.m); burst(r.x + r.w / 2, r.y + r.h / 2, '#b49c9c', 10, 40); break; }
+        case 'cleared': banner('FLOOR CLEAR', '#9ce07c', true); if (e.time) floater(L.ox + L.cw / 2, L.top + 10, '+' + e.time + 'S', '#ffe08a'); AU.play('levelup'); break;
         case 'rotate': AU.play('rotate'); break;
         case 'drop': fx.shake = Math.max(fx.shake, 1); break;
         case 'lock': AU.play('lock'); break;
-        case 'shots': {
-          if (e.mode === 'land') { fx.stop = Math.min(0.09, 0.04 + e.shots.length * 0.012); fx.hlunge = 0.2; fx.shake = Math.max(fx.shake, 2);
-            for (const s of e.shots) if (s.code === 1) { const m = run.mons.find((o) => o.uid === s.uid); if (m) { const r = monRect(m); fx.slash.push({ x: r.x + r.w / 2, y: r.y + r.h / 2, w: Math.max(r.w, L.C * 1.5), life: 0.18, dir: Math.random() < 0.5 ? 1 : -1 }); ma(m.uid).knock = 0.15; } } }
-          // arrows, sparks and blessings fly from the heroes to their targets
-          for (const s of e.shots) {
-            const m = run.mons.find((o) => o.uid === s.uid); if (!m) continue;
-            const from = cellXY(s.x, s.y), to = monRect(m);
-            const tx = to.x + to.w / 2, ty = to.y + to.h / 2, d = Math.hypot(tx - from.x, ty - from.y) || 1, sp = e.mode === 'land' ? 260 : 160;
-            fx.shots.push({ x: from.x, y: from.y, vx: (tx - from.x) / d * sp, vy: (ty - from.y) / d * sp, life: d / sp, col: SHOT_COL[s.code], code: s.code });
-          }
-          break;
-        }
+        case 'pop': AU.play('clear', Math.min(4, e.chain)); if (e.chain >= 2) banner('CHAIN x' + e.chain, e.chain >= 3 ? '#ffe08a' : '#9ce07c', e.chain >= 3); break;
         case 'clear': {
-          const lead = K.lead(run);
-          for (const y of e.rows) { fx.flash.push({ y, life: 0.18 }); for (let x = 0; x < W; x += 2) { const p = cellXY(x, y); burst(p.x, p.y, ELC[1 + ((x + y) % 4)][1], 1, 30, !!lead); } }
-          AU.play('clear', e.lines);
-          if (e.chain) banner('CHAIN!', '#9ce07c');
-          else if (e.lines >= 2) banner(LINE_TXT[Math.min(5, e.lines)], e.lines >= 4 ? '#ffe08a' : '#f4ecd8', e.lines >= 4);
-          if (e.combo >= 1) floater(L.bx + L.bw / 2, L.by + 20, 'COMBO ' + (e.combo + 1), '#8cd8f0');
-          if (e.lines >= 4) fx.shake = 4;
+          fx.stop = 0.05;
+          for (const i of e.cells) { const p = cellXY(i % W, (i / W) | 0); burst(p.x, p.y, ELC[run.grid[i] || 1] ? '#f4ecd8' : '#f4ecd8', 3, 40, !!K.lead(run)); }
+          for (const i of e.crushed) { const p = cellXY(i % W, (i / W) | 0); burst(p.x, p.y, '#9c94a0', 4, 30); }
+          if (e.wild) floater(L.bx + L.bw / 2, L.by + 26, 'BLESSED', '#d0a0ff');
           break;
         }
         case 'hit': {
-          const m = run.mons.find((o) => o.uid === e.uid); if (m) ma(e.uid).hit = 0.12;
+          if (run.mons.find((o) => o.uid === e.uid)) { const a = ma(e.uid); a.hit = 0.14; a.knock = 0.15; }
           if (e.lead) fx.foeHit = 0.12;
           const p = cellXY(e.x - 0.5, e.y - 0.5);
-          const col = e.crit ? '#ffe08a' : e.kind === 'spell' ? '#d0a0ff' : e.kind === 'tick' ? '#b49c9c' : '#f4ecd8';
-          floater(p.x - 3 + Math.random() * 6, p.y - 4, (e.crit ? 'CRIT ' : '') + fmt(e.dmg), col, e.kind === 'tick' ? 1 : 2);
-          if (e.kind === 'land' || e.kind === 'clear') burst(p.x, p.y, '#f4ecd8', 5, 45);
-          if (e.kind !== 'tick') AU.play(e.crit ? 'crit' : 'hit');
+          const col = e.crit ? '#ffe08a' : e.kind === 'spell' ? '#d0a0ff' : '#f4ecd8';
+          floater(p.x - 3 + Math.random() * 6, p.y - 4, (e.crit ? 'CRIT ' : '') + fmt(e.dmg), col, 2);
+          AU.play(e.crit ? 'crit' : 'hit'); fx.hlunge = 0.2;
           if (e.crit) fx.shake = Math.max(fx.shake, 3);
           break;
         }
         case 'kill': {
           const p = cellXY(e.x - 0.5, e.y - 0.5), big = e.m.w * L.C;
-          fx.stop = 0.12; fx.white = 0.08; fx.shake = Math.max(fx.shake, 4); floater(p.x, p.y + 4, 'SLAIN', '#ff8a5c', 2);
-          fx.dying.push({ m: e.m, t: 0 }); burst(p.x, p.y, '#ffe08a', 12 + big / 2, 60); burst(p.x, p.y, '#d8343c', 8 + big / 3, 50);
+          fx.stop = 0.1; fx.white = 0.06; fx.shake = Math.max(fx.shake, 3); floater(p.x, p.y + 4, 'SLAIN', '#ff8a5c', 2);
+          fx.dying.push({ m: e.m, t: 0 }); burst(p.x, p.y, '#ffe08a', 10 + big / 2, 60); burst(p.x, p.y, ELC[e.m.color][1], 8 + big / 3, 50);
           floater(p.x, p.y - 8, '+' + fmt(e.k), '#f0b43c'); AU.play('kill'); setTimeout(() => AU.play('coin'), 180);
           if (e.feathers) setTimeout(() => run && floater(p.x, p.y - 16, '+' + e.feathers + ' FEATHER' + (e.feathers > 1 ? 'S' : ''), '#ff8a3c'), 400);
           if (e.relic) banner('RELIC: ' + K.RELICS[e.relic].name, '#ffe08a', false, 2.4);
@@ -398,13 +383,12 @@
         case 'bite': for (const [x, y] of e.cells) { const p = cellXY(x, y); burst(p.x, p.y, '#d8343c', 6, 35); } break;
         case 'curse': banner('CURSED: STONE PIECE', '#d0a0ff'); break;
         case 'hurt': { const p = heroPos(); floater(p.x, p.y - 16, '-' + e.dmg, '#ff5c5c', e.why === 'overflow' ? 2 : 1); fx.red = 0.3; break; }
-        case 'garbage': if (e.n) { AU.play('garbage'); fx.shake = Math.max(fx.shake, 2); } if (e.blocked) floater(L.bx + L.bw / 2, L.by + 16 * L.C - 10, 'BLOCKED ' + e.blocked, '#9ce07c'); break;
-        case 'rocks': AU.play('rocks'); for (const [x, y] of e.cells) { const p = cellXY(x, y); burst(p.x, p.y, '#9c94a0', 3, 20); } break;
+        case 'rocks': AU.play('rocks'); for (const [x, y] of e.cells) { const p = cellXY(x, y); burst(p.x, p.y, '#9c94a0', 3, 20); } if (e.blocked) floater(L.bx + L.bw / 2, L.by + 16 * L.C - 10, 'BLOCKED ' + e.blocked, '#9ce07c'); break;
         case 'overflow': fx.shake = 6; fx.red = 0.6; banner(e.dmg ? 'OVERFLOW!' : 'SECOND WIND!', e.dmg ? '#ff5c5c' : '#9ce07c', true); AU.play('overflow'); break;
         case 'cast': {
           AU.play(e.el);
           if (e.el === 'fire') { for (let i = 0; i < 24; i++) setTimeout(() => run && burst(L.bx + (i / 24) * L.bw, L.by + L.C * 16 * (0.3 + 0.5 * Math.abs(Math.sin(i / 3))), i % 2 ? '#ff8a3c' : '#ffe08a', 3, 25), i * 15); banner('FIREBIRD', '#ff8a3c'); }
-          else if (e.el === 'ice') { banner('FROST', '#a8e8ff'); }
+          else if (e.el === 'ice') banner('FROST', '#a8e8ff');
           else if (e.el === 'earth') { fx.shake = 5; banner('QUAKE', '#9ce07c'); }
           else if (e.el === 'storm') { fx.bolt = 0.35; banner('THUNDER', '#d0a0ff'); }
           break;
@@ -542,31 +526,39 @@
         text(c, fmt(Math.max(0, f.hp)), bx + 2, ty + 1, '#f4ecd8');
         const others = run.mons.length - 1;
         const nm = f.name.length > 15 ? f.name.split(' ')[0] : f.name;
-        text(c, nm + (others > 0 ? ' +' + others : ''), ox + cw - 3, ty + 10, f.boss ? '#ff8a5c' : '#f4ecd8', { a: 'r' });
-        const wi = K.EL.indexOf(f.weak); c.drawImage(tile(wi, 9), bx - 11, ty - 1); text(c, 'FEARS', bx - 13, ty + 1, '#b49c9c', { a: 'r' });
+        text(c, nm, ox + cw - 3, ty + 10, f.boss ? '#ff8a5c' : '#f4ecd8', { a: 'r' });
+        c.drawImage(tile(f.color, 9), bx - 11, ty - 1); text(c, run.mons.length + ' LEFT', bx - 13, ty + 1, '#b49c9c', { a: 'r' });
+        // the horde's next strike
+        const ev = K.hordeEvery(run), hf = Math.max(0, run.hordeT / ev), warn = run.hordeT > ev - 1.1;
+        if (run.mons.some((m) => !m.boss)) { bar(c, bx, ty + 17, bw, 2, hf, warn && Math.floor(run.t * 8) % 2 ? '#ff5c5c' : '#f0b43c', '#2a1a24'); text(c, 'STRIKE', bx - 3, ty + 16, '#b49c9c', { a: 'r' });
+          if (warn && warned !== Math.floor(run.t / ev)) { warned = Math.floor(run.t / ev); AU.play('warn'); } }
       }
     }
   }
   function drawMon(c, m) {
-    const r = monRect(m), a = ma(m.uid), C = L.C;
+    const r = monRect(m), a = ma(m.uid), [cb, chi, clo] = ELC[m.color];
     let ox = 0, oy = 0;
-    if (a.enter > 0) oy = -Math.round(a.enter / 0.35 * (r.y - L.by + r.h));
+    if (a.enter > 0) oy = -Math.round(a.enter / 0.35 * 6);
     if (a.lunge > 0) ox = Math.round(Math.sin(a.lunge * 40) * 2);
-    if (a.knock > 0) { ox += Math.round((Math.random() - 0.5) * 4); oy += Math.round(a.knock * 10); }
-    const X = r.x + ox, Y = Math.max(L.by - r.h, r.y + oy);
-    c.fillStyle = m.boss ? '#3c1018' : '#2a1420'; c.fillRect(X, Y, r.w, r.h);
-    c.fillStyle = m.boss ? '#d8343c' : '#6c3040'; c.fillRect(X, Y, r.w, 1); c.fillRect(X, Y + r.h - 1, r.w, 1); c.fillRect(X, Y, 1, r.h); c.fillRect(X + r.w - 1, Y, 1, r.h);
+    if (a.knock > 0) { ox += Math.round((Math.random() - 0.5) * 3); oy += Math.round(a.knock * 6); }
+    const X = r.x + ox, Y = r.y + oy;
+    // the cell shows the colour that beats it
+    c.fillStyle = clo; c.fillRect(X, Y, r.w, r.h);
+    c.fillStyle = a.hit > 0 ? '#f4ecd8' : chi; c.fillRect(X, Y, r.w, 1); c.fillRect(X, Y + r.h - 1, r.w, 1); c.fillRect(X, Y, 1, r.h); c.fillRect(X + r.w - 1, Y, 1, r.h);
+    if (m.boss) { c.fillStyle = cb; c.fillRect(X + 1, Y + 1, r.w - 2, 1); c.fillRect(X + 1, Y + r.h - 2, r.w - 2, 1); }
     const spr = foeSprite(m, r.w - 2);
     c.drawImage(a.hit > 0 ? silhouette(spr, '#f4ecd8') : spr, X + Math.round((r.w - spr.width) / 2), Y + Math.round((r.h - spr.height) / 2) + (Math.sin(run.t * 3 + m.uid) > 0.6 ? -1 : 0));
-    // HP along the top, attack timer along the bottom
+    // HP pips along the top
     c.fillStyle = INK; c.fillRect(X + 1, Y + 1, r.w - 2, 2);
-    c.fillStyle = m.deathless && !run.st.needle && m.hp <= 1 ? '#6cff8c' : '#d8343c'; c.fillRect(X + 1, Y + 1, Math.max(1, Math.round((r.w - 2) * m.hp / m.max)), 2);
-    const warn = m.atkT > m.every - 1.1, tt = Math.max(0, m.atkT / m.every);
-    c.fillStyle = INK; c.fillRect(X + 1, Y + r.h - 3, r.w - 2, 2);
-    c.fillStyle = warn && Math.floor(run.t * 8) % 2 ? '#ff5c5c' : '#f0b43c'; c.fillRect(X + 1, Y + r.h - 3, Math.round((r.w - 2) * tt), 2);
-    if (warn && a.warned !== m.n) { a.warned = m.n; AU.play('warn'); }
-    if (C >= 9 && m.w >= 2) c.drawImage(tile(K.EL.indexOf(m.weak), Math.max(7, Math.floor(C / 2))), X + r.w - Math.max(7, Math.floor(C / 2)) - 2, Y + 4);
+    c.fillStyle = m.deathless && !run.st.needle && m.hp <= 1 ? '#6cff8c' : '#ff5c5c'; c.fillRect(X + 1, Y + 1, Math.max(1, Math.round((r.w - 2) * m.hp / m.max)), 2);
+    if (m.boss) {
+      const warn = m.atkT > m.every - 1.1, tt = Math.max(0, m.atkT / m.every);
+      c.fillStyle = INK; c.fillRect(X + 1, Y + r.h - 3, r.w - 2, 2);
+      c.fillStyle = warn && Math.floor(run.t * 8) % 2 ? '#ff5c5c' : '#f0b43c'; c.fillRect(X + 1, Y + r.h - 3, Math.round((r.w - 2) * tt), 2);
+      if (warn && a.warned !== m.n) { a.warned = m.n; AU.play('warn'); }
+    }
   }
+  function coin(c, X, Y, C) { const s = Math.max(3, Math.floor(C / 3)); c.fillStyle = '#a0641c'; c.fillRect(X + C - s - 2, Y + 1, s + 1, s + 1); c.fillStyle = '#f0b43c'; c.fillRect(X + C - s - 1, Y + 2, s - 1, s - 1); }
   function drawBoard(c) {
     const { C, bx, by, bw } = L, bh = 16 * C, gr = run.grid;
     // frame
@@ -578,32 +570,26 @@
     // danger glow
     let maxH = 0; for (let y = HID; y < R; y++) { let any = false; for (let x = 0; x < W; x++) if (gr[y * W + x]) any = true; if (any) { maxH = R - y; break; } }
     if (maxH > 11) { c.globalAlpha = 0.15 + 0.1 * Math.sin(run.t * 8); c.fillStyle = '#d8343c'; c.fillRect(bx, by, bw, C * 3); c.globalAlpha = 1; }
-    for (let y = HID; y < R; y++) for (let x = 0; x < W; x++) { const v = gr[y * W + x]; if (v && v !== K.MON) c.drawImage(tile(v, C), bx + x * C, by + (y - HID) * C); }
+    const popping = run.phase === 'pop' && run.pop ? run.pop.cells : null, blinkOn = Math.floor(run.t * 16) % 2;
+    for (let y = HID; y < R; y++) for (let x = 0; x < W; x++) { const i = y * W + x, v = gr[i]; if (!v || v === K.MON) continue; const X = bx + x * C, Y = by + (y - HID) * C;
+      if (popping && popping.has(i) && blinkOn) { c.fillStyle = '#f4ecd8'; c.fillRect(X, Y, C, C); continue; }
+      c.drawImage(tile(v, C), X, Y); if (run.gold[i]) coin(c, X, Y, C); }
     for (const m of run.mons) drawMon(c, m);
     for (const d of fx.dying) { const r = monRect(d.m); if (d.t < 0.5) { c.globalAlpha = 1 - d.t / 0.5; c.drawImage(silhouette(foeSprite(d.m, r.w - 2), '#f4ecd8'), r.x + 1, r.y + 1 - Math.round(d.t * 10)); c.globalAlpha = 1; } }
-    for (const s of fx.shots) { c.fillStyle = s.col; const X = Math.round(s.x), Y = Math.round(s.y); if (s.code === 3) c.fillRect(X - 1, Y, 3, 1); else c.fillRect(X, Y, 2, 2); }
-    for (const s of fx.slash) { const n = Math.round(s.w), k = 1 - s.life / 0.18; c.fillStyle = k < 0.5 ? '#f4ecd8' : '#ffe08a'; for (let i = 0; i < n * Math.min(1, k * 2.5); i++) c.fillRect(Math.round(s.x - n / 2 + i), Math.round(s.y + s.dir * (i - n / 2) * 0.8), 2, 2); }
     for (const f of fx.flash) { c.globalAlpha = f.life / 0.18; c.fillStyle = '#f4ecd8'; c.fillRect(bx, by + (f.y - HID) * C, bw, C); c.globalAlpha = 1; }
     const p = run.piece;
     if (p && !run.over) {
       const cells = K.SHAPES[p.shape].rots[p.rot];
-      if (!run.fx.fog) {
-        const gy = K.ghostY(run), targets = new Set(), blink = Math.floor(run.t * 6) % 2;
-        cells.forEach(([x, y], i) => {
-          const yy = gy + y - HID; if (yy < 0) return;
-          const code = p.cells[i], gx = p.x + x, X = bx + gx * C, Y = by + yy * C;
-          const hits = code >= 1 && code <= 4 ? K.reach(run, gx, gy + y, code) : [];
-          for (const m of hits) targets.add(m);
-          c.fillStyle = hits.length ? ELC[code][1] : '#9c94a0'; c.globalAlpha = hits.length ? 0.9 : 0.35;
-          c.fillRect(X, Y, C, 1); c.fillRect(X, Y + C - 1, C, 1); c.fillRect(X, Y, 1, C); c.fillRect(X + C - 1, Y, 1, C);
-          if (hits.length) { c.globalAlpha = 0.25; c.fillRect(X + 1, Y + 1, C - 2, C - 2); }
-        });
-        c.globalAlpha = 1;
-        // target brackets on every monster this landing would hit
-        for (const m of targets) { const r = monRect(m), k = 3 + blink; c.fillStyle = '#ffe08a';
-          for (const [ax, ay, sx, sy] of [[r.x - 2, r.y - 2, 1, 1], [r.x + r.w + 1, r.y - 2, -1, 1], [r.x - 2, r.y + r.h + 1, 1, -1], [r.x + r.w + 1, r.y + r.h + 1, -1, -1]]) { c.fillRect(Math.min(ax, ax + sx * k), ay, k, 1); c.fillRect(ax, Math.min(ay, ay + sy * k), 1, k); } }
+      if (!run.fx.fog && run.phase === 'play') {
+        // the ghost shows where every hero will come to rest once it settles
+        const gy = K.ghostY(run), tmp = run.grid.slice(), spots = cells.map(([x, y], i) => ({ x: p.x + x, y: gy + y, i })).sort((a, b) => b.y - a.y);
+        for (const s2 of spots) { tmp[s2.y * W + s2.x] = 0; }
+        for (const s2 of spots) { let y = s2.y; while (y + 1 < R && !tmp[(y + 1) * W + s2.x]) y++; s2.y = y; tmp[y * W + s2.x] = 1; }
+        for (const s2 of spots) { const yy = s2.y - HID; if (yy < 0) continue; const code = p.shape === 'BOMB' ? 7 : p.cells[s2.i], X = bx + s2.x * C, Y = by + yy * C;
+          c.fillStyle = (ELC[code] || ELC[5])[1]; c.globalAlpha = 0.75; c.fillRect(X, Y, C, 1); c.fillRect(X, Y + C - 1, C, 1); c.fillRect(X, Y, 1, C); c.fillRect(X + C - 1, Y, 1, C);
+          c.globalAlpha = 0.18; c.fillRect(X + 1, Y + 1, C - 2, C - 2); c.globalAlpha = 1; }
       }
-      cells.forEach(([x, y], i) => { const yy = p.y + y - HID; if (yy >= 0) c.drawImage(tile(p.shape === 'BOMB' ? 7 : p.cells[i], C), bx + (p.x + x) * C, by + yy * C); });
+      cells.forEach(([x, y], i) => { const yy = p.y + y - HID; if (yy >= 0) { const X = bx + (p.x + x) * C, Y = by + yy * C; c.drawImage(tile(p.shape === 'BOMB' ? 7 : p.cells[i], C), X, Y); if (p.gold && p.gold[i]) coin(c, X, Y, C); } });
     }
     if (run.fx.fog) { c.fillStyle = '#b49c9c'; c.globalAlpha = 0.5; for (let y = 0; y < bh * 0.55; y += 2) for (let x = (y / 2) % 2 ? 1 : 0; x < bw; x += 3) c.fillRect(bx + x, by + y, 1, 1); c.globalAlpha = 1; }
     if (run.fx.frozen) { c.globalAlpha = 0.18; c.fillStyle = '#8cd8f0'; c.fillRect(bx, by, bw, bh); c.globalAlpha = 1; c.fillStyle = '#a8e8ff'; for (let x = 0; x < bw; x += 5) c.fillRect(bx + x, by, 2, 2 + (x * 7) % 5); }
@@ -612,7 +598,7 @@
     if (!pc) return; const cells = K.SHAPES[pc.shape].rots[0];
     let mx = 9, Mx = -1, my = 9, My = -1; for (const [a, b] of cells) { mx = Math.min(mx, a); Mx = Math.max(Mx, a); my = Math.min(my, b); My = Math.max(My, b); }
     const ox = Math.round(x + (w - (Mx - mx + 1) * m) / 2), oy = Math.round(y + (h - (My - my + 1) * m) / 2);
-    cells.forEach(([a, b], i) => c.drawImage(tile(pc.shape === 'BOMB' ? 7 : pc.cells[i], m), ox + (a - mx) * m, oy + (b - my) * m));
+    cells.forEach(([a, b], i) => { c.drawImage(tile(pc.shape === 'BOMB' ? 7 : pc.cells[i], m), ox + (a - mx) * m, oy + (b - my) * m); if (pc.gold && pc.gold[i] && m >= 6) coin(c, ox + (a - mx) * m, oy + (b - my) * m, m); });
   }
   function box(c, x, y, w, h, hl) { c.fillStyle = hl ? '#f0b43c' : '#4a2c38'; c.fillRect(x, y, w, h); c.fillStyle = '#1a0f15'; c.fillRect(x + 1, y + 1, w - 2, h - 2); }
   function drawSide(c) {
@@ -765,9 +751,9 @@
       <div class="stats"><div><span>Attack</span><b>${st.atk.toFixed(0)}</b></div><div><span>HP</span><b>${st.hp}</b></div><div><span>Candle</span><b>${st.candle} s</b></div><div><span>Crit</span><b>${Math.round(st.crit * 100)}%</b></div></div>
       <button class="btn go big" id="climb">CLIMB FROM FLOOR ${f0}</button>
       ${cps.length > 1 ? `<h3>Start floor</h3><div class="cps">${cps.map((f) => `<button class="chip ${f === f0 ? 'on' : ''}" data-f="${f}">${f}</button>`).join('')}</div><p class="sub" style="margin-top:8px">Higher floors pay more but hit harder. Each boss you beat opens the floor after it.</p>` : ''}
-      ${nb ? `<h3>Next boss · floor ${nextBoss}</h3><div class="card"><canvas id="bc" width="1" height="1"></canvas><div class="tx"><b>${nb.name}</b><span>${nb.blurb}</span><span>Fears <b style="display:inline;font:inherit;color:var(--gold2)">${K.CLASS[nb.weak]}s</b>, shrugs off ${K.CLASS[nb.resist]}s. It fills a 3x3 space in the well.${nextBoss === 30 && !(h.levels.needle) ? ' He cannot die until you own The Needle.' : ''}</span></div></div>` : `<p class="sub">Beyond floor 30 the tower keeps going: echoes of old bosses, richer every floor.</p>`}
+      ${nb ? `<h3>Next boss · floor ${nextBoss}</h3><div class="card"><canvas id="bc" width="1" height="1"></canvas><div class="tx"><b>${nb.name}</b><span>${nb.blurb}</span><span>A 2x2 boss in the well. Line your heroes up through it, and mind its minions.${nextBoss === 30 && !(h.levels.needle) ? ' He cannot die until you own The Needle.' : ''}</span></div></div>` : `<p class="sub">Beyond floor 30 the tower keeps going: echoes of old bosses, richer every floor.</p>`}
       <h3>The tower</h3><div class="floors">${Array.from({ length: 30 }, (_, i) => 30 - i).map((f) => `<div class="fl ${h.best >= f ? 'done' : ''} ${K.isBoss(f) ? 'boss' : ''} ${f === 30 ? 'k' : ''}">${K.isBoss(f) ? (f === 30 ? '☠' : '♛') : f}</div>`).join('')}</div>
-      <p class="foot">Your pieces are parties of heroes. Land them against the monsters in the well to fight. Each hero class charges its own spell. Survive until the candle burns out, then spend kopeks in Skills.</p></div>`;
+      <p class="foot">Line up 4 heroes of a monster's colour, through the monster, to strike it. Clear every monster to climb. Survive until the candle burns out, then spend kopeks in Skills.</p></div>`;
     $('#hc').prepend(spriteCanvas(heroSprite(S.who), 2));
     if (nb) { const bc = $('#bc'), spr = spriteCanvas(foeSprite(K.foe(nextBoss)), 1); bc.replaceWith(spr); }
     $('#climb').addEventListener('click', () => { AU.init(); if (!S.opts.helped) { S.opts.helped = 1; save(); showHelp(() => startRun(f0)); } else startRun(f0); });
@@ -775,10 +761,10 @@
   }
   function showHelp(then) {
     modal(`<h2>HOW TO PLAY</h2>
-      <p>Every piece is a <b>party of heroes</b>. Monsters drop into the well; <b>land your heroes against them</b> to fight.</p>
-      <p><b style="color:#ff8a5c">Knights</b> strike hard at monsters they touch. <b style="color:#a8e8ff">Mages</b> blast every monster within 2 cells. <b style="color:#9ce07c">Archers</b> shoot the nearest monster within 3. <b style="color:#d0a0ff">Priests</b> heal you. Heroes left touching a monster keep fighting every second.</p>
-      <p>Full rows clear and fire a volley at every monster, but a row with a monster in it won't clear. When a monster dies, the heroes above it tumble into the gap, which can set off chains. Each monster shows the hero class it <b>fears</b>.</p>
-      <p>Monsters strike on their own timer (the orange bar under each): stone rows, rocks, bites, fog, haste and curses. Overflowing the well costs HP.</p>
+      <p>Monsters lurk in the well, each glowing in the colour that beats it. Your pieces are heroes: <b style="color:#ff8a5c">Knights</b>, <b style="color:#a8e8ff">Mages</b> and <b style="color:#9ce07c">Archers</b>.</p>
+      <p>Line up <b>4 or more of one colour</b> in a row or column, monsters included, to strike every monster in the line. Knights hit hardest, Mages splash monsters touching the line, and Archers shoot the next monster past either end. Monsters have HP, so tough ones need several hits.</p>
+      <p>Pieces keep their shape while they fall, but once they land <b>every hero settles straight down</b>. Matched heroes vanish and everything above drops, which can set off chains. The ghost shows where each hero will come to rest.</p>
+      <p>Clear every monster to climb to the next floor. The horde strikes on the orange timer: rocks, bites, fog, haste and curses. Overflowing the well costs HP.</p>
       <p><b>Touch:</b> drag sideways to move. Tap to rotate (left third of the screen turns the other way). Drag down to fall faster, flick down to drop, flick up to hold. Tap the spell squares to cast.</p>
       <p class="keys"><b>Keys:</b> <kbd>←</kbd><kbd>→</kbd> move · <kbd>↑</kbd>/<kbd>X</kbd> rotate · <kbd>Z</kbd> other way · <kbd>↓</kbd> soft drop · <kbd>Space</kbd> drop · <kbd>C</kbd> hold · <kbd>1-4</kbd> spells · <kbd>Esc</kbd> pause</p>
       <div class="btns"><button class="btn go" data-a="ok">TO THE TOWER</button></div>`, { ok: () => { hideModal(); if (then) then(); } });

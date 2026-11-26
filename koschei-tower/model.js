@@ -36,6 +36,7 @@
     I3: { n: 3, c: [[0, 1], [1, 1], [2, 1]] },
     V3: { n: 2, c: [[0, 0], [0, 1], [1, 1]] },
     P1: { n: 1, c: [[0, 0]] },
+    D2: { n: 2, c: [[0, 1], [1, 1]] },
     // curse pieces (monsters slip these in)
     X5: { n: 3, c: [[1, 0], [0, 1], [1, 1], [2, 1], [1, 2]] },
     U5: { n: 3, c: [[0, 0], [2, 0], [0, 1], [1, 1], [2, 1]] },
@@ -44,7 +45,7 @@
     T5: { n: 3, c: [[0, 0], [1, 0], [2, 0], [1, 1], [1, 2]] },
     BOMB: { n: 1, c: [[0, 0]] },
   };
-  K.BASE_POOL = ['I4', 'O4', 'T4', 'S4', 'Z4', 'L4', 'J4', 'I3', 'V3'];
+  K.BASE_POOL = ['D2', 'D2', 'D2', 'I3', 'V3', 'I3', 'V3', 'O4', 'T4', 'L4', 'J4', 'S4', 'Z4', 'I4'];
   K.CURSES = ['X5', 'U5', 'W5', 'F5', 'T5'];
   const rotCells = (cells, n, rot) => {
     let c = cells.map((p) => p.slice());
@@ -74,7 +75,8 @@
     25: { id: 'chudo', name: 'Chudo-Yudo', weak: 'fire', resist: 'earth', atk: ['garbage3', 'drain'], blurb: 'The many-headed thing under the Kalinov Bridge.', relic: 'water' },
     30: { id: 'koschei', name: 'Koschei the Deathless', weak: 'storm', resist: 'ice', atk: ['garbage2', 'curse', 'fog', 'haste', 'rocks3'], blurb: 'His death is in a needle, in an egg, in a duck, in a hare, in a chest.', relic: null },
   };
-  K.TOP = 30; K.HPX = +(typeof process !== "undefined" && process.env && process.env.HPX) || 9;
+  const process_env = (k) => (typeof process !== 'undefined' && process.env && process.env[k]) || '';
+  K.TOP = 30; K.HPX = +(typeof process !== "undefined" && process.env && process.env.HPX) || 1;
   K.RELICS = {
     mortar: { name: "Yaga's Mortar", desc: 'Every 10th piece is a bomb: blasts a 3x3 hole and scorches monsters in it.' },
     eye: { name: "Likho's Eye", desc: '+10% crit chance, and you see one more piece ahead.' },
@@ -120,34 +122,34 @@
     N('wax', 'Wax Drip', 'drop', (l) => `+${l + 1} s on the candle per monster slain (now +${l} s).`, 0, -2, ['candle'], 120, 1.8, 4, (s, l) => { s.killTime += l; }),
     N('feather', 'Feather-Fall', 'leaf', (l) => `Pieces fall ${10 * (l + 1)}% slower (now ${10 * l}%).`, -1, -2, ['candle'], 60, 1.7, 5, (s, l) => { s.fall *= 1 + 0.1 * l; }),
     N('steady', 'Steady Hand', 'hand', (l) => `+0.1 s before a landed piece locks (now +${(0.1 * l).toFixed(1)} s).`, 1, -2, ['candle'], 80, 1.9, 3, (s, l) => { s.lock += 0.1 * l; }),
-    N('frost', 'Frost', 'snow', () => 'Spell, charged by Mages: freeze the fall and every monster for 5 s. Heroes keep fighting.', 0, -3, ['wax'], 400, 1, 1, (s, l) => { if (l) s.spells.ice = 1; }),
+    N('frost', 'Frost', 'snow', () => 'Spell, charged by Mage matches: freeze the fall and every monster for 5 s.', 0, -3, ['wax'], 400, 1, 1, (s, l) => { if (l) s.spells.ice = 1; }),
     N('lull', 'Lullaby', 'note', (l) => `Monsters strike ${8 * (l + 1)}% less often (now ${8 * l}%).`, -1, -3, ['feather'], 250, 1.7, 5, (s, l) => { s.foeSlow *= 1 + 0.08 * l; }),
-    N('pebble', 'Pebble Rune', 'pebble', () => 'Adds a one-cell piece to the bag: plugs any hole.', 1, -3, ['steady'], 500, 1, 1, (s, l) => { if (l) s.pool.push('P1'); }),
+    N('pebble', 'Pebble Rune', 'pebble', () => 'Adds a lone hero (one cell) to the bag: drops right where you need a colour.', 1, -3, ['steady'], 500, 1, 1, (s, l) => { if (l) s.pool.push('P1'); }),
     N('frost2', 'Deep Frost', 'snow', (l) => `Frost lasts +1.5 s (now +${1.5 * l} s).`, 0, -4, ['frost'], 900, 1.8, 4, (s, l) => { s.frostTime += 1.5 * l; }),
     // right: defence
     N('armor', 'Chainmail', 'shield', (l) => `Monsters hit ${8 * (l + 1)}% softer (now ${8 * l}%).`, 2, 0, ['vit'], 60, 1.5, 6, (s, l) => { s.armor *= 1 - 0.08 * l; }),
-    N('stone', 'Stoneskin', 'rock', (l) => `${15 * (l + 1)}% of stone rows crumble on arrival (now ${15 * l}%).`, 2, -1, ['armor'], 200, 1.7, 4, (s, l) => { s.block += 0.15 * l; }),
-    N('samovar', 'Samovar', 'cup', (l) => `Heal ${l + 1}% max HP per row cleared; Priests heal +20% (now ${l}%).`, 2, 1, ['armor'], 150, 1.7, 5, (s, l) => { s.heal += 0.01 * l; s.healMul *= 1 + 0.2 * l; }),
+    N('stone', 'Stoneskin', 'rock', (l) => `${15 * (l + 1)}% of falling rocks crumble on arrival (now ${15 * l}%).`, 2, -1, ['armor'], 200, 1.7, 4, (s, l) => { s.block += 0.15 * l; }),
+    N('samovar', 'Samovar', 'cup', (l) => `Heal ${l + 1}% max HP per match; Priests heal +20% (now ${l}%).`, 2, 1, ['armor'], 150, 1.7, 5, (s, l) => { s.heal += 0.01 * l; s.healMul *= 1 + 0.2 * l; }),
     N('second', 'Second Wind', 'wind', () => 'Your first overflow each climb costs no HP.', 3, 0, ['armor'], 700, 1, 1, (s, l) => { if (l) s.secondWind = 1; }),
-    N('quake', 'Quake', 'quake', () => 'Spell, charged by Archers: crush every stone and the bottom 2 rows, and pelt every monster.', 3, -1, ['stone'], 450, 1, 1, (s, l) => { if (l) s.spells.earth = 1; }),
+    N('quake', 'Quake', 'quake', () => 'Spell, charged by Archer matches: crush every stone and the bottom 2 rows, and pelt every monster.', 3, -1, ['stone'], 450, 1, 1, (s, l) => { if (l) s.spells.earth = 1; }),
     N('grace', 'Firebird Grace', 'plume', (l) => `+15% max HP (now +${15 * l}%).`, 3, 1, ['samovar'], 2, 1.6, 4, (s, l) => { s.hpMul *= 1 + 0.15 * l; }, { cur: 'f' }),
-    N('quake2', 'Deep Roots', 'quake', (l) => `Quake crushes one more row (now +${l}).`, 4, -1, ['quake'], 2000, 2, 2, (s, l) => { s.quakeRows += l; }),
+    N('quake2', 'Deep Roots', 'quake', (l) => `Quake clears one more row (now +${l}).`, 4, -1, ['quake'], 2000, 2, 2, (s, l) => { s.quakeRows += l; }),
     // left: economy + magic
     N('gold', 'Gold Vein', 'nugget', (l) => `${5 * (l + 1)}% of parties carry a treasure chest (now ${5 * l}%).`, -2, 0, ['greed'], 50, 1.6, 6, (s, l) => { s.goldCell += 0.05 * l; }),
     N('bounty', 'Bounty', 'bag', (l) => `+20% kopeks from slain monsters (now +${20 * l}%).`, -2, -1, ['gold'], 150, 1.6, 6, (s, l) => { s.bounty *= 1 + 0.2 * l; }),
     N('scholar', 'Scholar', 'book', (l) => `+20% XP (now +${20 * l}%).`, -2, 1, ['gold'], 100, 1.6, 6, (s, l) => { s.xp *= 1 + 0.2 * l; }),
-    N('attune', 'Recruiter', 'rune', (l) => `More heroes of the class the monsters fear (now ${l}/3).`, -3, 0, ['gold'], 250, 1.9, 3, (s, l) => { s.attune += l; }),
-    N('mana', 'Mana Well', 'orb', (l) => `+25% mana from cleared runes (now +${25 * l}%).`, -3, -1, ['bounty'], 300, 1.7, 5, (s, l) => { s.mana *= 1 + 0.25 * l; }),
+    N('attune', 'Recruiter', 'rune', (l) => `Parties come more often in the colours this floor's monsters need (now ${l}/3).`, -3, 0, ['gold'], 250, 1.9, 3, (s, l) => { s.attune += l; }),
+    N('mana', 'Mana Well', 'orb', (l) => `+25% mana from matches (now +${25 * l}%).`, -3, -1, ['bounty'], 300, 1.7, 5, (s, l) => { s.mana *= 1 + 0.25 * l; }),
     N('touch', 'Golden Touch', 'plume', (l) => `+25% kopeks (now +${25 * l}%).`, -3, 1, ['scholar'], 3, 1.6, 3, (s, l) => { s.gold *= 1 + 0.25 * l; }, { cur: 'f' }),
-    N('bolt', 'Thunder', 'bolt', () => 'Spell, charged by Priests: a thunderbolt on the biggest monster that also resets its attack.', -4, 0, ['attune'], 600, 1, 1, (s, l) => { if (l) s.spells.storm = 1; }),
+    N('bolt', 'Thunder', 'bolt', () => 'Spell, charged by Priests and chains: a thunderbolt on the biggest monster that also resets the attacks.', -4, 0, ['attune'], 600, 1, 1, (s, l) => { if (l) s.spells.storm = 1; }),
     N('spell', 'Spellcraft', 'star', (l) => `Spells +25% stronger, cost 1 less (now +${25 * l}%).`, -4, -1, ['mana'], 1200, 1.9, 4, (s, l) => { s.spellPow *= 1 + 0.25 * l; s.spellCost -= l; }),
     // down: offence
     N('hold', 'Satchel', 'satchel', () => 'Hold one party for later (tap HOLD or flick up).', 0, 2, ['seer'], 60, 1, 1, (s, l) => { if (l) s.hold = 1; }),
-    N('hammer', 'Shield Bash', 'hammer', (l) => `Heroes hit +15% harder when they land (now +${15 * l}%).`, -1, 2, ['seer'], 40, 1.5, 8, (s, l) => { s.land += 0.15 * l; }),
-    N('rhythm', 'Rhythm', 'drum', (l) => `Back-to-back clears +10% per step, and heroes in reach fight +10% harder (now +${10 * l}%).`, 1, 2, ['seer'], 70, 1.6, 5, (s, l) => { s.combo += 0.1 * l; s.tick += 0.1 * l; }),
+    N('hammer', 'Priesthood', 'hammer', (l) => `Wild Priests join your parties: ${4 * (l + 1)}% of heroes (now ${4 * l}%). They match any colour and heal.`, -1, 2, ['seer'], 40, 1.5, 8, (s, l) => { s.wild += 0.04 * l; }),
+    N('rhythm', 'Rhythm', 'drum', (l) => `Chains hit +15% harder per step (now +${15 * l}%).`, 1, 2, ['seer'], 70, 1.6, 5, (s, l) => { s.combo += 0.15 * l; }),
     N('keen', 'Keen Eye', 'target', (l) => `+5% crit chance (now +${5 * l}%).`, 0, 3, ['hold'], 180, 1.6, 6, (s, l) => { s.crit += 0.05 * l; }),
-    N('heavy', 'Heavy Blow', 'anvil', (l) => `Clearing 3+ rows at once hits +25% harder (now +${25 * l}%).`, -1, 3, ['hammer'], 220, 1.65, 6, (s, l) => { s.heavy += 0.25 * l; }),
-    N('fire', 'Firebird', 'flame', () => 'Spell, charged by Knights: Firebird flame sweeps over every monster.', 1, 3, ['rhythm'], 250, 1, 1, (s, l) => { if (l) s.spells.fire = 1; }),
+    N('heavy', 'Heavy Blow', 'anvil', (l) => `Lines of 5 or more hit +25% harder (now +${25 * l}%).`, -1, 3, ['hammer'], 220, 1.65, 6, (s, l) => { s.heavy += 0.25 * l; }),
+    N('fire', 'Firebird', 'flame', () => 'Spell, charged by Knight matches: Firebird flame sweeps over every monster.', 1, 3, ['rhythm'], 250, 1, 1, (s, l) => { if (l) s.spells.fire = 1; }),
     N('fury', 'Fury', 'skull', (l) => `Crits hit +30% harder (now +${30 * l}%).`, 0, 4, ['keen'], 500, 1.7, 5, (s, l) => { s.critMul += 0.3 * l; }),
     N('fire2', 'Phoenix Heart', 'flame', (l) => `Firebird +40% (now +${40 * l}%).`, 1, 4, ['fire'], 700, 1.8, 4, (s, l) => { s.firePow *= 1 + 0.4 * l; }),
     N('might', 'Bogatyr Might', 'plume', (l) => `Attack x1.2 per level (now x${Math.pow(1.2, l).toFixed(2)}).`, -1, 4, ['heavy'], 2, 1.4, 6, (s, l) => { s.atkMul *= Math.pow(1.2, l); }, { cur: 'f' }),
@@ -160,9 +162,9 @@
   K.xpNeed = (lv) => Math.round(18 * Math.pow(1.28, lv - 1));
 
   K.stats = function (who, levels, heroLv, relics) {
-    const s = { atkAdd: 0, atkMul: 1, hpAdd: 0, hpMul: 1, candle: 30, next: 1, hold: 0, killTime: 0, fall: 1, lock: 0.5, foeSlow: 1, pool: K.BASE_POOL.slice(), frostTime: 5,
+    const s = { atkAdd: 0, atkMul: 1, hpAdd: 0, hpMul: 1, candle: +(process_env('KC')) || 45, floorTime: +(process_env('KF')) || 6, next: 1, hold: 0, killTime: 0, fall: 1, lock: 0.5, foeSlow: 1, pool: K.BASE_POOL.slice(), frostTime: 5,
       armor: 1, block: 0, heal: 0, secondWind: 0, quakeRows: 2, gold: 1, goldCell: 0.03, bounty: 1, xp: 1, attune: 0, mana: 1, spellPow: 1, spellCost: 10,
-      land: 1, tick: 1, volley: 1, healMul: 1, combo: 0.2, crit: 0.05, critMul: 1.6, heavy: 0, firePow: 1, needle: 0, spells: { fire: 0, ice: 0, earth: 0, storm: 0 }, bomb: 0, waterOnce: 0 };
+      need: 4, wild: 0, healMul: 1, combo: 0, crit: 0.05, critMul: 1.6, heavy: 0, firePow: 1, needle: 0, spells: { fire: 0, ice: 0, earth: 0, storm: 0 }, bomb: 0, waterOnce: 0 };
     levels = levels || {};
     for (const n of K.NODES) { const l = levels[n.id] || 0; if (l) n.fx(s, l); }
     relics = relics || {};
@@ -183,73 +185,92 @@
   };
 
   // ---------------------------------------------------------------- run
-  // The well holds heroes (codes 1-4: Knight, Mage, Archer, Priest), stone (5), treasure (6) and monsters (9).
-  // Monsters are rigid squares with their own HP and attack timer. Heroes fight whatever they touch.
-  const LINE = [0, 1, 2.6, 4.5, 7, 9.5]; K.LINE = LINE;
+  // The well holds heroes (1 Knight/red, 2 Mage/blue, 3 Archer/green, 4 Priest/wild), stone (5) and monsters (9).
+  // Line up K.NEED or more of one colour (monster cells count as their colour; Priests match anything) to strike
+  // every monster in the line. Matched heroes vanish and everything loose settles straight down, which can chain.
   const MON = 9; K.MON = MON;
   K.CLASS = { fire: 'Knight', ice: 'Mage', earth: 'Archer', storm: 'Priest' };
-  K.CLASS_DESC = { fire: 'Knights strike hard at monsters they land beside.', ice: 'Mages blast every monster within 2 cells.', earth: 'Archers shoot the nearest monster within 3 cells.', storm: 'Priests heal the party and smite what they touch.' };
-  // hero actions in units of attack: land = when the piece locks, tick = every battle second while in reach
-  const ACT = { fire: { land: 1.6, tick: 0.4 }, ice: { land: 0.7, tick: 0.22 }, earth: { land: 0.9, tick: 0.3 }, storm: { land: 0.5, tick: 0.15, heal: 0.02, theal: 0.003 } };
-  K.ACT = ACT;
+  K.CLASS_DESC = { fire: 'Knights hit 50% harder.', ice: 'Mages also splash monsters touching the line.', earth: 'Archers also shoot the next monster past either end.', storm: 'Priests are wild: they match any colour and heal you.' };
+  const COL = { fire: 1, ice: 2, earth: 3 };
   const slug = (s) => s.toLowerCase().replace(/[^a-z]+/g, '-');
+  const hashS = (s) => { let h = 7; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0; return h; };
+  const colorFor = (d) => COL[d.weak] || 1 + hashS(d.name) % 3; // Priest-fearing monsters take a hero colour
 
+  // a floor: small monsters scattered low in the well; boss floors bring a 2x2 boss and two minions
   K.floorPlan = function (floor) {
-    const f = K.foe(floor);
-    if (f.boss) return [Object.assign(f, { size: 3 })];
-    const n = (floor % 5 >= 3 ? 1 : 0) + (floor > 10 ? 1 : 0), share = n ? 0.65 : 1;
-    const out = [Object.assign(f, { size: 2, hp: Math.round(f.hp * share), gold: Math.round(f.gold * share), xp: Math.round(f.xp * share) })];
-    for (let i = 0; i < n; i++) out.push(minion(floor, i + 1, f, 0.35 / n * f.hp / share));
-    return out;
+    const f = K.foe(floor), tier = K.TIERS[Math.min(K.TIERS.length - 1, Math.floor((floor - 1) / 5))];
+    const small = Math.round(K.HPX * 14 * Math.pow(+(process_env('KG')) || 1.22, floor - 1) * Math.min(1, 0.6 + 0.2 * (floor - 1)));
+    const mk = (d, k) => ({ floor, boss: false, minion: true, id: slug(d.name), name: d.name, weak: d.weak, color: colorFor(d), atk: d.atk, blurb: d.blurb, relic: null, size: 1,
+      hp: small, dmg: Math.round(4 + floor * 1.3), gold: Math.round(3 * Math.pow(1.16, floor - 1)), xp: Math.round(3 * Math.pow(1.16, floor - 1)), deathless: false, k });
+    if (f.boss) {
+      const b = Object.assign(f, { size: 2, color: colorFor(f), hp: Math.round(small * 9 * (floor === K.TOP ? 1.4 : 1)), dmg: Math.round((5 + floor * 1.6) * 1.3), gold: Math.round(3 * Math.pow(1.16, floor - 1) * 10), xp: Math.round(3 * Math.pow(1.16, floor - 1) * 8) });
+      return [b, mk(tier[0], 1), mk(tier[1], 2)];
+    }
+    const n = Math.min(+(process_env('KN')) || 8, 2 + Math.floor((floor - 1) / (+(process_env('KD')) || 7)));
+    return Array.from({ length: n }, (_, i) => mk(tier[((floor - 1) % 5 + i) % 4], i));
   };
-  function minion(floor, k, f, hp) {
-    const tier = K.TIERS[Math.min(K.TIERS.length - 1, Math.floor((floor - 1) / 5))], d = tier[((floor - 1) % 5 % 4 + k) % 4];
-    const frac = hp / (f.hp || 1);
-    return { floor, boss: false, minion: true, id: slug(d.name), name: d.name, weak: d.weak, resist: d.resist, atk: d.atk, blurb: d.blurb, relic: null, size: 1,
-      hp: Math.max(1, Math.round(hp)), dmg: Math.max(1, Math.round(f.dmg * 0.6)), every: f.every * 1.2, gold: Math.round(f.gold * frac), xp: Math.round(f.xp * frac), deathless: false };
-  }
 
   K.newRun = function (opt) {
     const st = opt.stats, rnd = K.rng(opt.seed || (Date.now() & 0xffffffff));
     const r = {
-      st, rnd, who: opt.who, grid: new Uint8Array(W * R), mon: new Int16Array(W * R).fill(-1), mons: [], uid: 0, spawnQ: [],
-      piece: null, queue: [], bag: [], held: null, holdUsed: false,
+      st, rnd, who: opt.who, grid: new Uint8Array(W * R), gold: new Uint8Array(W * R), mon: new Int16Array(W * R).fill(-1), mons: [], uid: 0,
+      piece: null, queue: [], bag: [], held: null, holdUsed: false, phase: 'play', phaseT: 0, settleT: 0, pop: null, chain: 0,
       fallT: 0, lockT: 0, lockResets: 0, landed: false, t: 0, candle: st.candle, candleMax: st.candle, hp: st.hp, hpMax: st.hp,
-      floor: opt.floor || 1, startFloor: opt.floor || 1, nextFloorT: 0, tickT: 0, minionT: 12, mana: { fire: 0, ice: 0, earth: 0, storm: 0 },
-      combo: -1, kopeks: 0, xp: 0, feathers: 0, kills: 0, bossKills: [], lines: 0, pieces: 0, ev: [], over: false, reason: '', needFall: false,
+      floor: opt.floor || 1, startFloor: opt.floor || 1, hordeT: 0, minionT: 12, mana: { fire: 0, ice: 0, earth: 0, storm: 0 },
+      kopeks: 0, xp: 0, feathers: 0, kills: 0, bossKills: [], lines: 0, matches: 0, pieces: 0, ev: [], over: false, reason: '',
       fx: { frozen: 0, haste: 0, fog: 0 }, secondWind: st.secondWind, waterOnce: st.waterOnce, bombIn: st.bomb || 0, dmgDealt: 0, best: { hit: 0, lines: 0 },
       firstKill: Object.assign({}, opt.firstKill || {}), deathlessHit: false,
     };
-    startFloor(r);
-    for (let i = 0; i < 40 && r.spawnQ.length && r.spawnQ[0].t <= 0; i++) dropMon(r, r.spawnQ.shift().d);
-    fillQueue(r); spawn(r);
+    startFloor(r); fillQueue(r); spawn(r);
     return r;
   };
   function startFloor(r) {
-    const plan = K.floorPlan(r.floor);
-    plan.forEach((d, i) => r.spawnQ.push({ d, t: i * 1.4 }));
-    r.minionT = 12;
-    r.ev.push({ type: 'floor', floor: r.floor, boss: plan[0].boss, lead: plan[0] });
+    r.grid.fill(0); r.gold.fill(0); r.mon.fill(-1); r.mons.length = 0;
+    const plan = K.floorPlan(r.floor), g = r.grid, rnd = r.rnd, top = R - 10;
+    const lineOK = (x, y, c) => { // never pre-build 3 of a colour in a line
+      const at = (xx, yy) => xx >= 0 && xx < W && yy >= 0 && yy < R && g[yy * W + xx] === MON ? r.mons.find((m) => m.uid === r.mon[yy * W + xx]).color : 0;
+      return !((at(x - 1, y) === c && at(x - 2, y) === c) || (at(x + 1, y) === c && at(x + 2, y) === c) || (at(x - 1, y) === c && at(x + 1, y) === c) ||
+        (at(x, y - 1) === c && at(x, y - 2) === c) || (at(x, y + 1) === c && at(x, y + 2) === c) || (at(x, y - 1) === c && at(x, y + 1) === c));
+    };
+    for (const d of plan) {
+      const s = d.size;
+      for (let tries = 0; tries < 200; tries++) {
+        const x = rnd.int(W - s + 1), y = s > 1 ? R - s - rnd.int(4) : top + rnd.int(R - top);
+        let ok = true; for (let yy = y; yy < y + s; yy++) for (let xx = x; xx < x + s; xx++) if (g[yy * W + xx]) ok = false;
+        if (!ok || (s === 1 && !lineOK(x, y, d.color) && tries < 150)) continue;
+        placeMon(r, d, x, y); break;
+      }
+    }
+    r.hordeT = -2; r.minionT = 12;
+    r.ev.push({ type: 'floor', floor: r.floor, boss: !!plan[0].boss, lead: plan[0], n: r.mons.length });
+    if (plan[0].deathless && !r.st.needle) r.ev.push({ type: 'deathlessIntro' });
   }
-  K.lead = (r) => r.mons.reduce((a, m) => (!a || m.boss && !a.boss || (m.boss === a.boss && m.w * m.h > a.w * a.h) ? m : a), null);
+  function placeMon(r, d, x, y) {
+    const s = d.size, m = Object.assign({}, d, { uid: r.uid++, x, y, w: s, h: s, max: d.hp, atkT: -1 - r.rnd() * 3, n: 0, every: d.boss ? Math.max(4, 8 - d.floor * 0.08) : 0 });
+    for (let yy = y; yy < y + s; yy++) for (let xx = x; xx < x + s; xx++) { r.grid[yy * W + xx] = MON; r.mon[yy * W + xx] = m.uid; }
+    r.mons.push(m); r.ev.push({ type: 'mon', m }); return m;
+  }
+  K.hordeEvery = (r) => Math.max(3.2, 8.5 - r.floor * 0.1) * (r.mons.some((m) => m.boss) ? 1.6 : 1);
+  K.lead = (r) => r.mons.reduce((a, m) => (!a || (m.boss && !a.boss) || (m.boss === a.boss && m.hp > a.hp) ? m : a), null);
+  K.colorOf = (r, i) => { const v = r.grid[i]; if (v >= 1 && v <= 3) return v; if (v === 4) return 'W'; if (v === MON) { const m = r.mons.find((o) => o.uid === r.mon[i]); return m ? m.color : 0; } return 0; };
 
-  // ---------------- pieces
+  // ---------------- pieces: a shape of heroes in one or two colours
   function refillBag(r) {
     const pool = r.st.pool.slice(), rnd = r.rnd;
     for (let i = pool.length - 1; i > 0; i--) { const j = rnd.int(i + 1); [pool[i], pool[j]] = [pool[j], pool[i]]; }
     r.bag.push(...pool);
   }
   function makePiece(r, shape) {
-    const s = K.SHAPES[shape], rnd = r.rnd;
-    if (K.CURSES.includes(shape)) return { shape, el: STONE, cells: s.c.map(() => STONE), curse: true };
-    // each cell is a hero; Recruitment favours the class the monsters fear
-    const w = { fire: 1, ice: 1, earth: 1, storm: 0.8 };
-    const lead = K.lead(r); if (lead && r.st.attune) w[lead.weak] += 0.4 * r.st.attune;
-    const tot = w.fire + w.ice + w.earth + w.storm;
-    const one = () => { let x = rnd() * tot; for (let i = 1; i <= 4; i++) { x -= w[K.EL[i]]; if (x <= 0) return i; } return 1; };
-    const cells = s.c.map(() => one());
-    if (shape !== 'BOMB' && rnd() < r.st.goldCell) cells[rnd.int(cells.length)] = GOLD;
-    return { shape, el: cells[0], cells, curse: false };
+    const s = K.SHAPES[shape], rnd = r.rnd, n = s.c.length;
+    if (K.CURSES.includes(shape)) return { shape, el: STONE, cells: s.c.map(() => STONE), gold: s.c.map(() => 0), curse: true };
+    if (shape === 'BOMB') return { shape, el: 0, cells: [0], gold: [0] };
+    // colours: favour what the monsters on this floor need (Recruiter makes that stronger)
+    const need = [0, 1, 1, 1]; for (const m of r.mons) need[m.color] += 0.15 + 0.25 * r.st.attune;
+    const pick = () => { let x = rnd() * (need[1] + need[2] + need[3]); for (let c = 1; c <= 3; c++) { x -= need[c]; if (x <= 0) return c; } return 3; };
+    const a = pick(), b = rnd() < 0.35 ? a : pick(), split = Math.ceil(n / 2);
+    const cells = s.c.map((_, i) => (rnd() < r.st.wild ? 4 : i < split ? a : b));
+    const gold = s.c.map(() => 0); if (rnd() < r.st.goldCell) gold[rnd.int(n)] = 1;
+    return { shape, el: a, cells, gold, curse: false };
   }
   function fillQueue(r) {
     while (r.queue.length < 6) {
@@ -258,49 +279,31 @@
       r.queue.push(makePiece(r, r.bag.shift()));
     }
   }
-  function nextPiece(r) { const p = r.queue.shift(); fillQueue(r); return p; }
   const cellsOf = (p, rot) => K.SHAPES[p.shape].rots[rot];
   function fits(r, p, x, y, rot) {
     const c = cellsOf(p, rot), g = r.grid;
-    for (let i = 0; i < c.length; i++) {
-      const cx = x + c[i][0], cy = y + c[i][1];
-      if (cx < 0 || cx >= W || cy >= R) return false;
-      if (cy >= 0 && g[cy * W + cx]) return false;
-    }
+    for (let i = 0; i < c.length; i++) { const cx = x + c[i][0], cy = y + c[i][1]; if (cx < 0 || cx >= W || cy >= R) return false; if (cy >= 0 && g[cy * W + cx]) return false; }
     return true;
   }
   K.fits = fits;
   function spawn(r, p) {
-    p = p || nextPiece(r);
+    p = p || (() => { const q = r.queue.shift(); fillQueue(r); return q; })();
     const n = K.SHAPES[p.shape].n, top = Math.min(...K.SHAPES[p.shape].rots[0].map((c) => c[1]));
     p.x = Math.floor((W - n) / 2); p.rot = 0; p.y = null;
     for (const y of [HID - top, HID - top - 1, -top]) if (fits(r, p, p.x, y, 0)) { p.y = y; break; }
     if (p.y == null) { overflow(r); p.y = HID - top; if (!fits(r, p, p.x, p.y, 0)) p.y = -top; }
-    r.piece = p; r.fallT = 0; r.lockT = 0; r.lockResets = 0; r.holdUsed = false;
+    r.piece = p; r.fallT = 0; r.lockT = 0; r.lockResets = 0; r.holdUsed = false; r.phase = 'play';
     r.ev.push({ type: 'spawn' });
   }
   function unstick(r) { const p = r.piece; if (!p) return; let n = 0; while (!fits(r, p, p.x, p.y, p.rot) && n++ < 6) p.y--; }
 
-  // ---------------- grid helpers
-  const clearCell = (r, i) => { r.grid[i] = 0; r.mon[i] = -1; };
-  // after rows move, re-read each monster's position; a monster cut apart (by an overflow) is lifted out and dropped again
-  function syncMons(r) {
-    const pos = new Map();
-    for (let i = 0; i < W * R; i++) { const u = r.mon[i]; if (u < 0) continue; const x = i % W, y = (i / W) | 0; const c = pos.get(u) || { n: 0, x: 99, y: 99 }; c.n++; c.x = Math.min(c.x, x); c.y = Math.min(c.y, y); pos.set(u, c); }
-    for (const m of r.mons.slice()) {
-      const c = pos.get(m.uid);
-      if (c && c.n === m.w * m.h) { m.x = c.x; m.y = c.y; continue; }
-      for (let i = 0; i < W * R; i++) if (r.mon[i] === m.uid) clearCell(r, i);
-      r.mons.splice(r.mons.indexOf(m), 1); r.spawnQ.push({ d: m, t: 1.5 }); r.ev.push({ type: 'lift', m });
-    }
-  }
+  // ---------------- health
+  const clearCell = (r, i) => { r.grid[i] = 0; r.mon[i] = -1; r.gold[i] = 0; };
   function overflow(r) {
     const dmg = r.secondWind ? 0 : Math.round(r.hpMax * 0.3);
     if (r.secondWind) r.secondWind = 0;
-    for (let i = 0; i < (R - 6) * W; i++) clearCell(r, i);
-    syncMons(r);
-    hurt(r, dmg, 'overflow');
-    r.ev.push({ type: 'overflow', dmg });
+    for (let i = 0; i < (HID + 7) * W; i++) if (r.grid[i] !== MON) clearCell(r, i);
+    hurt(r, dmg, 'overflow'); r.ev.push({ type: 'overflow', dmg });
   }
   function hurt(r, dmg, why) {
     if (dmg <= 0) return;
@@ -312,100 +315,132 @@
   function end(r, why) { if (r.over) return; r.over = true; r.reason = why; r.ev.push({ type: 'end', why }); }
   const heal = (r, frac) => { if (frac > 0) r.hp = Math.min(r.hpMax, r.hp + r.hpMax * frac); };
 
-  // monsters fall in from the top and land on the stack
-  function dropMon(r, d) {
-    const s = d.size, g = r.grid, p = r.piece, pc = new Set();
-    if (p) for (const [cx, cy] of cellsOf(p, p.rot)) pc.add((p.y + cy) * W + p.x + cx);
-    const free = (x, y) => { for (let yy = y; yy < y + s; yy++) for (let xx = x; xx < x + s; xx++) { if (yy >= R) return false; if (yy >= 0 && (g[yy * W + xx] || pc.has(yy * W + xx))) return false; } return true; };
-    const opts = [];
-    for (let x = 0; x + s <= W; x++) { let y = -s; if (!free(x, y)) continue; while (free(x, y + 1)) y++; if (y >= HID) opts.push({ x, y }); }
-    if (!opts.length) { overflow(r); r.spawnQ.push({ d, t: 0.4 }); return; }
-    opts.sort((a, b) => b.y - a.y || r.rnd() - 0.5);
-    const at = opts[r.rnd.int(Math.min(3, opts.length))];
-    const m = Object.assign({}, d, { uid: r.uid++, x: at.x, y: at.y, w: s, h: s, max: d.max || d.hp, atkT: d.atkT != null ? d.atkT : -1 - r.rnd() * 2, n: d.n || 0 });
-    for (let yy = at.y; yy < at.y + s; yy++) for (let xx = at.x; xx < at.x + s; xx++) { g[yy * W + xx] = MON; r.mon[yy * W + xx] = m.uid; }
-    r.mons.push(m); r.ev.push({ type: 'mon', m });
-    if (m.deathless && !r.st.needle) r.ev.push({ type: 'deathlessIntro' });
-  }
-
-  // ---------------- player controls
+  // ---------------- controls
   K.ghostY = function (r) { const p = r.piece; let y = p.y; while (fits(r, p, p.x, y + 1, p.rot)) y++; return y; };
   function touched(r) { if (r.landed && r.lockResets < 15) { r.lockT = 0; r.lockResets++; } }
-  K.move = function (r, dx) {
-    if (r.over || !r.piece) return false; const p = r.piece;
-    if (fits(r, p, p.x + dx, p.y, p.rot)) { p.x += dx; touched(r); r.landed = !fits(r, p, p.x, p.y + 1, p.rot); return true; }
-    return false;
-  };
+  const live = (r) => !r.over && r.piece && r.phase === 'play';
+  K.move = function (r, dx) { if (!live(r)) return false; const p = r.piece; if (fits(r, p, p.x + dx, p.y, p.rot)) { p.x += dx; touched(r); r.landed = !fits(r, p, p.x, p.y + 1, p.rot); return true; } return false; };
   const KICKS = [[0, 0], [-1, 0], [1, 0], [0, -1], [-2, 0], [2, 0], [-1, -1], [1, -1], [0, 1]];
   K.rotate = function (r, dir) {
-    if (r.over || !r.piece) return false; const p = r.piece;
-    if (K.SHAPES[p.shape].n === 1) return false;
-    const nr = (p.rot + (dir || 1) + 4) % 4, n = p.cells.length;
-    for (const [kx, ky] of KICKS) if (fits(r, p, p.x + kx, p.y + ky, nr)) { p.x += kx; p.y += ky; p.rot = nr; touched(r); r.landed = !fits(r, p, p.x, p.y + 1, p.rot); r.ev.push({ type: 'rotate', n }); return true; }
+    if (!live(r)) return false; const p = r.piece; if (K.SHAPES[p.shape].n === 1) return false;
+    const nr = (p.rot + (dir || 1) + 4) % 4;
+    for (const [kx, ky] of KICKS) if (fits(r, p, p.x + kx, p.y + ky, nr)) { p.x += kx; p.y += ky; p.rot = nr; touched(r); r.landed = !fits(r, p, p.x, p.y + 1, p.rot); r.ev.push({ type: 'rotate' }); return true; }
     return false;
   };
-  K.soft = function (r) {
-    if (r.over || !r.piece) return false; const p = r.piece;
-    if (fits(r, p, p.x, p.y + 1, p.rot)) { p.y++; r.fallT = 0; return true; }
-    return false;
-  };
-  K.hard = function (r) {
-    if (r.over || !r.piece) return; const p = r.piece, y0 = p.y;
-    p.y = K.ghostY(r); r.ev.push({ type: 'drop', rows: p.y - y0 }); lock(r);
-  };
+  K.soft = function (r) { if (!live(r)) return false; const p = r.piece; if (fits(r, p, p.x, p.y + 1, p.rot)) { p.y++; r.fallT = 0; return true; } return false; };
+  K.hard = function (r) { if (!live(r)) return; const p = r.piece, y0 = p.y; p.y = K.ghostY(r); r.ev.push({ type: 'drop', rows: p.y - y0 }); lock(r); };
   K.hold = function (r) {
-    if (r.over || !r.piece || !r.st.hold || r.holdUsed) return false;
-    const cur = r.piece, nx = r.held;
-    r.held = { shape: cur.shape, el: cur.el, cells: cur.cells, curse: cur.curse };
-    spawn(r, nx || undefined); r.holdUsed = true; r.ev.push({ type: 'hold' });
-    return true;
+    if (!live(r) || !r.st.hold || r.holdUsed) return false;
+    const cur = r.piece, nx = r.held; r.held = { shape: cur.shape, el: cur.el, cells: cur.cells, gold: cur.gold, curse: cur.curse };
+    spawn(r, nx || undefined); r.holdUsed = true; r.ev.push({ type: 'hold' }); return true;
   };
 
-  // ---------------- battle
-  const distRect = (x, y, m) => Math.max(0, m.x - x, x - (m.x + m.w - 1)) + Math.max(0, m.y - y, y - (m.y + m.h - 1));
-  K.distRect = distRect;
-  // which monsters a hero at (x,y) can hit
-  function reach(r, x, y, code) {
-    const out = [];
-    if (code === 2) { for (const m of r.mons) if (x >= m.x - 2 && x <= m.x + m.w + 1 && y >= m.y - 2 && y <= m.y + m.h + 1) out.push(m); }
-    else if (code === 3) { let best = null, bd = 4; for (const m of r.mons) { const d = distRect(x, y, m); if (d < bd) { bd = d; best = m; } } if (best) out.push(best); }
-    else for (const m of r.mons) if (distRect(x, y, m) === 1) out.push(m);
+  function lock(r) {
+    const p = r.piece, c = cellsOf(p, p.rot), g = r.grid;
+    r.piece = null; r.pieces++; r.chain = 0;
+    if (p.shape === 'BOMB') {
+      const bx = p.x + c[0][0], by = p.y + c[0][1], struck = new Set();
+      for (let y = by - 1; y <= by + 1; y++) for (let x = bx - 1; x <= bx + 1; x++) if (x >= 0 && x < W && y >= 0 && y < R) { const i = y * W + x; if (g[i] === MON) { const m = r.mons.find((o) => o.uid === r.mon[i]); if (m) struck.add(m); } else clearCell(r, i); }
+      r.ev.push({ type: 'bomb', x: bx, y: by });
+      for (const m of struck) hit(r, m, r.st.atk * 4, { kind: 'bomb' });
+    } else {
+      const placed = [];
+      for (let i = 0; i < c.length; i++) { const x = p.x + c[i][0], y = p.y + c[i][1]; if (y >= 0) { g[y * W + x] = p.cells[i]; r.gold[y * W + x] = p.gold[i]; placed.push([x, y, p.cells[i]]); } }
+      r.ev.push({ type: 'lock', cells: placed });
+    }
+    if (!r.over) { r.phase = 'settle'; r.settleT = 0; }
+  }
+
+  // ---------------- gravity: every loose cell drops one row per step; monsters stay put
+  function settleStep(r) {
+    const g = r.grid, gd = r.gold; let moved = false;
+    for (let y = R - 2; y >= 0; y--) for (let x = 0; x < W; x++) { const i = y * W + x, v = g[i]; if (v && v !== MON && !g[i + W]) { g[i + W] = v; gd[i + W] = gd[i]; g[i] = 0; gd[i] = 0; moved = true; } }
+    return moved;
+  }
+  K.settleAll = (r) => { let n = 0; while (settleStep(r) && n++ < R); };
+
+  // ---------------- matching
+  function lineRuns(r, line, need) {
+    const out = []; let i = 0;
+    while (i < line.length) {
+      let col = 0, j = i, hero = 0;
+      while (j < line.length) { const c = K.colorOf(r, line[j]); if (!c) break; if (c !== 'W') { if (!col) col = c; else if (c !== col) break; } if (r.grid[line[j]] !== MON) hero++; j++; }
+      if (j - i >= need && col && hero) { out.push({ cells: line.slice(i, j), color: col }); i = j; } else i++;
+    }
     return out;
   }
-  K.reach = reach;
-  // cells: [[x,y,code]]; mode 'land' or 'tick'
-  function battle(r, cells, mode) {
-    const st = r.st, hits = new Map(); let hl = 0; const shots = [];
-    for (const [x, y, code] of cells) {
-      if (code < 1 || code > 4) continue;
-      const el = K.EL[code], a = ACT[el], ms = reach(r, x, y, code);
-      if (code === 4) hl += mode === 'land' ? a.heal : ms.length ? a.theal : 0;
-      for (const m of ms) {
-        let d = st.atk * a[mode] * (mode === 'land' ? st.land : st.tick);
-        if (el === m.weak) d *= 1.6; else if (el === m.resist) d *= 0.6;
-        const h = hits.get(m) || { d: 0, el }; h.d += d; hits.set(m, h);
-        r.mana[el] = Math.min(st.spellCost * 3, r.mana[el] + (mode === 'land' ? 0.7 : 0.12) * st.mana);
-        if (mode === 'land' || code !== 1) shots.push({ x, y, code, uid: m.uid });
+  K.findMatches = function (r) {
+    const groups = [], need = r.st.need;
+    for (let y = HID; y < R; y++) for (const g of lineRuns(r, Array.from({ length: W }, (_, x) => y * W + x), need)) groups.push(Object.assign(g, { dir: [1, 0] }));
+    for (let x = 0; x < W; x++) for (const g of lineRuns(r, Array.from({ length: R - HID }, (_, k) => (k + HID) * W + x), need)) groups.push(Object.assign(g, { dir: [0, 1] }));
+    return groups;
+  };
+  function afterSettle(r) {
+    let spill = false; for (let i = 0; i < HID * W; i++) if (r.grid[i]) spill = true;
+    if (spill) { overflow(r); if (r.over) return; }
+    const groups = K.findMatches(r);
+    if (groups.length) {
+      const cells = new Set(); for (const gr of groups) for (const i of gr.cells) if (r.grid[i] !== MON) cells.add(i);
+      r.pop = { groups, cells }; r.phase = 'pop'; r.phaseT = 0.24; r.chain++;
+      r.ev.push({ type: 'pop', cells: [...cells], groups: groups.map((g) => ({ color: g.color, cells: g.cells })), chain: r.chain });
+      return;
+    }
+    if (!r.mons.length) { r.floor++; r.phase = 'wipe'; r.phaseT = 1.3; r.candle += r.st.floorTime; r.ev.push({ type: 'cleared', floor: r.floor - 1, time: r.st.floorTime }); return; }
+    spawn(r);
+  }
+  const CLASSMUL = { 1: 1.5, 2: 1, 3: 1 };
+  function doPop(r) {
+    const { groups, cells } = r.pop, st = r.st, g = r.grid; r.pop = null;
+    const chainMul = 1 + (r.chain - 1) * (0.5 + st.combo);
+    const hits = new Map(); const add = (m, d) => hits.set(m, (hits.get(m) || 0) + d);
+    let wild = 0;
+    for (const gr of groups) {
+      const heroes = gr.cells.filter((i) => g[i] !== MON).length, mons = new Set(gr.cells.filter((i) => g[i] === MON).map((i) => r.mons.find((m) => m.uid === r.mon[i])));
+      let d = st.atk * heroes * CLASSMUL[gr.color] * chainMul * (gr.cells.length >= 5 ? 1 + st.heavy : 1);
+      for (const m of mons) if (m) add(m, d);
+      if (gr.color === 2) { // Mages splash monsters touching the line
+        const near = new Set(); for (const i of gr.cells) { const x = i % W, y = (i / W) | 0; for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const xx = x + dx, yy = y + dy; if (xx < 0 || xx >= W || yy < 0 || yy >= R) continue; const j = yy * W + xx; if (g[j] === MON) { const m = r.mons.find((o) => o.uid === r.mon[j]); if (m && !mons.has(m)) near.add(m); } } }
+        for (const m of near) add(m, d * 0.5);
+      } else if (gr.color === 3) { // Archers shoot past both ends
+        for (const sgn of [-1, 1]) {
+          const end = sgn < 0 ? gr.cells[0] : gr.cells[gr.cells.length - 1]; let x = end % W, y = (end / W) | 0;
+          for (let k = 0; k < 5; k++) { x += gr.dir[0] * sgn; y += gr.dir[1] * sgn; if (x < 0 || x >= W || y < HID || y >= R) break; const j = y * W + x; if (g[j] === MON) { const m = r.mons.find((o) => o.uid === r.mon[j]); if (m && !mons.has(m)) add(m, d * 0.6); break; } }
+        }
       }
     }
-    if (hl) heal(r, hl * st.healMul);
-    if (shots.length) r.ev.push({ type: 'shots', shots, mode });
-    for (const [m, h] of hits) hit(r, m, h.d, { kind: mode, el: h.el });
+    // remove matched heroes; crush stone touching them; collect gold and mana
+    let gold = 0; const crushed = [];
+    for (const i of cells) {
+      const v = g[i]; if (v === 4) wild++; else if (v >= 1 && v <= 3) r.mana[K.EL[v]] = Math.min(st.spellCost * 3, r.mana[K.EL[v]] + st.mana * 0.5);
+      if (r.gold[i]) gold++;
+      const x = i % W, y = (i / W) | 0;
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const xx = x + dx, yy = y + dy; if (xx >= 0 && xx < W && yy >= 0 && yy < R && g[yy * W + xx] === STONE) crushed.push(yy * W + xx); }
+      clearCell(r, i);
+    }
+    for (const i of crushed) clearCell(r, i);
+    r.mana.storm = Math.min(st.spellCost * 3, r.mana.storm + (wild * 1.5 + (r.chain > 1 ? 2 : 0)) * st.mana);
+    heal(r, wild * 0.02 * st.healMul + st.heal * groups.length);
+    if (gold) { const k = Math.round(gold * Math.max(2, 2 * Math.pow(1.16, r.floor - 1)) * st.gold); r.kopeks += k; r.ev.push({ type: 'gold', n: gold, k }); }
+    r.kopeks += Math.round(groups.length * Math.max(1, 0.5 * Math.pow(1.16, r.floor - 1)) * st.gold);
+    r.matches += groups.length; r.lines += groups.length;
+    if (r.chain > r.best.lines) r.best.lines = r.chain;
+    r.ev.push({ type: 'clear', cells: [...cells], crushed, groups: groups.length, chain: r.chain, wild });
+    for (const [m, d] of hits) hit(r, m, d, { kind: 'match' });
+    r.phase = 'settle'; r.settleT = 0;
   }
   function hit(r, m, dmg, info) {
     if (m.hp <= 0 || !r.mons.includes(m)) return;
-    const crit = info.kind !== 'tick' && r.rnd() < r.st.crit;
-    if (crit) dmg *= r.st.critMul;
+    const crit = r.rnd() < r.st.crit; if (crit) dmg *= r.st.critMul;
     dmg = Math.max(1, Math.round(dmg));
     m.hp -= dmg; r.dmgDealt += dmg; if (dmg > r.best.hit) r.best.hit = dmg;
     if (m.deathless && !r.st.needle && m.hp < 1) { m.hp = 1; if (!r.deathlessHit) { r.deathlessHit = true; r.ev.push({ type: 'deathless' }); } }
-    r.ev.push({ type: 'hit', uid: m.uid, x: m.x + m.w / 2, y: m.y + m.h / 2, dmg, crit, kind: info.kind, el: info.el, lead: m === K.lead(r) });
+    r.ev.push({ type: 'hit', uid: m.uid, x: m.x + m.w / 2, y: m.y + m.h / 2, dmg, crit, kind: info.kind, lead: m === K.lead(r) });
     if (m.hp <= 0) killMon(r, m);
   }
   function killMon(r, m) {
     const st = r.st;
     for (let i = 0; i < W * R; i++) if (r.mon[i] === m.uid) clearCell(r, i);
-    r.mons.splice(r.mons.indexOf(m), 1); r.needFall = true;
+    r.mons.splice(r.mons.indexOf(m), 1);
     const k = Math.round(m.gold * st.gold * st.bounty);
     r.kopeks += k; r.xp += Math.round(m.xp * st.xp); r.kills++;
     let feathers = 0, relic = null;
@@ -413,132 +448,33 @@
       feathers = r.firstKill[m.floor] ? 2 : 4; if (m.floor > K.TOP) feathers = 2;
       if (!r.firstKill[m.floor]) { r.firstKill[m.floor] = 1; relic = m.relic; }
       r.feathers += feathers; r.bossKills.push(m.floor);
-      // the boss's minions flee with it
-      for (const o of r.mons.slice()) if (o.minion && o.floor === m.floor) { for (let i = 0; i < W * R; i++) if (r.mon[i] === o.uid) clearCell(r, i); r.mons.splice(r.mons.indexOf(o), 1); r.ev.push({ type: 'flee', m: o }); }
     }
     r.candle = Math.min(r.candleMax + 30, r.candle + st.killTime);
     r.ev.push({ type: 'kill', m, x: m.x + m.w / 2, y: m.y + m.h / 2, k, feathers, relic });
     if (m.boss && m.floor === K.TOP) { r.won = true; r.ev.push({ type: 'win' }); }
-    if (!r.mons.length && !r.spawnQ.length) { r.floor++; r.nextFloorT = 1.0; r.ev.push({ type: 'cleared', floor: r.floor - 1 }); }
+    if (m.boss) for (const o of r.mons.slice()) killMon(r, o); // minions flee: counted as slain
   }
 
-  // loose cells fall into the space a slain monster leaves; monsters fall as solid blocks
-  function collapse(r) {
-    const g = r.grid, mo = r.mon; let moved = true, n = 0;
-    while (moved && n++ < 40) {
-      moved = false;
-      for (let y = R - 2; y >= 0; y--) for (let x = 0; x < W; x++) { const i = y * W + x, v = g[i]; if (v && v !== MON && !g[i + W]) { g[i + W] = v; g[i] = 0; moved = true; } }
-      for (const m of r.mons) {
-        const by = m.y + m.h; if (by >= R) continue;
-        let ok = true; for (let x = m.x; x < m.x + m.w; x++) if (g[by * W + x]) ok = false;
-        if (!ok) continue;
-        for (let y = by - 1; y >= m.y; y--) for (let x = m.x; x < m.x + m.w; x++) { const i = y * W + x; g[i + W] = g[i]; mo[i + W] = mo[i]; g[i] = 0; mo[i] = -1; }
-        m.y++; moved = true;
-      }
-    }
-    unstick(r);
-  }
-  function fullRows(r) {
-    const rows = [], g = r.grid;
-    for (let y = 0; y < R; y++) { let full = true; for (let x = 0; x < W; x++) { const v = g[y * W + x]; if (!v || v === MON) { full = false; break; } } if (full) rows.push(y); }
-    return rows;
-  }
-  // settle the well: falls after kills, then any full rows, repeating while kills keep opening space
-  function resolve(r) {
-    let cleared = false;
-    for (let guard = 0; guard < 12 && !r.over; guard++) {
-      if (r.needFall) { r.needFall = false; collapse(r); }
-      const rows = fullRows(r);
-      if (!rows.length) break;
-      clearRows(r, rows, guard > 0); cleared = true;
-    }
-    return cleared;
-  }
-
-  function lock(r) {
-    const p = r.piece, c = cellsOf(p, p.rot), g = r.grid;
-    r.piece = null; r.pieces++;
-    if (p.shape === 'BOMB') {
-      const bx = p.x + c[0][0], by = p.y + c[0][1]; const struck = new Set();
-      for (let y = by - 1; y <= by + 1; y++) for (let x = bx - 1; x <= bx + 1; x++) if (x >= 0 && x < W && y >= 0 && y < R) { const i = y * W + x; if (g[i] === MON) { const m = r.mons.find((o) => o.uid === r.mon[i]); if (m) struck.add(m); } else clearCell(r, i); }
-      r.ev.push({ type: 'bomb', x: bx, y: by });
-      for (const m of struck) hit(r, m, r.st.atk * 3, { kind: 'bomb' });
-      r.needFall = true;
-    } else {
-      const placed = [];
-      for (let i = 0; i < c.length; i++) { const x = p.x + c[i][0], y = p.y + c[i][1]; if (y >= 0) { g[y * W + x] = p.cells[i]; placed.push([x, y, p.cells[i]]); } }
-      r.ev.push({ type: 'lock', cells: placed });
-      battle(r, placed, 'land');
-    }
-    if (r.over) return;
-    const before = r.lines;
-    resolve(r);
-    if (r.lines === before) r.combo = -1;
-    if (r.over) return;
-    let spill = false; for (let i = 0; i < HID * W; i++) if (g[i]) { spill = true; break; }
-    if (spill) overflow(r);
-    if (!r.over) spawn(r);
-  }
-
-  function clearRows(r, rows, chain) {
-    const g = r.grid, st = r.st;
-    const count = { fire: 0, ice: 0, earth: 0, storm: 0 }; let gold = 0, cells = 0;
-    for (const y of rows) for (let x = 0; x < W; x++) { const v = g[y * W + x]; cells++; if (v >= 1 && v <= 4) count[K.EL[v]]++; else if (v === GOLD) gold++; }
-    const keepG = [], keepM = [];
-    for (let y = 0; y < R; y++) if (!rows.includes(y)) { keepG.push(g.slice(y * W, y * W + W)); keepM.push(r.mon.slice(y * W, y * W + W)); }
-    g.fill(0); r.mon.fill(-1);
-    let wy = R - 1; for (let i = keepG.length - 1; i >= 0; i--, wy--) { g.set(keepG[i], wy * W); r.mon.set(keepM[i], wy * W); }
-    syncMons(r);
-    const L = rows.length; r.combo++; r.lines += L;
-    let mult = LINE[Math.min(5, L)] * (1 + Math.max(0, r.combo) * st.combo) * st.volley;
-    if (L >= 3) mult *= 1 + st.heavy;
-    for (const e in count) r.mana[e] = Math.min(st.spellCost * 3, r.mana[e] + count[e] * st.mana * 0.5);
-    if (gold) { const k = Math.round(gold * Math.max(1, Math.pow(1.16, r.floor - 1)) * 2 * st.gold); r.kopeks += k; r.ev.push({ type: 'gold', n: gold, k }); }
-    r.kopeks += Math.round(L * Math.max(1, 0.5 * Math.pow(1.16, r.floor - 1)) * st.gold);
-    heal(r, st.heal * L + count.storm * 0.005);
-    if (L > r.best.lines) r.best.lines = L;
-    r.ev.push({ type: 'clear', rows, lines: L, combo: r.combo, chain, count });
-    // the volley: everyone in the cleared rows fires at every monster
-    for (const m of r.mons.slice()) {
-      let d = st.atk * mult;
-      d *= 1 + (count[m.weak] / cells) * 1.2 - (count[m.resist] / cells) * 0.5;
-      hit(r, m, d, { kind: 'clear' });
-    }
-  }
-
+  // ---------------- monsters strike back
   function foeStrike(r, m) {
     const st = r.st, kind = m.atk[m.n % m.atk.length]; m.n++;
-    let dmg = m.dmg * st.armor;
-    if (kind === 'bite') dmg *= 1.5;
+    let dmg = m.dmg * st.armor; if (kind === 'bite') dmg *= 1.5;
     r.ev.push({ type: 'attack', kind, m, x: m.x + m.w / 2, y: m.y + m.h / 2 });
-    hurt(r, Math.round(dmg), 'attack');
-    if (r.over) return;
+    hurt(r, Math.round(dmg), 'attack'); if (r.over) return;
     const g = r.grid, mm = /^(garbage|rocks)(\d)$/.exec(kind);
-    if (mm && mm[1] === 'garbage') {
-      const n = +mm[2]; let blocked = 0; const hole = r.rnd.int(W);
+    if (mm) {
+      // stones rain onto the stack (they only break when a match touches them)
+      const n = +mm[2] * (mm[1] === 'garbage' ? 3 : 2), cols = []; let blocked = 0;
       for (let i = 0; i < n; i++) {
         if (r.rnd() < st.block) { blocked++; continue; }
-        let spill = false; for (let x = 0; x < W; x++) if (g[x]) spill = true;
-        g.copyWithin(0, W); r.mon.copyWithin(0, W);
-        for (let x = 0; x < W; x++) { g[(R - 1) * W + x] = x === hole ? 0 : STONE; r.mon[(R - 1) * W + x] = -1; }
-        syncMons(r); unstick(r);
-        if (spill) { overflow(r); break; }
+        const x = r.rnd.int(W); let y = 0; while (y < R && !g[y * W + x]) y++; y--;
+        if (y >= HID) { g[y * W + x] = STONE; cols.push([x, y]); }
       }
-      r.ev.push({ type: 'garbage', n: n - blocked, blocked });
-    } else if (mm) {
-      const n = +mm[2] * 2; const cols = [];
-      for (let i = 0; i < n; i++) {
-        const x = r.rnd.int(W); let y = HID;
-        while (y < R && !g[y * W + x]) y++;
-        y--; if (y >= HID) { g[y * W + x] = STONE; cols.push([x, y]); }
-      }
-      unstick(r); r.ev.push({ type: 'rocks', cells: cols });
+      unstick(r); r.ev.push({ type: 'rocks', cells: cols, blocked });
     } else if (kind === 'bite') {
-      // eats up to two heroes standing next to it
       const adj = [];
-      for (let y = m.y - 1; y <= m.y + m.h; y++) for (let x = m.x - 1; x <= m.x + m.w; x++) if (x >= 0 && x < W && y >= 0 && y < R && distRect(x, y, m) === 1) { const v = g[y * W + x]; if (v >= 1 && v <= 4) adj.push([x, y]); }
-      const eaten = [];
-      for (let i = 0; i < 2 && adj.length; i++) { const [x, y] = adj.splice(r.rnd.int(adj.length), 1)[0]; clearCell(r, y * W + x); eaten.push([x, y]); }
+      for (let y = m.y - 1; y <= m.y + m.h; y++) for (let x = m.x - 1; x <= m.x + m.w; x++) if (x >= 0 && x < W && y >= 0 && y < R) { const dx = Math.max(0, m.x - x, x - (m.x + m.w - 1)), dy = Math.max(0, m.y - y, y - (m.y + m.h - 1)); const v = g[y * W + x]; if (dx + dy === 1 && v >= 1 && v <= 4) adj.push([x, y]); }
+      const eaten = []; for (let i = 0; i < 2 && adj.length; i++) { const [x, y] = adj.splice(r.rnd.int(adj.length), 1)[0]; clearCell(r, y * W + x); eaten.push([x, y]); }
       r.ev.push({ type: 'bite', cells: eaten });
     } else if (kind === 'fog') r.fx.fog = 6;
     else if (kind === 'haste') r.fx.haste = 6;
@@ -546,22 +482,21 @@
     else if (kind === 'drain') { for (const e in r.mana) r.mana[e] = Math.floor(r.mana[e] / 2); }
   }
 
-  K.canCast = (r, el) => !r.over && r.st.spells[el] && r.mana[el] >= r.st.spellCost;
+  K.canCast = (r, el) => !r.over && r.st.spells[el] && r.mana[el] >= r.st.spellCost && r.phase !== 'wipe';
   K.cast = function (r, el) {
     if (!K.canCast(r, el)) return false;
     const st = r.st, pow = st.spellPow; r.mana[el] -= st.spellCost;
     r.ev.push({ type: 'cast', el });
-    if (el === 'fire') for (const m of r.mons.slice()) hit(r, m, st.atk * 3.5 * pow * st.firePow, { kind: 'spell', el });
+    if (el === 'fire') for (const m of r.mons.slice()) hit(r, m, st.atk * 4 * pow * st.firePow, { kind: 'spell' });
     else if (el === 'ice') r.fx.frozen = st.frostTime * (0.85 + 0.15 * pow);
     else if (el === 'earth') {
-      // crush all stone, and the bottom rows (monsters are too big to crush)
       const g = r.grid; let n = 0;
       for (let i = 0; i < W * R; i++) if (g[i] === STONE) { clearCell(r, i); n++; }
       for (let y = R - st.quakeRows; y < R; y++) for (let x = 0; x < W; x++) { const i = y * W + x; if (g[i] && g[i] !== MON) { clearCell(r, i); n++; } }
-      r.needFall = true; r.ev.push({ type: 'quake', n });
-      for (const m of r.mons.slice()) hit(r, m, st.atk * 1.5 * pow, { kind: 'spell', el });
-    } else if (el === 'storm') { const m = K.lead(r); if (m) { hit(r, m, st.atk * 6 * pow, { kind: 'spell', el }); m.atkT = 0; } }
-    resolve(r);
+      r.ev.push({ type: 'quake', n });
+      for (const m of r.mons.slice()) hit(r, m, st.atk * 2 * pow, { kind: 'spell' });
+    } else if (el === 'storm') { const m = K.lead(r); if (m) { hit(r, m, st.atk * 8 * pow, { kind: 'spell' }); m.atkT = 0; } r.hordeT = 0; }
+    if (r.phase === 'play' && !r.mons.length && !r.over) { r.piece = null; r.phase = 'settle'; r.settleT = 0; }
     return true;
   };
 
@@ -571,44 +506,42 @@
     if (r.candle <= 0) { r.candle = 0; end(r, 'candle'); return; }
     const fx = r.fx, st = r.st;
     for (const k of ['frozen', 'haste', 'fog']) if (fx[k] > 0) fx[k] = Math.max(0, fx[k] - dt);
-    // floors and arrivals
-    if (r.nextFloorT > 0) { r.nextFloorT -= dt; if (r.nextFloorT <= 0) startFloor(r); }
-    for (const s of r.spawnQ) s.t -= dt;
-    while (r.spawnQ.length && r.spawnQ[0].t <= 0) { dropMon(r, r.spawnQ.shift().d); if (r.over) return; }
-    const boss = r.mons.find((m) => m.boss);
-    if (boss && !fx.frozen) { r.minionT -= dt; if (r.minionT <= 0) { r.minionT = 14; if (r.mons.length < 3) r.spawnQ.push({ d: minion(boss.floor, 1 + r.rnd.int(3), boss, boss.max * 0.05), t: 0 }); } }
-    // heroes in reach keep fighting every second (even through Frost)
-    r.tickT += dt;
-    if (r.tickT >= 1) {
-      r.tickT -= 1;
-      if (r.mons.length) {
-        const cells = [];
-        for (let i = HID * W; i < W * R; i++) { const v = r.grid[i]; if (v >= 1 && v <= 4) cells.push([i % W, (i / W) | 0, v]); }
-        battle(r, cells, 'tick'); if (r.over) return;
-        if (r.needFall) resolve(r);
-      }
+    // the well settles, pops and chains on its own clock
+    if (r.phase === 'wipe') { r.phaseT -= dt; if (r.phaseT <= 0) { startFloor(r); spawn(r); } return; }
+    if (r.phase === 'pop') { r.phaseT -= dt; if (r.phaseT <= 0) doPop(r); }
+    else if (r.phase === 'settle') { r.settleT += dt; while (r.settleT >= 0.05 && r.phase === 'settle') { r.settleT -= 0.05; if (!settleStep(r)) afterSettle(r); } }
+    else if (r.phase === 'play') { r.settleT += dt; if (r.settleT >= 0.05) { r.settleT = 0; if (settleStep(r)) unstick(r); } }
+    if (r.over) return;
+    // monsters: one of the small ones strikes on the horde clock, a boss on its own
+    if (!fx.frozen && r.mons.length) {
+      r.hordeT += dt / st.foeSlow;
+      const every = K.hordeEvery(r);
+      if (r.hordeT >= every) { r.hordeT = 0; const small = r.mons.filter((m) => !m.boss); if (small.length) foeStrike(r, r.rnd.pick(small)); if (r.over) return; }
+      for (const m of r.mons) if (m.boss) { m.atkT += dt / st.foeSlow; if (m.atkT >= m.every) { m.atkT = 0; foeStrike(r, m); if (r.over) return; } }
+      const boss = r.mons.find((m) => m.boss);
+      if (boss) { r.minionT -= dt; if (r.minionT <= 0) { r.minionT = 15; if (r.mons.length < 5) breed(r, boss); } }
     }
-    // monsters strike on their own timers
-    if (!fx.frozen) for (const m of r.mons.slice()) {
-      if (!r.mons.includes(m)) continue;
-      m.atkT += dt / st.foeSlow;
-      if (m.atkT >= m.every) { m.atkT = 0; foeStrike(r, m); if (r.over) return; }
-    }
-    // gravity
-    const p = r.piece; if (!p || fx.frozen) return;
+    // the falling piece
+    const p = r.piece; if (!p || r.phase !== 'play' || fx.frozen) return;
     const gi = K.gravity(r.floor) * st.fall / (fx.haste ? 2.5 : 1);
     if (fits(r, p, p.x, p.y + 1, p.rot)) {
       r.landed = false; r.fallT += dt;
       while (r.fallT >= gi && fits(r, p, p.x, p.y + 1, p.rot)) { r.fallT -= gi; p.y++; }
       if (!fits(r, p, p.x, p.y + 1, p.rot)) { r.landed = true; r.lockT = 0; }
-    } else {
-      r.landed = true; r.lockT += dt;
-      if (r.lockT >= st.lock) lock(r);
-    }
+    } else { r.landed = true; r.lockT += dt; if (r.lockT >= st.lock) lock(r); }
   };
+  // bosses summon a minion into an empty cell low in the well
+  function breed(r, boss) {
+    const tier = K.TIERS[Math.min(K.TIERS.length - 1, Math.floor((boss.floor - 1) / 5))], d = tier[r.rnd.int(4)];
+    const spots = []; for (let y = R - 8; y < R; y++) for (let x = 0; x < W; x++) if (!r.grid[y * W + x] && (y === R - 1 || r.grid[(y + 1) * W + x])) spots.push([x, y]);
+    if (!spots.length) return; const [x, y] = r.rnd.pick(spots);
+    const small = r.mons.find((m) => !m.boss) || { hp: Math.round(boss.max / 9), dmg: boss.dmg * 0.7, gold: boss.gold / 10, xp: boss.xp / 8 };
+    placeMon(r, { floor: boss.floor, boss: false, minion: true, id: slug(d.name), name: d.name, weak: d.weak, color: colorFor(d), atk: d.atk, size: 1, hp: Math.round(boss.max / 9), dmg: Math.round(boss.dmg * 0.6), gold: Math.round(boss.gold / 10), xp: Math.round(boss.xp / 10) }, x, y);
+    r.ev.push({ type: 'breed', x, y });
+  }
 
   K.result = function (r) {
-    return { kopeks: r.kopeks, xp: r.xp, feathers: r.feathers, reason: r.reason, floor: r.floor - 1, reached: r.floor, kills: r.kills, bossKills: r.bossKills, won: !!r.won, lines: r.lines, t: r.t, startFloor: r.startFloor, best: r.best };
+    return { kopeks: r.kopeks, xp: r.xp, feathers: r.feathers, reason: r.reason, floor: r.floor - 1, reached: r.floor, kills: r.kills, bossKills: r.bossKills, won: !!r.won, lines: r.matches, t: r.t, startFloor: r.startFloor, best: r.best };
   };
 
   // ---------------------------------------------------------------- save / meta
