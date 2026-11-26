@@ -11,66 +11,76 @@ const W = K.W, R = K.R;
 
 // ---------------------------------------------------------------- rules
 const ST = () => K.stats('bogatyr', {}, 1, {});
-function empty(r) { r.grid.fill(0); r.gold.fill(0); r.mon.fill(-1); r.mons.length = 0; }
-function putMon(r, x, y, color, hp, s = 1) { const m = { uid: 900 + r.mons.length, x, y, w: s, h: s, hp, max: hp, color, atk: ['rocks1'], n: 0, atkT: 0, every: 99, dmg: 5, weak: K.EL[color], gold: 10, xp: 5, floor: 1, size: s, name: 'T', boss: s > 1 };
+function empty(r) { r.grid.fill(0); r.gold.fill(0); r.mon.fill(-1); r.mons.length = 0; r.dropQ.length = 0; r.res = 'idle'; }
+function putMon(r, x, y, hp, s = 1) { const m = { uid: 900 + r.mons.length, x, y, w: s, h: s, hp, max: hp, shield: 0, n: 0, dmg: 5, weak: 'fire', gold: 10, xp: 5, floor: 1, size: s, name: 'T', boss: false, script: [{ k: 'attack', n: 1 }], intent: { k: 'attack', n: 1, dmg: 5, t: 999, total: 999 } };
   for (let yy = y; yy < y + s; yy++) for (let xx = x; xx < x + s; xx++) { r.grid[yy * W + xx] = K.MON; r.mon[yy * W + xx] = m.uid; } r.mons.push(m); return m; }
 const settle = (r, sec = 2) => { for (let i = 0; i < sec * 60 && !r.over; i++) K.step(r, 1 / 60); };
-const place = (r, cells, x, y = 3, shape = 'I3', rot = 0) => { r.piece = { shape, el: cells[0], cells, gold: cells.map(() => 0), x, y, rot }; r.phase = 'play'; K.hard(r); };
+const place = (r, cells, x, shape = 'D2', rot = 0) => { r.piece = { shape, el: cells[0], cells, gold: cells.map(() => 0), x, y: 3, rot }; K.hard(r); };
+const quiet = (r) => { r.st.fall = 1e9; r.st.foeSlow = 1e9; };
 t('rotations keep cell count and stay in box', () => {
   for (const k in K.SHAPES) { const s = K.SHAPES[k]; for (const c of s.rots) { assert.equal(c.length, s.c.length); for (const [x, y] of c) assert(x >= 0 && y >= 0 && x < s.n && y < s.n, k); } }
 });
-t('a floor starts with monsters low in the well, none pre-matched', () => {
-  for (let seed = 1; seed < 30; seed++) { const r = K.newRun({ stats: ST(), seed, floor: 1 + seed % 29 }); assert(r.mons.length >= 2 && r.piece); assert.equal(K.findMatches(r).length, 0); }
+t('a run starts with monsters dropped in and more to come', () => {
+  const r = K.newRun({ stats: ST(), seed: 1, floor: 9 }); assert(r.mons.length === 2 && r.dropQ.length >= 1 && r.piece);
+  for (const m of r.mons) assert(m.intent && m.intent.t > 0);
 });
-t('cells settle straight down after landing', () => {
-  const r = K.newRun({ stats: ST(), seed: 2 }); empty(r); r.st.fall = 1e9; r.hordeT = -99;
-  r.grid[(R - 1) * W + 1] = 5; // a step under one end
-  place(r, [1, 2, 3], 0, 3, 'I3', 0); // horizontal I3 over x=0..2 lands on the step, then x=0 and x=2 fall
-  settle(r, 1);
-  assert.equal(r.grid[(R - 1) * W + 0], 1); assert.equal(r.grid[(R - 2) * W + 1], 2); assert.equal(r.grid[(R - 1) * W + 2], 3);
+t('two Knights side by side attack the monster they touch (melee)', () => {
+  const r = K.newRun({ stats: ST(), seed: 2 }); empty(r); quiet(r);
+  const m = putMon(r, 0, R - 1, 9999); place(r, [1, 1], 1); settle(r, 1);
+  assert(m.hp < 9999); assert.equal(r.grid[(R - 1) * W + 1], 0);
 });
-t('a line of four including a monster strikes it and clears the heroes', () => {
-  const r = K.newRun({ stats: ST(), seed: 3 }); empty(r); r.st.fall = 1e9; r.hordeT = -99;
-  const m = putMon(r, 0, R - 1, 1, 9999); putMon(r, 7, R - 1, 2, 9999);
-  place(r, [1, 1, 1], 1, 3, 'I3', 0); settle(r, 1.5);
-  assert(m.hp < 9999, 'hp ' + m.hp); for (let x = 1; x < 4; x++) assert.equal(r.grid[(R - 1) * W + x], 0);
+t('Knights out of reach whiff', () => {
+  const r = K.newRun({ stats: ST(), seed: 3 }); empty(r); quiet(r);
+  const m = putMon(r, 0, R - 1, 9999); place(r, [1, 1], 4); settle(r, 1);
+  assert.equal(m.hp, 9999); assert.equal(r.grid[(R - 1) * W + 4], 0, 'they still leave');
 });
-t('a monster that drops to 0 HP dies and the floor ends when all are gone', () => {
-  const r = K.newRun({ stats: ST(), seed: 4 }); empty(r); r.st.fall = 1e9; r.hordeT = -99;
-  putMon(r, 0, R - 1, 3, 1);
-  place(r, [3, 3, 3], 1, 3, 'I3', 0); settle(r, 1); assert.equal(r.mons.length, 0); assert.equal(r.kills, 1);
-  settle(r, 2); assert.equal(r.floor, 2); assert(r.mons.length >= 2);
+t('Archers shoot along their row from afar', () => {
+  const r = K.newRun({ stats: ST(), seed: 4 }); empty(r); quiet(r);
+  const m = putMon(r, 0, R - 1, 9999); place(r, [3, 3], 5); settle(r, 1); assert(m.hp < 9999);
 });
-t('settling makes chains', () => {
-  const r = K.newRun({ stats: ST(), seed: 5 }); empty(r); r.st.fall = 1e9; r.hordeT = -99;
-  const m = putMon(r, 0, R - 1, 2, 9999); putMon(r, 7, R - 1, 3, 9999);
-  // column 1..3 bottom: blue blue blue under red red red; clearing reds? build: bottom row 1-3 = red red red is matched with a red at x=4
-  for (let x = 1; x <= 3; x++) { r.grid[(R - 1) * W + x] = 1; r.grid[(R - 2) * W + x] = 2; }
-  place(r, [1], 4, 3, 'P1', 0); settle(r, 2.5);
-  assert(r.best.lines >= 2, 'chain ' + r.best.lines); assert(m.hp < 9999);
+t('Mages hit the nearest monster anywhere and splash its neighbour', () => {
+  const r = K.newRun({ stats: ST(), seed: 5 }); empty(r); quiet(r);
+  const a = putMon(r, 0, R - 1, 9999), b = putMon(r, 1, R - 1, 9999), far = putMon(r, 7, R - 6, 9999);
+  r.grid[(R - 1) * W + 7] = 5; for (let y = R - 5; y < R; y++) r.grid[y * W + 7] = 5;
+  place(r, [2, 2], 2); settle(r, 1); assert(a.hp < 9999 || b.hp < 9999); assert(a.hp < 9999 && b.hp < 9999, 'splash');
 });
-t('Priests are wild', () => {
-  const r = K.newRun({ stats: ST(), seed: 6 }); empty(r); r.st.fall = 1e9; r.hordeT = -99;
-  const m = putMon(r, 0, R - 1, 2, 9999); putMon(r, 7, R - 1, 3, 9999);
-  place(r, [2, 4, 2], 1, 3, 'I3', 0); settle(r, 1.5); assert(m.hp < 9999);
+t('monsters fall as solid blocks when what holds them is cleared', () => {
+  const r = K.newRun({ stats: ST(), seed: 6 }); empty(r); quiet(r);
+  r.grid[(R - 1) * W + 0] = 1; r.grid[(R - 1) * W + 1] = 5; const m = putMon(r, 0, R - 2, 9999);
+  place(r, [1], 2, 'P1'); // not adjacent to the knight below; just triggers a settle
+  r.grid[(R - 1) * W + 0] = 0; r.res = 'settle'; settle(r, 1); assert.equal(m.y, R - 1);
 });
-t('monster strike drops rocks and hurts', () => {
-  const r = K.newRun({ stats: ST(), seed: 7 }); empty(r); r.st.fall = 1e9; const m = putMon(r, 3, R - 1, 1, 500); m.boss = false;
-  const hp0 = r.hp; r.hordeT = 99; K.step(r, 0.02); assert(r.hp < hp0); let st = 0; for (const v of r.grid) if (v === K.STONE) st++; assert(st >= 1);
+t('a slain monster pays out and the floor ends when the wave is gone', () => {
+  const r = K.newRun({ stats: ST(), seed: 7 }); empty(r); quiet(r);
+  putMon(r, 0, R - 1, 1); place(r, [1, 1], 1); settle(r, 1); assert.equal(r.kills, 1); assert(r.kopeks > 0);
+  settle(r, 2); assert.equal(r.floor, 2);
+});
+t('monsters act on their telegraphed intent', () => {
+  const r = K.newRun({ stats: ST(), seed: 8 }); empty(r); r.st.fall = 1e9;
+  const m = putMon(r, 3, R - 1, 500); m.script = [{ k: 'attack', n: 1 }, { k: 'rocks', n: 2 }]; m.intent = { k: 'attack', n: 1, dmg: 7, t: 0.01, total: 1 }; m.every = 5;
+  const hp0 = r.hp; K.step(r, 0.02); assert.equal(r.hp, hp0 - 7); assert.equal(m.intent.k, 'attack');
+  m.intent = { k: 'rocks', n: 2, dmg: 0, t: 0.01, total: 1 }; K.step(r, 0.02); let st = 0; for (const v of r.grid) if (v === K.STONE) st++; assert(st >= 1);
+});
+t('chains: a settle that forms a new group attacks again', () => {
+  const r = K.newRun({ stats: ST(), seed: 9 }); empty(r); quiet(r);
+  const m = putMon(r, 0, R - 1, 99999);
+  r.grid[(R - 1) * W + 1] = 3; r.grid[(R - 1) * W + 2] = 2; r.grid[(R - 2) * W + 2] = 3; // archer | mage with an archer on top
+  place(r, [2], 3, 'P1'); // mage pair fires, the top archer drops beside the other archer: a second group
+  settle(r, 2); assert(r.best.lines >= 2, 'chain ' + r.best.lines); assert(m.hp < 99999);
 });
 t('overflow costs HP and keeps playing', () => {
-  const r = K.newRun({ stats: ST(), seed: 8 }); empty(r); putMon(r, 0, R - 1, 1, 500);
-  for (let y = 1; y < R; y++) for (let x = 0; x < W; x++) if (r.grid[y * W + x] !== K.MON) r.grid[y * W + x] = 5;
-  const hp0 = r.hp; r.phase = 'settle'; settle(r, 0.5); assert(r.hp < hp0 && !r.over);
+  const r = K.newRun({ stats: ST(), seed: 10 }); empty(r); quiet(r); putMon(r, 0, R - 1, 500);
+  for (let y = 0; y < R; y++) for (let x = 0; x < W; x++) if (r.grid[y * W + x] !== K.MON) r.grid[y * W + x] = 5;
+  const hp0 = r.hp; r.res = 'settle'; settle(r, 0.5); assert(r.hp < hp0 && !r.over);
 });
 t('the candle ends the run', () => {
-  const r = K.newRun({ stats: ST(), seed: 9 }); r.st.fall = 1e9; r.st.foeSlow = 1e9;
-  for (let i = 0; i < 70 * 30 && !r.over; i++) K.step(r, 1 / 30);
+  const r = K.newRun({ stats: ST(), seed: 11 }); quiet(r);
+  for (let i = 0; i < 80 * 30 && !r.over; i++) K.step(r, 1 / 30);
   assert(r.over && r.reason === 'candle');
 });
 t('Koschei cannot die without the Needle', () => {
-  const r = K.newRun({ stats: ST(), seed: 10, floor: 30 });
-  const m = r.mons.find((o) => o.boss); assert(m.deathless && m.w === 2); r.st.atk = 1e9; r.st.spells.fire = 1; r.mana.fire = 99;
+  const r = K.newRun({ stats: ST(), seed: 12, floor: 30 });
+  const m = r.mons.find((o) => o.boss); assert(m && m.deathless && m.w === 2); r.st.atk = 1e9; r.st.spells.fire = 1; r.mana.fire = 99;
   K.cast(r, 'fire'); assert.equal(m.hp, 1);
   r.st.needle = 1; K.cast(r, 'fire'); assert(r.won && !r.mons.includes(m));
 });
@@ -99,40 +109,21 @@ t('random play never corrupts monster bookkeeping', () => {
 console.log(`${pass} rule tests passed`);
 
 // ---------------------------------------------------------------- bot
-// Plans each piece by simulating the landing, settling and match chains on a scratch copy of the well.
-function simulate(r, p, rot, x) {
-  if (!K.fits(r, p, x, p.y, rot)) return null;
-  let y = p.y; while (K.fits(r, p, x, y + 1, rot)) y++;
-  const c = K.SHAPES[p.shape].rots[rot];
-  if (c.some(([, cy]) => y + cy < K.HID)) return null;
-  const s = { grid: r.grid.slice(), mon: r.mon, mons: r.mons, st: r.st, gold: r.gold.slice() };
-  if (p.shape === 'BOMB') { let near = 0; for (const m of r.mons) if (Math.abs(m.x - (x + c[0][0])) <= 1 && Math.abs(m.y - (y + c[0][1])) <= 1) near++; return { score: near * 15 - (R - y) * 0.2, rot, x }; }
-  c.forEach(([cx, cy], i) => { s.grid[(y + cy) * W + x + cx] = p.cells[i]; });
-  const settleS = () => { let mv = true; while (mv) { mv = false; for (let yy = R - 2; yy >= 0; yy--) for (let xx = 0; xx < W; xx++) { const i = yy * W + xx, v = s.grid[i]; if (v && v !== K.MON && !s.grid[i + W]) { s.grid[i + W] = v; s.grid[i] = 0; mv = true; } } } };
-  settleS();
-  // quality of the shape before any matches: same-colour lines building up (monsters count)
-  const colAt = (xx, yy) => { if (xx < 0 || xx >= W || yy < K.HID || yy >= R) return 0; const v = s.grid[yy * W + xx]; if (v >= 1 && v <= 3) return v; if (v === 4) return 9; if (v === K.MON) { const m = r.mons.find((o) => o.uid === r.mon[yy * W + xx]); return m ? m.color : 0; } return 0; };
-  let build = 0;
-  for (let yy = K.HID; yy < R; yy++) for (let xx = 0; xx < W; xx++) {
-    const cc = colAt(xx, yy); if (!cc || cc === 9) continue;
-    if (colAt(xx + 1, yy) === cc) build += s.grid[yy * W + xx] === K.MON || s.grid[yy * W + xx + 1] === K.MON ? 1.6 : 0.6;
-    if (colAt(xx, yy + 1) === cc) build += s.grid[(yy + 1) * W + xx] === K.MON ? 1.6 : 0.6;
-    if (s.grid[(yy + 1) * W + xx] === K.MON && colAt(xx, yy + 1) !== cc && yy + 1 < R) build -= 1.2; // burying a monster under the wrong colour
-  }
-  let monHits = 0, matched = 0, chain = 0;
-  for (;;) {
-    const groups = K.findMatches(s); if (!groups.length) break; chain++;
-    for (const g of groups) for (const i of g.cells) { if (s.grid[i] === K.MON) monHits++; else { s.grid[i] = 0; matched++; } }
-    settleS();
-  }
-  let maxH = 0, holes = 0;
-  for (let xx = 0; xx < W; xx++) { let seen = false; for (let yy = K.HID; yy < R; yy++) { const v = s.grid[yy * W + xx]; if (v && !seen) { seen = true; maxH = Math.max(maxH, R - yy); } } }
-  const score = monHits * 14 + matched * 1.2 + chain * 5 + build - maxH * (maxH > 10 ? 2 : 0.4);
-  return { score, rot, x };
+// Plans each piece with K.preview: damage it would deal now (kills count extra), minus a messy, tall stack.
+function score(r, pv) {
+  let s = 0;
+  for (const uid in pv.dmgBy) { const m = r.mons.find((o) => o.uid === +uid); if (!m) continue; const d = Math.min(pv.dmgBy[uid], m.hp + m.shield); s += d / Math.max(1, r.st.atk) + (d >= m.hp + m.shield ? 6 : 0); }
+  s += pv.groups.length * 0.4;
+  let maxH = 0, singles = 0; const g = pv.grid;
+  for (let x = 0; x < W; x++) for (let y = K.HID; y < R; y++) if (g[y * W + x]) { maxH = Math.max(maxH, R - y); break; }
+  // heroes that sit next to a same-type hero are one drop away from a group: a little credit for setting up
+  for (let i = K.HID * W; i < W * R; i++) { const v = g[i]; if (v < 1 || v > 4) continue; singles++; }
+  s -= maxH * (maxH > 10 ? 1.5 : 0.3) + singles * 0.08;
+  return s;
 }
 function plan(r) {
   const p = r.piece; let best = null;
-  for (let rot = 0; rot < 4; rot++) for (let x = -2; x < W; x++) { const o = simulate(r, p, rot, x); if (o && (!best || o.score > best.score)) best = o; }
+  for (let rot = 0; rot < 4; rot++) for (let x = -2; x < W; x++) { const pv = K.preview(r, p, x, rot); if (!pv) continue; const sc = score(r, pv); if (!best || sc > best.score) best = { score: sc, rot, x }; }
   return best;
 }
 function botRun(S, who, think, seed) {
@@ -144,11 +135,11 @@ function botRun(S, who, think, seed) {
     if (r.piece !== cur) {
       cur = r.piece; wait = think * (0.7 + 0.6 * r.rnd());
       target = cur ? plan(r) : null;
-      if (cur && r.st.hold && !r.holdUsed && (cur.curse || (target && target.score < -3))) { K.hold(r); cur = null; continue; }
+      if (cur && r.st.hold && !r.holdUsed && cur.curse) { K.hold(r); cur = null; continue; }
     }
     wait -= dt;
-    if (cur && wait <= 0 && r.piece === cur && r.phase === 'play') {
-      if (target) { let tries = 0; while (cur.rot !== target.rot && tries++ < 4) if (!K.rotate(r, 1)) break; const dir = Math.sign(target.x - cur.x); tries = 0; while (cur.x !== target.x && tries++ < 10) if (!K.move(r, dir)) break; }
+    if (cur && wait <= 0 && r.piece === cur) {
+      if (target) { target = plan(r) || target; let tries = 0; while (cur.rot !== target.rot && tries++ < 4) if (!K.rotate(r, 1)) break; const dir = Math.sign(target.x - cur.x); tries = 0; while (cur.x !== target.x && tries++ < 10) if (!K.move(r, dir)) break; }
       K.hard(r); if (r.over) break;
     }
     if (r.mons.length) for (const el of ['fire', 'storm']) if (K.canCast(r, el)) K.cast(r, el);
