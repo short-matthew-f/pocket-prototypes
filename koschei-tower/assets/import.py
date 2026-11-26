@@ -9,6 +9,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 def main(src):
     for name in sorted(os.listdir(os.path.join(src, 'img'))):
         if not name.endswith('.png'): continue
+        if name.startswith('bg-'): shutil.copy(os.path.join(src, 'img', name), os.path.join(HERE, 'img', name)); continue  # backdrops: as delivered
         im = Image.open(os.path.join(src, 'img', name)).convert('RGBA')
         bb = im.getbbox(); im = im.crop(bb) if bb else im
         s = max(im.size); out = Image.new('RGBA', (s, s), (0, 0, 0, 0))

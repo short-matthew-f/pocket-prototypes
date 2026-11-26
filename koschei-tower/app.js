@@ -269,7 +269,7 @@
     const k = 'bg' + w + 'x' + h + kind; if (cache[k]) return cache[k];
     const c = makeCanvas(w, h), x = c.getContext('2d');
     const art = IMG[kind === 0 ? 'bg-tower' : 'bg-boss'];
-    if (art) { x.imageSmoothingEnabled = true; const sc = Math.max(w / art.width, h / art.height); x.drawImage(art, (w - art.width * sc) / 2, (h - art.height * sc) / 2, art.width * sc, art.height * sc); x.fillStyle = '#140c1060'; x.fillRect(0, 0, w, h); return (cache[k] = c); }
+    if (art) { x.imageSmoothingEnabled = false; const sc = Math.max(w / art.width, h / art.height); x.drawImage(art, (w - art.width * sc) / 2, (h - art.height * sc) / 2, art.width * sc, art.height * sc); x.fillStyle = '#140c1060'; x.fillRect(0, 0, w, h); return (cache[k] = c); }
     const wall = kind === 2 ? ['#16201a', '#223228'] : kind === 1 ? ['#2a1018', '#3c1822'] : ['#22141c', '#2e1c26'];
     x.fillStyle = wall[0]; x.fillRect(0, 0, w, h);
     x.fillStyle = wall[1];
@@ -806,7 +806,7 @@
       const got = S.heroes[hd.id]; return `<button class="card ${hd.id === S.who ? 'sel' : ''} ${got ? '' : 'locked'}" data-h="${hd.id}" style="text-align:left;width:100%"><span class="tx"><b>${hd.name} ${hd.title}</b><span>${got ? hd.blurb + ` · LV ${got.lv}` : `Locked: win ${hd.unlock} time${hd.unlock > 1 ? 's' : ''} to unlock.`}</span></span></button>`;
     }).join('')}</div>
       <p class="sub" style="margin-top:8px">Each hero climbs with their own skills, kopeks and relics.</p>
-      <h3>Relics</h3><div class="relics">${Object.entries(K.RELICS).map(([id, r]) => `<div class="relic ${h.relics[id] ? '' : 'no'}"><b>${h.relics[id] ? r.name : '???'}</b>${h.relics[id] ? r.desc : 'Dropped by a boss.'}</div>`).join('')}</div>
+      <h3>Relics</h3><div class="relics">${Object.entries(K.RELICS).map(([id, r]) => `<div class="relic ${h.relics[id] ? '' : 'no'}">${ASSETS.img['icon-' + id] ? `<img src="${ASSETS.img['icon-' + id]}" alt="" style="width:40px;height:40px;float:left;margin:0 8px 2px 0;${h.relics[id] ? '' : 'filter:brightness(0) opacity(.5)'}">` : ''}<b>${h.relics[id] ? r.name : '???'}</b>${h.relics[id] ? r.desc : 'Dropped by a boss.'}</div>`).join('')}</div>
       <h3>Stats</h3><div class="stats">
         <div><span>Attack</span><b>${st.atk.toFixed(1)}</b></div><div><span>Max HP</span><b>${st.hp}</b></div>
         <div><span>Candle</span><b>${st.candle} s</b></div><div><span>Preview</span><b>${st.next}</b></div>
