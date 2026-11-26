@@ -309,7 +309,7 @@
 
   // ================================================================ run state
   let run = null, paused = false, endT = 0, fx = null, lastFoe = null, warned = -1, keys = {}, das = {};
-  function newFx() { return { parts: [], fl: [], ban: [], shake: 0, flash: [], heroHit: 0, foeHit: 0, lunge: 0, hlunge: 0, dying: [], mon: new Map(), shots: [], enter: 0, bolt: 0, red: 0, tint: 0, quake: 0 }; }
+  function newFx() { return { parts: [], fl: [], ban: [], shake: 0, flash: [], heroHit: 0, foeHit: 0, lunge: 0, hlunge: 0, dying: [], mon: new Map(), shots: [], slash: [], stop: 0, white: 0, enter: 0, bolt: 0, red: 0, tint: 0, quake: 0 }; }
   function startRun(floor) {
     AU.init();
     const h = H(), st = K.heroStats(S, S.who);
@@ -348,6 +348,8 @@
         case 'drop': fx.shake = Math.max(fx.shake, 1); break;
         case 'lock': AU.play('lock'); break;
         case 'shots': {
+          if (e.mode === 'land') { fx.stop = Math.min(0.09, 0.04 + e.shots.length * 0.012); fx.hlunge = 0.2; fx.shake = Math.max(fx.shake, 2);
+            for (const s of e.shots) if (s.code === 1) { const m = run.mons.find((o) => o.uid === s.uid); if (m) { const r = monRect(m); fx.slash.push({ x: r.x + r.w / 2, y: r.y + r.h / 2, w: Math.max(r.w, L.C * 1.5), life: 0.18, dir: Math.random() < 0.5 ? 1 : -1 }); ma(m.uid).knock = 0.15; } } }
           // arrows, sparks and blessings fly from the heroes to their targets
           for (const s of e.shots) {
             const m = run.mons.find((o) => o.uid === s.uid); if (!m) continue;
@@ -372,13 +374,15 @@
           if (e.lead) fx.foeHit = 0.12;
           const p = cellXY(e.x - 0.5, e.y - 0.5);
           const col = e.crit ? '#ffe08a' : e.kind === 'spell' ? '#d0a0ff' : e.kind === 'tick' ? '#b49c9c' : '#f4ecd8';
-          floater(p.x - 3 + Math.random() * 6, p.y - 4, (e.crit ? 'CRIT ' : '') + fmt(e.dmg), col, e.crit || e.dmg > run.st.atk * 5 ? 2 : 1);
+          floater(p.x - 3 + Math.random() * 6, p.y - 4, (e.crit ? 'CRIT ' : '') + fmt(e.dmg), col, e.kind === 'tick' ? 1 : 2);
+          if (e.kind === 'land' || e.kind === 'clear') burst(p.x, p.y, '#f4ecd8', 5, 45);
           if (e.kind !== 'tick') AU.play(e.crit ? 'crit' : 'hit');
           if (e.crit) fx.shake = Math.max(fx.shake, 3);
           break;
         }
         case 'kill': {
           const p = cellXY(e.x - 0.5, e.y - 0.5), big = e.m.w * L.C;
+          fx.stop = 0.12; fx.white = 0.08; fx.shake = Math.max(fx.shake, 4); floater(p.x, p.y + 4, 'SLAIN', '#ff8a5c', 2);
           fx.dying.push({ m: e.m, t: 0 }); burst(p.x, p.y, '#ffe08a', 12 + big / 2, 60); burst(p.x, p.y, '#d8343c', 8 + big / 3, 50);
           floater(p.x, p.y - 8, '+' + fmt(e.k), '#f0b43c'); AU.play('kill'); setTimeout(() => AU.play('coin'), 180);
           if (e.feathers) setTimeout(() => run && floater(p.x, p.y - 16, '+' + e.feathers + ' FEATHER' + (e.feathers > 1 ? 'S' : ''), '#ff8a3c'), 400);
@@ -494,6 +498,7 @@
     // banners
     let by = L.by + L.C * 5;
     for (const b of fx.ban) { const a = Math.min(1, b.life * 2.5, (b.max - b.life) * 8 + 0.2); c.globalAlpha = a; const w = tw(b.t, b.s); c.fillStyle = '#140c10c0'; c.fillRect(Math.floor(L.bx + L.bw / 2 - w / 2 - 3), by - 3, w + 6, 5 * b.s + 6); text(c, b.t, L.bx + L.bw / 2, by, b.col, { a: 'c', s: b.s }); c.globalAlpha = 1; by += 5 * b.s + 9; }
+    if (fx.white > 0) { c.globalAlpha = 0.35; c.fillStyle = '#f4ecd8'; c.fillRect(L.bx, L.by, L.bw, 16 * L.C); c.globalAlpha = 1; }
     if (fx.red > 0) { c.globalAlpha = Math.min(0.35, fx.red); c.fillStyle = '#d8343c'; c.fillRect(0, 0, LW, LH); c.globalAlpha = 1; }
     if (paused) { c.fillStyle = '#0c0609a0'; c.fillRect(0, 0, LW, LH); }
     ctx.imageSmoothingEnabled = false; ctx.fillStyle = '#0c0609'; ctx.fillRect(0, 0, cv.width, cv.height);
@@ -547,6 +552,7 @@
     let ox = 0, oy = 0;
     if (a.enter > 0) oy = -Math.round(a.enter / 0.35 * (r.y - L.by + r.h));
     if (a.lunge > 0) ox = Math.round(Math.sin(a.lunge * 40) * 2);
+    if (a.knock > 0) { ox += Math.round((Math.random() - 0.5) * 4); oy += Math.round(a.knock * 10); }
     const X = r.x + ox, Y = Math.max(L.by - r.h, r.y + oy);
     c.fillStyle = m.boss ? '#3c1018' : '#2a1420'; c.fillRect(X, Y, r.w, r.h);
     c.fillStyle = m.boss ? '#d8343c' : '#6c3040'; c.fillRect(X, Y, r.w, 1); c.fillRect(X, Y + r.h - 1, r.w, 1); c.fillRect(X, Y, 1, r.h); c.fillRect(X + r.w - 1, Y, 1, r.h);
@@ -576,11 +582,27 @@
     for (const m of run.mons) drawMon(c, m);
     for (const d of fx.dying) { const r = monRect(d.m); if (d.t < 0.5) { c.globalAlpha = 1 - d.t / 0.5; c.drawImage(silhouette(foeSprite(d.m, r.w - 2), '#f4ecd8'), r.x + 1, r.y + 1 - Math.round(d.t * 10)); c.globalAlpha = 1; } }
     for (const s of fx.shots) { c.fillStyle = s.col; const X = Math.round(s.x), Y = Math.round(s.y); if (s.code === 3) c.fillRect(X - 1, Y, 3, 1); else c.fillRect(X, Y, 2, 2); }
+    for (const s of fx.slash) { const n = Math.round(s.w), k = 1 - s.life / 0.18; c.fillStyle = k < 0.5 ? '#f4ecd8' : '#ffe08a'; for (let i = 0; i < n * Math.min(1, k * 2.5); i++) c.fillRect(Math.round(s.x - n / 2 + i), Math.round(s.y + s.dir * (i - n / 2) * 0.8), 2, 2); }
     for (const f of fx.flash) { c.globalAlpha = f.life / 0.18; c.fillStyle = '#f4ecd8'; c.fillRect(bx, by + (f.y - HID) * C, bw, C); c.globalAlpha = 1; }
     const p = run.piece;
     if (p && !run.over) {
       const cells = K.SHAPES[p.shape].rots[p.rot];
-      if (!run.fx.fog) { const gy = K.ghostY(run); c.fillStyle = (ELC[p.el] || ELC[5])[1]; c.globalAlpha = 0.35; for (const [x, y] of cells) { const yy = gy + y - HID; if (yy >= 0) { const X = bx + (p.x + x) * C, Y = by + yy * C; c.fillRect(X, Y, C, 1); c.fillRect(X, Y + C - 1, C, 1); c.fillRect(X, Y, 1, C); c.fillRect(X + C - 1, Y, 1, C); } } c.globalAlpha = 1; }
+      if (!run.fx.fog) {
+        const gy = K.ghostY(run), targets = new Set(), blink = Math.floor(run.t * 6) % 2;
+        cells.forEach(([x, y], i) => {
+          const yy = gy + y - HID; if (yy < 0) return;
+          const code = p.cells[i], gx = p.x + x, X = bx + gx * C, Y = by + yy * C;
+          const hits = code >= 1 && code <= 4 ? K.reach(run, gx, gy + y, code) : [];
+          for (const m of hits) targets.add(m);
+          c.fillStyle = hits.length ? ELC[code][1] : '#9c94a0'; c.globalAlpha = hits.length ? 0.9 : 0.35;
+          c.fillRect(X, Y, C, 1); c.fillRect(X, Y + C - 1, C, 1); c.fillRect(X, Y, 1, C); c.fillRect(X + C - 1, Y, 1, C);
+          if (hits.length) { c.globalAlpha = 0.25; c.fillRect(X + 1, Y + 1, C - 2, C - 2); }
+        });
+        c.globalAlpha = 1;
+        // target brackets on every monster this landing would hit
+        for (const m of targets) { const r = monRect(m), k = 3 + blink; c.fillStyle = '#ffe08a';
+          for (const [ax, ay, sx, sy] of [[r.x - 2, r.y - 2, 1, 1], [r.x + r.w + 1, r.y - 2, -1, 1], [r.x - 2, r.y + r.h + 1, 1, -1], [r.x + r.w + 1, r.y + r.h + 1, -1, -1]]) { c.fillRect(Math.min(ax, ax + sx * k), ay, k, 1); c.fillRect(ax, Math.min(ay, ay + sy * k), 1, k); } }
+      }
       cells.forEach(([x, y], i) => { const yy = p.y + y - HID; if (yy >= 0) c.drawImage(tile(p.shape === 'BOMB' ? 7 : p.cells[i], C), bx + (p.x + x) * C, by + yy * C); });
     }
     if (run.fx.fog) { c.fillStyle = '#b49c9c'; c.globalAlpha = 0.5; for (let y = 0; y < bh * 0.55; y += 2) for (let x = (y / 2) % 2 ? 1 : 0; x < bw; x += 3) c.fillRect(bx + x, by + y, 1, 1); c.globalAlpha = 1; }
@@ -632,7 +654,8 @@
     for (const k of ['shake']) fx[k] = Math.max(0, fx[k] - dt * 12);
     for (const k of ['foeHit', 'heroHit', 'lunge', 'hlunge', 'enter', 'bolt', 'red', 'quake']) fx[k] = Math.max(0, fx[k] - dt);
     for (const d of fx.dying) d.t += dt; fx.dying = fx.dying.filter((d) => d.t < 0.6);
-    for (const a of fx.mon.values()) { a.hit = Math.max(0, a.hit - dt); a.lunge = Math.max(0, a.lunge - dt); a.enter = Math.max(0, a.enter - dt); }
+    for (const a of fx.mon.values()) { a.hit = Math.max(0, a.hit - dt); a.lunge = Math.max(0, a.lunge - dt); a.enter = Math.max(0, a.enter - dt); a.knock = Math.max(0, (a.knock || 0) - dt); }
+    for (const s of fx.slash) s.life -= dt; fx.slash = fx.slash.filter((s) => s.life > 0); fx.white = Math.max(0, fx.white - dt);
     for (const s of fx.shots) { s.life -= dt; s.x += s.vx * dt; s.y += s.vy * dt; } fx.shots = fx.shots.filter((s) => s.life > 0).slice(-120);
     const lm = K.lead(run), lr = lm && monRect(lm), fp = lr ? { x: lr.x + lr.w / 2, y: lr.y + lr.h / 2 } : foePos();
     for (const p of fx.parts) {
@@ -657,6 +680,7 @@
     if (!run) return;
     if (!paused) {
       keyRepeat(dt);
+      if (fx.stop > 0) { fx.stop -= dt; draw(); return; }
       let left = dt; while (left > 1e-6 && !run.over) { const d = Math.min(left, 1 / 60); K.step(run, d); left -= d; }
       eat(); update(dt);
       if (run.over) { endT += dt; if (endT > (run.won ? 2.8 : 1.6)) { finishRun(); return; } }
