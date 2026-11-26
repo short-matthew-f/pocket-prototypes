@@ -1,0 +1,43 @@
+window.PP_ASSETS = {
+ "img": {
+  "foe-bes": "assets/img/foe-bes.png?h=706a16cd",
+  "foe-chudo": "assets/img/foe-chudo.png?h=c787a4dc",
+  "foe-grey-wolf": "assets/img/foe-grey-wolf.png?h=05c3cc80",
+  "foe-kikimora": "assets/img/foe-kikimora.png?h=195201ba",
+  "foe-koschei": "assets/img/foe-koschei.png?h=b7b643d0",
+  "foe-likho": "assets/img/foe-likho.png?h=cd0002f7",
+  "foe-tugarin": "assets/img/foe-tugarin.png?h=5aba9d82",
+  "foe-vodyanoy": "assets/img/foe-vodyanoy.png?h=9d519828",
+  "foe-yaga": "assets/img/foe-yaga.png?h=9e149639",
+  "foe-zmey": "assets/img/foe-zmey.png?h=54e5742b",
+  "hero-bogatyr": "assets/img/hero-bogatyr.png?h=4367ca92",
+  "hero-skomorokh": "assets/img/hero-skomorokh.png?h=33e2b183",
+  "hero-vedma": "assets/img/hero-vedma.png?h=03af89d8"
+ },
+ "sfx": {
+  "attack": "assets/sfx/attack.wav?h=0841fd2e",
+  "boss": "assets/sfx/boss.wav?h=6aa7ddae",
+  "buy": "assets/sfx/buy.wav?h=947164bd",
+  "clear": "assets/sfx/clear.wav?h=95125a34",
+  "clear4": "assets/sfx/clear4.wav?h=c27dac94",
+  "coin": "assets/sfx/coin.wav?h=7215a1eb",
+  "crit": "assets/sfx/crit.wav?h=442894b2",
+  "earth": "assets/sfx/earth.wav?h=37f73485",
+  "fire": "assets/sfx/fire.wav?h=c52411df",
+  "garbage": "assets/sfx/garbage.wav?h=9a17719e",
+  "hit": "assets/sfx/hit.wav?h=bfef9a09",
+  "ice": "assets/sfx/ice.wav?h=04a29e44",
+  "kill": "assets/sfx/kill.wav?h=720a0443",
+  "levelup": "assets/sfx/levelup.wav?h=0ef4dc99",
+  "lock": "assets/sfx/lock.wav?h=6bfbb36f",
+  "lose": "assets/sfx/lose.wav?h=5154ccfb",
+  "move": "assets/sfx/move.wav?h=bf79b995",
+  "nope": "assets/sfx/nope.wav?h=ad39d311",
+  "overflow": "assets/sfx/overflow.wav?h=a782674b",
+  "rocks": "assets/sfx/rocks.wav?h=18063623",
+  "rotate": "assets/sfx/rotate.wav?h=99bd54b6",
+  "storm": "assets/sfx/storm.wav?h=f8f2a081",
+  "warn": "assets/sfx/warn.wav?h=912c72f5",
+  "win": "assets/sfx/win.wav?h=b9eb6352"
+ }
+};
